@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-import unicodedata
 from collections import defaultdict
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
+from types import MappingProxyType
 
+from community_intelligence.message_rules import normalize_text
 from community_intelligence.models import MessageRecord
 
 RULE_VERSION = "1.0.0"
@@ -48,7 +50,7 @@ class RuleEvidence:
     threshold: int | float | str | None
     raw_metric: int | float | str | None
     window_seconds: int | None
-    supporting_message_ids: list[str]
+    supporting_message_ids: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -68,7 +70,7 @@ class BurstEvent:
     user_id_hash: str
     started_at: datetime
     ended_at: datetime
-    message_ids: list[str]
+    message_ids: tuple[str, ...]
     rule_id: str
     rule_version: str
     threshold: int
@@ -81,17 +83,10 @@ class HygieneResult:
     duplicate_ratio: float
     filler_ratio: float
     repetitive_content_ratio: float
-    burst_events: list[BurstEvent]
-    evidence: list[RuleEvidence]
-    metadata: dict[str, RatioMetadata]
-    normalized_text_by_message_id: dict[str, str]
-
-
-def normalize_text(text: str) -> str:
-    """Return an NFKC, casefolded, whitespace-collapsed copy of ``text``."""
-
-    normalized = unicodedata.normalize("NFKC", text).casefold()
-    return " ".join(normalized.split())
+    burst_events: tuple[BurstEvent, ...]
+    evidence: tuple[RuleEvidence, ...]
+    metadata: Mapping[str, RatioMetadata]
+    normalized_text_by_message_id: Mapping[str, str]
 
 
 def _message_key(message: MessageRecord) -> tuple[datetime, str, str]:
@@ -110,7 +105,7 @@ def detect_bursts(
     *,
     minimum_messages: int = DEFAULT_BURST_MINIMUM_MESSAGES,
     window_seconds: int = DEFAULT_BURST_WINDOW_SECONDS,
-) -> list[BurstEvent]:
+) -> tuple[BurstEvent, ...]:
     """Find UTC rolling-window bursts, scoped to one community and actor."""
 
     _validate_burst_thresholds(minimum_messages, window_seconds)
@@ -145,7 +140,7 @@ def detect_bursts(
                     user_id_hash=user_id_hash,
                     started_at=members[0].timestamp,
                     ended_at=members[-1].timestamp,
-                    message_ids=[message.message_id for message in members],
+                    message_ids=tuple(message.message_id for message in members),
                     rule_id="posting_burst.v1",
                     rule_version=RULE_VERSION,
                     threshold=minimum_messages,
@@ -154,9 +149,11 @@ def detect_bursts(
                 )
             )
 
-    return sorted(
-        events,
-        key=lambda event: (event.started_at, event.community_id, event.user_id_hash),
+    return tuple(
+        sorted(
+            events,
+            key=lambda event: (event.started_at, event.community_id, event.user_id_hash),
+        )
     )
 
 
@@ -204,7 +201,7 @@ def analyze_hygiene(
                 threshold=2,
                 raw_metric=len(group),
                 window_seconds=None,
-                supporting_message_ids=[message.message_id for message in group],
+                supporting_message_ids=tuple(message.message_id for message in group),
             )
         )
 
@@ -222,7 +219,7 @@ def analyze_hygiene(
                 threshold=short_message_max_chars,
                 raw_metric=character_count,
                 window_seconds=None,
-                supporting_message_ids=[message.message_id],
+                supporting_message_ids=(message.message_id,),
             )
         )
 
@@ -243,7 +240,7 @@ def analyze_hygiene(
                 threshold=repeated_content_minimum,
                 raw_metric=len(group),
                 window_seconds=None,
-                supporting_message_ids=[message.message_id for message in group],
+                supporting_message_ids=tuple(message.message_id for message in group),
             )
         )
 
@@ -259,7 +256,7 @@ def analyze_hygiene(
             threshold=event.threshold,
             raw_metric=event.raw_metric,
             window_seconds=event.window_seconds,
-            supporting_message_ids=list(event.message_ids),
+            supporting_message_ids=event.message_ids,
         )
         for event in burst_events
     )
@@ -294,7 +291,7 @@ def analyze_hygiene(
         filler_ratio=ratio(filler_count),
         repetitive_content_ratio=ratio(repeated_count),
         burst_events=burst_events,
-        evidence=evidence,
-        metadata=metadata,
-        normalized_text_by_message_id=normalized,
+        metadata=MappingProxyType(metadata),
+        normalized_text_by_message_id=MappingProxyType(normalized),
+        evidence=tuple(evidence),
     )

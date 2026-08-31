@@ -1,3 +1,4 @@
+from dataclasses import FrozenInstanceError
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -16,17 +17,20 @@ def message(
     user_id_hash: str,
     user_role: str,
     reply_to_message_id: str | None = None,
+    community_id: str = "community_a",
+    campaign_id: str | None = None,
+    language: str = "en",
 ) -> MessageRecord:
     return MessageRecord(
         message_id=message_id,
-        community_id="community_a",
-        language="en",
+        community_id=community_id,
+        language=language,
         user_id_hash=user_id_hash,
         user_role=user_role,
         timestamp=BASE_TIME + timedelta(seconds=seconds),
         text=text,
         reply_to_message_id=reply_to_message_id,
-        campaign_id=None,
+        campaign_id=campaign_id,
     )
 
 
@@ -67,6 +71,46 @@ def test_activation_separates_moderator_activity_from_two_engaged_users() -> Non
     assert result.meaningful_interaction_ratio == 1.0
     assert result.response_latency_seconds is None
     assert result.response_latency is None
+
+
+def test_self_replies_are_reported_as_gaming_not_user_to_user_interaction() -> None:
+    messages = [
+        message(
+            "m1",
+            "Where is the campaign guide?",
+            seconds=0,
+            user_id_hash="usr_01",
+            user_role="user",
+        ),
+        message(
+            "m2",
+            "I will answer my own post.",
+            seconds=10,
+            user_id_hash="usr_01",
+            user_role="user",
+            reply_to_message_id="m1",
+        ),
+        message(
+            "m3",
+            "The guide is pinned.",
+            seconds=20,
+            user_id_hash="usr_02",
+            user_role="user",
+            reply_to_message_id="m1",
+        ),
+    ]
+
+    result = analyze_activation(messages)
+
+    assert result.self_reply_count == 1
+    assert result.user_to_user_interaction_ratio == pytest.approx(1 / 3)
+    assert result.peer_support_ratio == 1.0
+    interaction_ids = {
+        tuple(item.supporting_message_ids)
+        for item in result.evidence
+        if item.metric_id == "user_to_user_interaction_ratio"
+    }
+    assert interaction_ids == {("m1", "m3")}
 
 
 def test_moderator_heavy_activity_is_distinct_from_healthy_user_activation() -> None:
@@ -142,6 +186,14 @@ def test_response_latency_is_mean_direct_moderator_reply_latency() -> None:
             reply_to_message_id="m1",
         ),
         message(
+            "m5",
+            "A second moderator reply must not add an observation.",
+            seconds=25,
+            user_id_hash="usr_ab",
+            user_role="moderator",
+            reply_to_message_id="m1",
+        ),
+        message(
             "m3",
             "Where is the form?",
             seconds=30,
@@ -162,9 +214,19 @@ def test_response_latency_is_mean_direct_moderator_reply_latency() -> None:
 
     assert result.response_latency_seconds == 30.0
     assert result.response_latency == 30.0
-    assert result.metadata["response_latency_seconds"].numerator_count == 2
-    assert result.metadata["response_latency_seconds"].denominator_count == 2
-    assert result.metadata["response_latency_seconds"].unit == "seconds"
+    latency_metadata = result.metadata["response_latency_seconds"]
+    assert latency_metadata.numerator == "total first-response latency seconds"
+    assert latency_metadata.numerator_value == 60.0
+    assert latency_metadata.observation_count == 2
+    assert latency_metadata.denominator_count == 2
+    assert latency_metadata.aggregation_method == "mean"
+    assert latency_metadata.unit == "seconds"
+    latency_pairs = {
+        item.supporting_message_ids
+        for item in result.evidence
+        if item.metric_id == "response_latency_seconds"
+    }
+    assert latency_pairs == {("m1", "m2"), ("m3", "m4")}
 
 
 def test_ratio_metadata_documents_all_zero_denominators() -> None:
@@ -191,7 +253,7 @@ def test_ratio_metadata_documents_all_zero_denominators() -> None:
     )
     assert result.metadata["user_to_user_interaction_ratio"].denominator_count == 0
     assert result.metadata["peer_support_ratio"].denominator == (
-        "direct real-user-to-real-user reply edges"
+        "direct real-user-to-different-real-user reply edges"
     )
     assert result.metadata["peer_support_ratio"].denominator_count == 0
     assert result.metadata["meaningful_interaction_ratio"].denominator_count == 0
@@ -238,3 +300,90 @@ def test_empty_input_returns_zero_activation_with_documented_denominators() -> N
     assert result.meaningful_interaction_ratio == 0.0
     assert result.response_latency_seconds is None
     assert all(item.denominator_count == 0 for item in result.metadata.values())
+
+
+@pytest.mark.parametrize(
+    ("language", "text"),
+    [
+        ("en-us", "thanks"),
+        ("es-mx", "gracias"),
+        ("tr-tr", "teşekkürler"),
+        ("ar-eg", "شكرا"),
+        ("zh-hans", "谢谢"),
+        ("zh", "收到"),
+    ],
+)
+def test_activation_applies_language_equivalent_filler_rules(
+    language: str, text: str
+) -> None:
+    result = analyze_activation(
+        [
+            message(
+                "m1",
+                text,
+                seconds=0,
+                user_id_hash="usr_01",
+                user_role="user",
+                language=language,
+            )
+        ]
+    )
+
+    assert result.meaningful_interaction_ratio == 0.0
+    assert result.meaningful_interaction_rules[0].primary_language == language.split("-", 1)[0]
+    assert result.meaningful_interaction_rules[0].comparison_limit == (
+        "language-specific deterministic baseline; no cross-language quality claim"
+    )
+
+
+def test_activation_records_explicit_mixed_community_and_utc_window_scope() -> None:
+    messages = [
+        message(
+            "m1",
+            "I can help with registration.",
+            seconds=0,
+            user_id_hash="usr_01",
+            user_role="user",
+            community_id="community_b",
+        ),
+        message(
+            "m2",
+            "Puedo ayudar con el registro.",
+            seconds=10,
+            user_id_hash="usr_02",
+            user_role="user",
+            community_id="community_a",
+            language="es",
+        ),
+    ]
+
+    result = analyze_activation(messages)
+
+    assert result.included_community_ids == ("community_a", "community_b")
+    assert result.window_start == BASE_TIME
+    assert result.window_end == BASE_TIME + timedelta(seconds=10)
+    assert result.window_start.utcoffset() == timedelta(0)
+    assert result.window_end.utcoffset() == timedelta(0)
+    assert result.analysis_rule_version == "2.0.0"
+
+
+def test_activation_evidence_and_metadata_are_deeply_immutable() -> None:
+    result = analyze_activation(
+        [
+            message(
+                "m1",
+                "I can help with registration.",
+                seconds=0,
+                user_id_hash="usr_01",
+                user_role="user",
+            )
+        ]
+    )
+
+    assert isinstance(result.evidence, tuple)
+    assert isinstance(result.evidence[0].supporting_message_ids, tuple)
+    assert isinstance(result.meaningful_interaction_rules, tuple)
+    with pytest.raises(TypeError):
+        result.metadata["changed"] = result.metadata["meaningful_interaction_ratio"]
+    with pytest.raises(FrozenInstanceError):
+        result.evidence[0].metric_id = "changed"

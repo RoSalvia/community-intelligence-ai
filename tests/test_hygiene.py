@@ -1,3 +1,4 @@
+from dataclasses import FrozenInstanceError
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -68,13 +69,13 @@ def test_duplicate_and_filler_evidence_retains_rules_metrics_and_denominators() 
     assert duplicate[0].threshold == 2
     assert duplicate[0].raw_metric == 3
     assert duplicate[0].window_seconds is None
-    assert duplicate[0].supporting_message_ids == ["m1", "m2", "m3"]
+    assert duplicate[0].supporting_message_ids == ("m1", "m2", "m3")
 
     filler = evidence_for(result, "filler_or_short.v1")
     assert len(filler) == 1
     assert filler[0].threshold == 3
     assert filler[0].raw_metric == 2
-    assert filler[0].supporting_message_ids == ["m4"]
+    assert filler[0].supporting_message_ids == ("m4",)
 
 
 def test_repeated_content_is_scoped_to_actor_and_community() -> None:
@@ -99,7 +100,7 @@ def test_repeated_content_is_scoped_to_actor_and_community() -> None:
     assert len(repeated) == 1
     assert repeated[0].threshold == 3
     assert repeated[0].raw_metric == 3
-    assert repeated[0].supporting_message_ids == ["m1", "m2", "m3"]
+    assert repeated[0].supporting_message_ids == ("m1", "m2", "m3")
 
 
 def test_burst_detection_uses_utc_rolling_window_and_stable_order() -> None:
@@ -116,7 +117,7 @@ def test_burst_detection_uses_utc_rolling_window_and_stable_order() -> None:
     event = events[0]
     assert event.community_id == "community_a"
     assert event.user_id_hash == "usr_01"
-    assert event.message_ids == ["m1", "m2", "m3"]
+    assert event.message_ids == ("m1", "m2", "m3")
     assert event.started_at == BASE_TIME
     assert event.ended_at == BASE_TIME + timedelta(seconds=55)
     assert event.rule_id == "posting_burst.v1"
@@ -134,7 +135,7 @@ def test_bursts_do_not_merge_users_or_communities() -> None:
         message("c1", "one", seconds=30, community_id="community_b"),
     ]
 
-    assert detect_bursts(messages, minimum_messages=3, window_seconds=60) == []
+    assert detect_bursts(messages, minimum_messages=3, window_seconds=60) == ()
 
 
 def test_overlapping_bursts_each_remain_within_the_reported_window() -> None:
@@ -148,8 +149,8 @@ def test_overlapping_bursts_each_remain_within_the_reported_window() -> None:
     events = detect_bursts(messages, minimum_messages=3, window_seconds=60)
 
     assert [event.message_ids for event in events] == [
-        ["m1", "m2", "m3"],
-        ["m2", "m3", "m4"],
+        ("m1", "m2", "m3"),
+        ("m2", "m3", "m4"),
     ]
     assert all(
         (event.ended_at - event.started_at).total_seconds() <= event.window_seconds
@@ -164,9 +165,30 @@ def test_empty_input_has_zero_ratios_explicit_denominators_and_no_evidence() -> 
     assert result.duplicate_ratio == 0.0
     assert result.filler_ratio == 0.0
     assert result.repetitive_content_ratio == 0.0
-    assert result.burst_events == []
-    assert result.evidence == []
+    assert result.burst_events == ()
+    assert result.evidence == ()
     assert all(definition.denominator_count == 0 for definition in result.metadata.values())
+
+
+def test_hygiene_evidence_and_result_mappings_are_deeply_immutable() -> None:
+    result = analyze_hygiene(
+        [
+            message("m1", "same", seconds=0),
+            message("m2", "same", seconds=10),
+            message("m3", "same", seconds=20),
+        ]
+    )
+
+    assert isinstance(result.evidence, tuple)
+    assert isinstance(result.evidence[0].supporting_message_ids, tuple)
+    assert isinstance(result.burst_events, tuple)
+    assert isinstance(result.burst_events[0].message_ids, tuple)
+    with pytest.raises(TypeError):
+        result.metadata["changed"] = result.metadata["duplicate_ratio"]
+    with pytest.raises(TypeError):
+        result.normalized_text_by_message_id["m1"] = "changed"
+    with pytest.raises(FrozenInstanceError):
+        result.evidence[0].rule_id = "changed"
 
 
 @pytest.mark.parametrize(

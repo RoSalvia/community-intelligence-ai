@@ -1,3 +1,4 @@
+from dataclasses import FrozenInstanceError
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -43,7 +44,7 @@ def test_silence_episode_has_zero_response_metrics() -> None:
     episode = build_episodes([announcement])[0]
 
     assert episode.root_message_id == "m1"
-    assert episode.message_ids == ["m1"]
+    assert episode.message_ids == ("m1",)
     assert episode.unique_participants == 1
     assert episode.moderator_messages == 1
     assert episode.user_messages == 0
@@ -104,11 +105,21 @@ def test_answered_chain_builds_complete_reply_graph_metrics() -> None:
     assert episode.conversation_depth == 4
     assert episode.branching_factor == 1.0
     assert episode.question_count == 1
+    assert episode.candidate_answered_question_count == 1
     assert episode.resolved_question_count == 1
     assert episode.unanswered_question_count == 0
     assert episode.duration_seconds == 50.0
-    assert episode.question_message_ids == ["m2"]
-    assert episode.resolved_question_message_ids == ["m2"]
+    assert episode.question_message_ids == ("m2",)
+    assert episode.resolved_question_message_ids == ("m2",)
+    assert len(episode.candidate_answer_evidence) == 1
+    candidate = episode.candidate_answer_evidence[0]
+    assert candidate.rule_id == "candidate_non_question_reply_v1"
+    assert candidate.rule_version == "1.0.0"
+    assert (candidate.question_id, candidate.candidate_answer_id) == ("m2", "m3")
+    assert episode.resolution_interpretation == (
+        "resolved_question_count is a compatibility alias for structural candidate answers; "
+        "no semantic resolution claim"
+    )
     assert episode.question_rule_id == "punctuation_or_phrase_question.v1"
     assert episode.question_rule_version == "1.0.0"
     assert "punctuation" in episode.question_detection_method
@@ -143,6 +154,33 @@ def test_peer_reply_counts_as_user_interaction_and_resolves_question() -> None:
     assert episode.unanswered_question_count == 0
 
 
+def test_self_reply_is_reported_without_inflating_peer_interaction() -> None:
+    messages = [
+        message(
+            "m1",
+            "Where is the synthetic guide?",
+            seconds=0,
+            user_id_hash="usr_01",
+            user_role="user",
+        ),
+        message(
+            "m2",
+            "I am replying to myself.",
+            seconds=20,
+            user_id_hash="usr_01",
+            user_role="user",
+            reply_to_message_id="m1",
+        ),
+    ]
+
+    episode = build_episodes(messages)[0]
+
+    assert episode.self_reply_count == 1
+    assert episode.user_to_user_replies == 0
+    assert episode.resolved_question_count == 0
+    assert episode.unanswered_question_count == 1
+
+
 def test_question_without_a_reply_remains_unanswered() -> None:
     question = message(
         "m1",
@@ -157,7 +195,76 @@ def test_question_without_a_reply_remains_unanswered() -> None:
     assert episode.question_count == 1
     assert episode.resolved_question_count == 0
     assert episode.unanswered_question_count == 1
-    assert episode.unanswered_question_message_ids == ["m1"]
+    assert episode.unanswered_question_message_ids == ("m1",)
+
+
+def test_clarification_chain_retains_candidate_evidence_for_each_question() -> None:
+    messages = [
+        message(
+            "m1",
+            "Where is the form?",
+            seconds=0,
+            user_id_hash="usr_01",
+            user_role="user",
+        ),
+        message(
+            "m2",
+            "Which form do you mean?",
+            seconds=10,
+            user_id_hash="usr_02",
+            user_role="user",
+            reply_to_message_id="m1",
+        ),
+        message(
+            "m3",
+            "The registration form is pinned.",
+            seconds=20,
+            user_id_hash="usr_03",
+            user_role="user",
+            reply_to_message_id="m2",
+        ),
+    ]
+
+    episode = build_episodes(messages)[0]
+
+    assert episode.question_count == 2
+    assert episode.candidate_answered_question_count == 2
+    assert episode.resolved_question_count == 2
+    assert episode.unanswered_question_count == 0
+    assert tuple(
+        (item.question_id, item.candidate_answer_id)
+        for item in episode.candidate_answer_evidence
+    ) == (("m1", "m3"), ("m2", "m3"))
+
+
+def test_episode_evidence_collections_are_deeply_immutable() -> None:
+    messages = [
+        message(
+            "m1",
+            "Where is the form?",
+            seconds=0,
+            user_id_hash="usr_01",
+            user_role="user",
+        ),
+        message(
+            "m2",
+            "The form is pinned.",
+            seconds=10,
+            user_id_hash="usr_02",
+            user_role="user",
+            reply_to_message_id="m1",
+        ),
+    ]
+
+    episode = build_episodes(messages)[0]
+
+    assert isinstance(episode.message_ids, tuple)
+    assert isinstance(episode.question_message_ids, tuple)
+    assert isinstance(episode.candidate_answer_evidence, tuple)
+    with pytest.raises(TypeError):
+        episode.message_ids[0] = "changed"
+    with pytest.raises(FrozenInstanceError):
+        episode.candidate_answer_evidence[0].question_id = "changed"
 
 
 def test_branching_factor_is_mean_children_per_non_leaf_message() -> None:
@@ -231,7 +338,7 @@ def test_episode_and_message_order_is_stable_for_shuffled_input() -> None:
 
     assert forward == reverse
     assert [episode.root_message_id for episode in forward] == ["m1", "m2"]
-    assert forward[0].message_ids == ["m1", "m3"]
+    assert forward[0].message_ids == ("m1", "m3")
 
 
 def test_empty_input_returns_no_episodes() -> None:
