@@ -183,3 +183,16 @@ def test_dataset_rejects_non_chronological_and_cross_campaign_replies() -> None:
 
     with pytest.raises(ValidationError, match="replies must remain within a campaign"):
         SyntheticDataset.model_validate(campaign_data)
+
+
+def test_dataset_rejects_cross_community_replies() -> None:
+    data = generate_dataset(seed=139, message_count=120).model_dump(mode="python")
+    child = next(message for message in data["messages"] if message["reply_to_message_id"])
+    child["community_id"] = next(
+        community_id
+        for community_id in data["manifest"]["community_ids"]
+        if community_id != child["community_id"]
+    )
+
+    with pytest.raises(ValidationError, match="replies must remain within a community"):
+        SyntheticDataset.model_validate(data)

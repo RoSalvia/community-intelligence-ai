@@ -270,6 +270,8 @@ class SyntheticDataset(ContractModel):
                 raise ValueError("reply must reference an earlier message")
             if message.timestamp <= parent.timestamp:
                 raise ValueError("reply timestamp must be after parent timestamp")
+            if message.community_id != parent.community_id:
+                raise ValueError("replies must remain within a community")
             if (
                 message.campaign_id is not None
                 and parent.campaign_id is not None

@@ -24,6 +24,48 @@ ARTIFACT_NAMES = {
 }
 
 
+def _directory_file_bytes(path: Path) -> dict[str, bytes]:
+    return {
+        str(file_path.relative_to(path)): file_path.read_bytes()
+        for file_path in path.rglob("*")
+        if file_path.is_file()
+    }
+
+
+def _refresh_publication_metadata(output_dir: Path) -> None:
+    manifest_path = output_dir / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    payload_names = ARTIFACT_NAMES - {"manifest.json"}
+    checksums = {
+        name: hashlib.sha256((output_dir / name).read_bytes()).hexdigest()
+        for name in payload_names
+    }
+    generation_source = json.dumps(
+        {
+            "artifact_checksums": checksums,
+            "dataset_id": manifest["dataset_id"],
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    ).encode("utf-8")
+    manifest["artifact_checksums"] = checksums
+    manifest["generation_id"] = hashlib.sha256(generation_source).hexdigest()
+    manifest_path.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _duplicate_first_json_key(path: Path, key: str) -> None:
+    text = path.read_text(encoding="utf-8")
+    if path.suffix == ".jsonl":
+        first_record = json.loads(text.splitlines()[0])
+    else:
+        first_record = json.loads(text)[0]
+    token = f'{json.dumps(key)}: {json.dumps(first_record[key], ensure_ascii=False)}'
+    path.write_text(text.replace(token, f"{token}, {token}", 1), encoding="utf-8")
+
+
 def test_generation_is_reproducible_and_meets_contract() -> None:
     first = generate_dataset(seed=20260901, message_count=1200)
     second = generate_dataset(seed=20260901, message_count=1200)
@@ -75,15 +117,57 @@ def test_campaign_episodes_match_content_windows_and_reply_campaigns() -> None:
             assert messages[message.reply_to_message_id].campaign_id == message.campaign_id
 
 
-def test_scenario_templates_carry_explicit_annotation_metadata() -> None:
-    assert hasattr(synthetic, "SCENARIO_TEMPLATES")
-    for templates in synthetic.SCENARIO_TEMPLATES.values():
-        assert templates
-        for template in templates:
-            assert template.text
-            assert template.role in {"moderator", "user", "bot"}
-            assert template.behaviors
-            assert template.claim_status is not None
+def test_generated_episodes_carry_explicit_annotation_metadata() -> None:
+    dataset = generate_dataset(seed=37, message_count=60)
+    annotations = {annotation.message_id: annotation for annotation in dataset.annotations}
+
+    assert set(annotations) == {message.message_id for message in dataset.messages}
+    assert all(annotation.expected_behaviors for annotation in annotations.values())
+    assert all(annotation.expected_claim_status is not None for annotation in annotations.values())
+    assert {annotation.scenario for annotation in annotations.values()} == {
+        "high_volume_filler_duplicates",
+        "healthy_replies",
+        "semantic_drift",
+        "unanswered_questions_negative_feedback",
+    }
+
+
+def test_semantic_drift_questions_have_consistent_explicit_answers() -> None:
+    dataset = generate_dataset(seed=39, message_count=1200)
+    annotations = {annotation.message_id: annotation for annotation in dataset.annotations}
+    expected_eligibility = {
+        "campaign_stake": "资格条件未变：仅已验证成员符合资格",
+        "campaign_referral": "资格条件未变：仅合格好友推荐计入活动",
+        "campaign_launch": "资格条件未变：所有社区成员均可提交反馈",
+    }
+    questions = [
+        message
+        for message in dataset.messages
+        if "资格条件是不是也发生了变化" in message.text
+    ]
+
+    assert {question.campaign_id for question in questions} == set(expected_eligibility)
+    for question in questions:
+        question_annotation = annotations[question.message_id]
+        assert set(question_annotation.expected_behaviors) == {"campaign_question", "confusion"}
+        assert question_annotation.expected_claim_status == "uncertain"
+        assert question_annotation.expected_question_status == "answered"
+
+        answers = [
+            message
+            for message in dataset.messages
+            if message.reply_to_message_id == question.message_id
+        ]
+        assert len(answers) == 1
+        answer = answers[0]
+        answer_annotation = annotations[answer.message_id]
+        assert answer.user_role == "moderator"
+        assert answer.community_id == question.community_id
+        assert answer.campaign_id == question.campaign_id
+        assert expected_eligibility[answer.campaign_id] in answer.text
+        assert answer_annotation.expected_behaviors == ["question_answering"]
+        assert answer_annotation.expected_claim_status == "covered"
+        assert answer_annotation.expected_question_status == "answered"
 
 
 def test_representative_semantic_labels_match_message_meaning() -> None:
@@ -203,6 +287,28 @@ def test_reader_rejects_duplicate_manifest_json_keys(tmp_path: Path) -> None:
         read_dataset(output_dir)
 
 
+@pytest.mark.parametrize(
+    ("artifact_name", "duplicate_key"),
+    [
+        ("campaigns.json", "campaign_id"),
+        ("claims.json", "claim_id"),
+        ("messages.jsonl", "message_id"),
+        ("annotations.jsonl", "annotation_id"),
+    ],
+)
+def test_reader_rejects_duplicate_keys_in_payload_json_records(
+    tmp_path: Path,
+    artifact_name: str,
+    duplicate_key: str,
+) -> None:
+    output_dir = write_dataset(generate_dataset(seed=72, message_count=120), tmp_path / "dataset")
+    _duplicate_first_json_key(output_dir / artifact_name, duplicate_key)
+    _refresh_publication_metadata(output_dir)
+
+    with pytest.raises(ValueError, match=f"duplicate JSON key: {duplicate_key}"):
+        read_dataset(output_dir)
+
+
 def test_reader_rejects_malformed_manifest_json(tmp_path: Path) -> None:
     output_dir = write_dataset(generate_dataset(seed=73, message_count=120), tmp_path / "dataset")
     manifest_path = output_dir / "manifest.json"
@@ -223,15 +329,45 @@ def test_reader_rejects_incomplete_six_file_publication(tmp_path: Path) -> None:
         read_dataset(output_dir)
 
 
-def test_failed_directory_publish_preserves_previous_dataset(
+def test_write_refuses_existing_arbitrary_directory_without_modification(
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "existing"
+    output_dir.mkdir()
+    (output_dir / "keep-me.txt").write_bytes(b"keep this exact content\n")
+    before = _directory_file_bytes(output_dir)
+
+    with pytest.raises(FileExistsError, match="output path already exists"):
+        write_dataset(generate_dataset(seed=59, message_count=120), output_dir)
+
+    assert _directory_file_bytes(output_dir) == before
+
+
+def test_write_refuses_repository_like_directory_without_modification(
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "repository"
+    (output_dir / ".git").mkdir(parents=True)
+    (output_dir / ".git" / "config").write_bytes(b"[core]\n\trepositoryformatversion = 0\n")
+    (output_dir / "src").mkdir()
+    (output_dir / "src" / "keep.py").write_bytes(b"VALUE = 'unchanged'\n")
+    (output_dir / "keep-me.txt").write_bytes(b"repository sentinel\n")
+    before = _directory_file_bytes(output_dir)
+
+    with pytest.raises(FileExistsError, match="output path already exists"):
+        write_dataset(generate_dataset(seed=61, message_count=120), output_dir)
+
+    assert _directory_file_bytes(output_dir) == before
+
+
+def test_failed_first_publication_removes_only_staging_directory(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    output_dir = write_dataset(generate_dataset(seed=59, message_count=120), tmp_path / "dataset")
-    previous = read_dataset(output_dir)
-    previous_bytes = {path.name: path.read_bytes() for path in output_dir.iterdir()}
-    replacement = generate_dataset(seed=61, message_count=120)
-    real_replace = dataset_io.os.replace
+    output_dir = tmp_path / "dataset"
+    unrelated = tmp_path / "keep-me.txt"
+    unrelated.write_bytes(b"outside staging\n")
+    real_rename = dataset_io.os.rename
     injected = False
 
     def fail_staging_publish(source: str | Path, destination: str | Path) -> None:
@@ -245,16 +381,17 @@ def test_failed_directory_publish_preserves_previous_dataset(
         ):
             injected = True
             raise OSError("injected publish failure")
-        real_replace(source, destination)
+        real_rename(source, destination)
 
-    monkeypatch.setattr(dataset_io.os, "replace", fail_staging_publish)
+    monkeypatch.setattr(dataset_io.os, "rename", fail_staging_publish)
 
     with pytest.raises(OSError, match="injected publish failure"):
-        write_dataset(replacement, output_dir)
+        write_dataset(generate_dataset(seed=67, message_count=120), output_dir)
 
     assert injected is True
-    assert {path.name: path.read_bytes() for path in output_dir.iterdir()} == previous_bytes
-    assert read_dataset(output_dir) == previous
+    assert not output_dir.exists()
+    assert unrelated.read_bytes() == b"outside staging\n"
+    assert list(tmp_path.glob(".dataset.staging-*")) == []
 
 
 def test_minimum_message_count_guarantees_scenarios_and_replies() -> None:

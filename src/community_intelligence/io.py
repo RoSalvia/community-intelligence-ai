@@ -108,31 +108,21 @@ def _generation_id(dataset_id: str, checksums: dict[str, str]) -> str:
     return hashlib.sha256(generation_source).hexdigest()
 
 
-def _publish_staged_directory(staging_path: Path, output_path: Path) -> None:
-    backup_path = Path(
-        tempfile.mkdtemp(dir=output_path.parent, prefix=f".{output_path.name}.backup-")
-    )
-    backup_path.rmdir()
-    previous_exists = output_path.exists()
-    if previous_exists:
-        if not output_path.is_dir():
-            raise ValueError("output path must be a directory")
-        os.replace(output_path, backup_path)
+def _fsync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY)
     try:
-        os.replace(staging_path, output_path)
-    except BaseException:
-        if previous_exists and backup_path.exists():
-            os.replace(backup_path, output_path)
-        raise
-    if backup_path.exists():
-        shutil.rmtree(backup_path)
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 def write_dataset(dataset: SyntheticDataset, output_dir: str | Path) -> Path:
     """Validate and publish all six artifacts as one directory generation."""
 
+    output_path = Path(os.path.abspath(Path(output_dir).expanduser()))
+    if os.path.lexists(output_path):
+        raise FileExistsError(f"output path already exists: {output_path}")
     dataset = SyntheticDataset.model_validate(dataset.model_dump(mode="python"))
-    output_path = Path(output_dir).expanduser().resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
     contents = data_artifact_contents(
         dataset.messages,
@@ -157,15 +147,15 @@ def write_dataset(dataset: SyntheticDataset, output_dir: str | Path) -> Path:
         for name in sorted(PUBLISHED_ARTIFACT_NAMES):
             _atomic_write_text(staging_path / name, contents[name])
         read_dataset(staging_path)
-        _publish_staged_directory(staging_path, output_path)
+        _fsync_directory(staging_path)
+        if os.path.lexists(output_path):
+            raise FileExistsError(f"output path already exists: {output_path}")
+        os.rename(staging_path, output_path)
+        _fsync_directory(output_path.parent)
     finally:
         if staging_path.exists():
             shutil.rmtree(staging_path)
     return output_path
-
-
-def _read_jsonl(path: Path) -> list[dict[str, Any]]:
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
 
 
 def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -177,14 +167,23 @@ def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def _read_manifest(path: Path) -> DatasetManifest:
+def _strict_json_loads(content: str, source_name: str) -> Any:
     try:
-        value = json.loads(
-            path.read_text(encoding="utf-8"),
-            object_pairs_hook=_reject_duplicate_json_keys,
-        )
+        return json.loads(content, object_pairs_hook=_reject_duplicate_json_keys)
     except json.JSONDecodeError as error:
-        raise ValueError("invalid manifest JSON") from error
+        raise ValueError(f"invalid {source_name} JSON") from error
+
+
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+    return [
+        _strict_json_loads(line, path.name)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line
+    ]
+
+
+def _read_manifest(path: Path) -> DatasetManifest:
+    value = _strict_json_loads(path.read_text(encoding="utf-8"), "manifest")
     return DatasetManifest.model_validate(value)
 
 
@@ -211,11 +210,17 @@ def read_dataset(input_dir: str | Path) -> SyntheticDataset:
     ]
     campaigns = [
         CampaignRecord.model_validate(row)
-        for row in json.loads((input_path / "campaigns.json").read_text(encoding="utf-8"))
+        for row in _strict_json_loads(
+            (input_path / "campaigns.json").read_text(encoding="utf-8"),
+            "campaigns.json",
+        )
     ]
     claims = [
         ClaimRecord.model_validate(row)
-        for row in json.loads((input_path / "claims.json").read_text(encoding="utf-8"))
+        for row in _strict_json_loads(
+            (input_path / "claims.json").read_text(encoding="utf-8"),
+            "claims.json",
+        )
     ]
     with (input_path / "outcomes.csv").open(encoding="utf-8", newline="") as handle:
         outcomes = [OutcomeRecord.model_validate(row) for row in csv.DictReader(handle)]

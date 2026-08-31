@@ -159,13 +159,16 @@ SCENARIO_TEMPLATES: dict[ScenarioName, tuple[MessageTemplate, ...]] = {
         MessageTemplate(
             text="{campaign_name}：资格条件是不是也发生了变化？",
             role="user",
-            behaviors=("confusion",),
+            behaviors=("campaign_question", "confusion"),
             claim_status="uncertain",
-            question_status="unanswered",
+            question_status="answered",
             reply_to_template=2,
         ),
         MessageTemplate(
-            text="{campaign_name}：已核对，正确说明是 {correct_fact_zh}。",
+            text=(
+                "{campaign_name}：资格条件未变：{eligibility_fact_zh}；"
+                "正确说明是 {correct_fact_zh}。"
+            ),
             role="moderator",
             behaviors=("question_answering",),
             claim_status="covered",
@@ -222,6 +225,7 @@ CAMPAIGN_FACTS = {
         "correct_fact_en": "verified members stake before Friday for 100 synthetic tokens",
         "correct_fact_es": "los miembros verificados participan antes del viernes por 100 tokens",
         "correct_fact_zh": "100 个代币和星期五",
+        "eligibility_fact_zh": "仅已验证成员符合资格",
         "correct_fact_ar": "الموعد الجمعة والمكافأة 100 رمز اصطناعي",
         "drift_fact_zh": "50 个代币和周日",
     },
@@ -231,6 +235,7 @@ CAMPAIGN_FACTS = {
             "se recomiendan dos amigos elegibles antes del 15 de septiembre por 25 tokens"
         ),
         "correct_fact_zh": "推荐两名合格好友、9 月 15 日截止和 25 个代币",
+        "eligibility_fact_zh": "仅合格好友推荐计入活动",
         "correct_fact_ar": "إحالة صديقين مؤهلين قبل 15 سبتمبر والمكافأة 25 رمزاً",
         "drift_fact_zh": "推荐一名好友、9 月 18 日截止和 10 个代币",
     },
@@ -238,6 +243,7 @@ CAMPAIGN_FACTS = {
         "correct_fact_en": "the feature launches September 20 and feedback is invited",
         "correct_fact_es": "la función se lanza el 20 de septiembre y se solicitan comentarios",
         "correct_fact_zh": "9 月 20 日上线并邀请反馈",
+        "eligibility_fact_zh": "所有社区成员均可提交反馈",
         "correct_fact_ar": "الإطلاق في 20 سبتمبر والتعليقات مرحب بها",
         "drift_fact_zh": "9 月 25 日上线且不再征集反馈",
     },
@@ -362,9 +368,16 @@ def _messages_and_annotations(
             cycle_message_ids: list[str] = []
             for local_index in range(count):
                 template_index = local_index % len(templates)
+                template = templates[template_index]
+                if (
+                    local_index == count - 1
+                    and template.question_status == "answered"
+                    and "campaign_question" in template.behaviors
+                ):
+                    template_index = 0
+                    template = templates[template_index]
                 if template_index == 0:
                     cycle_message_ids = []
-                template = templates[template_index]
                 sequence += 1
                 campaign_ordinal += 1
                 message_id = f"msg_{sequence:06d}"
