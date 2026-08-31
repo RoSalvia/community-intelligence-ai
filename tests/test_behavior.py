@@ -9,6 +9,7 @@ from community_intelligence.behavior import (
     discover_clusters,
 )
 from community_intelligence.models import MessageRecord
+from community_intelligence.synthetic import generate_dataset
 
 BASE_TIME = datetime(2026, 9, 1, tzinfo=UTC)
 REQUIRED_MODERATOR_TAXONOMY = {
@@ -207,6 +208,28 @@ def test_positive_and_negative_feedback_are_distinct_canonical_outputs() -> None
 
     assert labels["positive"].behavior == "positive_feedback"
     assert labels["negative"].behavior == "negative_feedback"
+
+
+def test_exact_synthetic_arabic_negative_feedback_precedes_peer_support() -> None:
+    dataset = generate_dataset(message_count=120)
+    targets = [
+        message
+        for message in dataset.messages
+        if message.language == "ar"
+        and (
+            "لم نحصل على إجابة واضحة" in message.text
+            or "التواصل غير واضح" in message.text
+        )
+    ]
+    assert targets
+
+    labels = classify_seed_behaviors(dataset.messages)
+
+    assert all(labels[message.message_id].behavior == "negative_feedback" for message in targets)
+    assert all(
+        labels[message.message_id].evidence_message_ids == (message.message_id,)
+        for message in targets
+    )
 
 
 def test_purchase_or_usage_intent_is_the_canonical_output() -> None:

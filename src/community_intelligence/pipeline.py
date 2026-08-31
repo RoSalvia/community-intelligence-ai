@@ -32,7 +32,12 @@ from community_intelligence.hygiene import analyze_hygiene
 from community_intelligence.io import read_dataset
 from community_intelligence.message_rules import normalize_text
 from community_intelligence.metrics import adapt_metric_source, metric_catalog, validate_metrics
-from community_intelligence.models import ClaimRecord, MessageRecord, SyntheticDataset
+from community_intelligence.models import (
+    CampaignRecord,
+    ClaimRecord,
+    MessageRecord,
+    SyntheticDataset,
+)
 
 REPORT_SCHEMA_VERSION = "1.0"
 ASSOCIATION_LIMIT = (
@@ -142,11 +147,14 @@ _PIPELINE_METRIC_CONTRACTS: Mapping[str, Mapping[str, str]] = {
 @dataclass(frozen=True)
 class EvidenceRecord:
     evidence_id: str
+    evidence_type: str
     message_id: str | None
     claim_id: str | None
     campaign_id: str | None
     community_id: str | None
-    source_text: str
+    source_text: str | None
+    message_count: int | None
+    denominator_facts: Mapping[str, int] | None
     translation: str | None
     confidence: float | None
     confidence_semantics: str
@@ -185,11 +193,14 @@ class _EvidenceCollector:
         evidence_id = f"evidence_{digest}"
         record = EvidenceRecord(
             evidence_id=evidence_id,
+            evidence_type="source_message",
             message_id=message_id,
             claim_id=claim_id,
             campaign_id=campaign_id or message.campaign_id,
             community_id=community_id or message.community_id,
             source_text=message.text,
+            message_count=None,
+            denominator_facts=None,
             translation=translation,
             confidence=confidence,
             confidence_semantics=confidence_semantics,
@@ -228,15 +239,72 @@ class _EvidenceCollector:
         evidence_id = f"evidence_{digest}"
         record = EvidenceRecord(
             evidence_id=evidence_id,
+            evidence_type="claim_judgment",
             message_id=None,
             claim_id=claim.claim_id,
             campaign_id=claim.campaign_id,
             community_id=community_id,
             source_text=claim.claim_text,
+            message_count=None,
+            denominator_facts=None,
             translation=None,
             confidence=confidence,
             confidence_semantics=confidence_semantics,
             method="curated_alias_baseline:no_message_judgment",
+            review_status=REVIEW_STATUS,
+        )
+        existing = self._records.get(evidence_id)
+        if existing is not None and existing != record:
+            raise ValueError("evidence identifier collision")
+        self._records[evidence_id] = record
+        return evidence_id
+
+    def add_analysis_scope(
+        self,
+        campaign: CampaignRecord,
+        *,
+        community_id: str,
+        messages: Sequence[MessageRecord],
+    ) -> str:
+        real_user_messages = [
+            message for message in messages if message.user_role == "user"
+        ]
+        denominator_facts = {
+            "all_messages": len(messages),
+            "campaign_linked_real_user_messages": sum(
+                message.campaign_id == campaign.campaign_id
+                for message in real_user_messages
+            ),
+            "noncampaign_real_user_messages": sum(
+                message.campaign_id is None for message in real_user_messages
+            ),
+            "real_user_messages": len(real_user_messages),
+        }
+        identity = {
+            "evidence_type": "analysis_scope",
+            "campaign_id": campaign.campaign_id,
+            "community_id": community_id,
+            "message_count": len(messages),
+            "denominator_facts": denominator_facts,
+        }
+        digest = hashlib.sha256(
+            json.dumps(identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()[:24]
+        evidence_id = f"evidence_{digest}"
+        record = EvidenceRecord(
+            evidence_id=evidence_id,
+            evidence_type="analysis_scope",
+            message_id=None,
+            claim_id=None,
+            campaign_id=campaign.campaign_id,
+            community_id=community_id,
+            source_text=None,
+            message_count=len(messages),
+            denominator_facts=denominator_facts,
+            translation=None,
+            confidence=None,
+            confidence_semantics="deterministic scope facts; not a probability",
+            method="analysis_scope_v1",
             review_status=REVIEW_STATUS,
         )
         existing = self._records.get(evidence_id)
@@ -348,7 +416,7 @@ def _campaign_analysis(
                 confidence=judgment.confidence,
                 confidence_semantics=judgment.confidence_semantics,
             )
-            if judgment.status in {"not_covered", "uncertain"}:
+            if not judgment.evidence_message_ids:
                 evidence_ids.append(
                     collector.add_claim_judgment(
                         claim_by_id[judgment.claim_id],
@@ -471,6 +539,11 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
 
     for campaign, community_id, scoped in _scope_rows(dataset):
         observation_id = f"{campaign.campaign_id}:{community_id}"
+        scope_evidence_id = collector.add_analysis_scope(
+            campaign,
+            community_id=community_id,
+            messages=scoped,
+        )
         hygiene = analyze_hygiene(scoped)
         activation = analyze_activation(scoped)
         episodes = build_episodes(scoped)
@@ -703,7 +776,9 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
                     "denominator": _PIPELINE_METRIC_CONTRACTS[metric_name]["denominator"],
                     "method": "canonical_deterministic_adapter",
                     "review_status": REVIEW_STATUS,
-                    "evidence_ids": sorted(set(metric_evidence[metric_name])),
+                    "evidence_ids": sorted(
+                        {scope_evidence_id, *metric_evidence[metric_name]}
+                    ),
                 }
             )
         metric_wide_rows.append(wide_row)
@@ -726,12 +801,21 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
     feedback_seed_counts: dict[str, dict[str, Any]] = {}
     for behavior in _FEEDBACK_SEED_BEHAVIORS:
         matching = [item for item in seed_output if item["behavior"] == behavior]
+        evidence_ids = sorted(
+            {
+                evidence_id
+                for item in matching
+                for evidence_id in item["evidence_ids"]
+            }
+        )
         feedback_seed_counts[behavior] = {
-            "status": "deterministic seed evidence available",
-            "count": len(matching),
-            "evidence_ids": sorted(
-                {evidence_id for item in matching for evidence_id in item["evidence_ids"]}
+            "method_status": "Implemented",
+            "observation_status": (
+                "Observed" if matching else "Not observed in this dataset"
             ),
+            "evidence_available": bool(evidence_ids),
+            "count": len(matching),
+            "evidence_ids": evidence_ids,
             "method": "deterministic_seed_rule",
             "review_status": REVIEW_STATUS,
         }
@@ -835,7 +919,7 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
             "seed_counts": feedback_seed_counts,
             "seed_capabilities": {
                 **{
-                    behavior: "deterministic seed evidence available"
+                    behavior: "Implemented"
                     for behavior in _FEEDBACK_SEED_BEHAVIORS
                 },
                 "confusion": "Not implemented",
@@ -860,6 +944,11 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
                 "confusion": (
                     "Not implemented in the deterministic behavior seed taxonomy; "
                     "annotation labels are not used as production evidence."
+                ),
+                "single_label_classification": (
+                    "Each message receives one deterministic primary seed label. "
+                    "Specific lexical feedback labels take precedence over the "
+                    "generic peer-support relation; secondary behaviors are not emitted."
                 ),
             },
             "review_status": REVIEW_STATUS,
@@ -920,25 +1009,77 @@ def _validate_publication(
 
     message_by_id = {message.message_id: message for message in dataset.messages}
     claim_by_id = {claim.claim_id: claim for claim in dataset.claims}
-    campaign_ids = {campaign.campaign_id for campaign in dataset.campaigns}
+    campaign_by_id = {
+        campaign.campaign_id: campaign for campaign in dataset.campaigns
+    }
+    campaign_ids = set(campaign_by_id)
     community_ids = set(dataset.manifest.community_ids)
     for record in evidence:
-        if record.message_id is not None:
+        if record.evidence_type not in {
+            "source_message",
+            "claim_judgment",
+            "analysis_scope",
+        }:
+            raise ValueError("unsupported evidence type")
+        if record.campaign_id is not None and record.campaign_id not in campaign_ids:
+            raise ValueError("evidence campaign reference is invalid")
+        if record.community_id is not None and record.community_id not in community_ids:
+            raise ValueError("evidence community reference is invalid")
+
+        if record.evidence_type == "analysis_scope":
+            if (
+                record.message_id is not None
+                or record.claim_id is not None
+                or record.source_text is not None
+                or record.translation is not None
+                or record.confidence is not None
+                or record.campaign_id is None
+                or record.community_id is None
+            ):
+                raise ValueError("analysis-scope evidence must not fabricate source evidence")
+            campaign = campaign_by_id[record.campaign_id]
+            scoped = [
+                message
+                for message in dataset.messages
+                if message.community_id == record.community_id
+                and campaign.start_time <= message.timestamp < campaign.end_time
+            ]
+            users = [message for message in scoped if message.user_role == "user"]
+            expected_facts = {
+                "all_messages": len(scoped),
+                "campaign_linked_real_user_messages": sum(
+                    message.campaign_id == campaign.campaign_id for message in users
+                ),
+                "noncampaign_real_user_messages": sum(
+                    message.campaign_id is None for message in users
+                ),
+                "real_user_messages": len(users),
+            }
+            if (
+                record.message_count != len(scoped)
+                or record.denominator_facts != expected_facts
+            ):
+                raise ValueError("analysis-scope evidence facts are invalid")
+            continue
+
+        if record.message_count is not None or record.denominator_facts is not None:
+            raise ValueError("non-scope evidence must not contain scope facts")
+        if record.evidence_type == "source_message":
+            if record.message_id is None:
+                raise ValueError("source-message evidence requires a message reference")
             message = message_by_id.get(record.message_id)
             if message is None or record.source_text != message.text:
                 raise ValueError("evidence source message is invalid")
             if record.community_id != message.community_id:
                 raise ValueError("evidence community does not match source message")
+        elif record.message_id is not None or record.claim_id is None:
+            raise ValueError("claim-judgment evidence requires only a claim reference")
         if record.claim_id is not None:
             claim = claim_by_id.get(record.claim_id)
             if claim is None or record.campaign_id != claim.campaign_id:
                 raise ValueError("evidence claim or campaign reference is invalid")
             if record.message_id is None and record.source_text != claim.claim_text:
                 raise ValueError("claim-level evidence text does not match the claim")
-        if record.campaign_id is not None and record.campaign_id not in campaign_ids:
-            raise ValueError("evidence campaign reference is invalid")
-        if record.community_id is not None and record.community_id not in community_ids:
-            raise ValueError("evidence community reference is invalid")
 
 
 def _is_same_or_inside(candidate: Path, parent: Path) -> bool:

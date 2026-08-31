@@ -244,19 +244,6 @@ def _user_label(
     parent: MessageRecord | None,
 ) -> SeedBehaviorLabel:
     normalized = normalize_text(message.text)
-    if (
-        parent is not None
-        and parent.user_role == "user"
-        and message.user_id_hash != parent.user_id_hash
-        and not is_question(message.text)
-    ):
-        return _label(
-            message,
-            "peer_support",
-            "user_reply_to_peer_v1",
-            (parent, message),
-            RELATIONAL_EVIDENCE_STRENGTH,
-        )
     if is_question(message.text) and _contains_any(
         normalized, ("product", "wallet", "feature", "how does", "产品", "钱包", "功能")
     ):
@@ -296,6 +283,7 @@ def _user_label(
             "负面反馈",
             "不清楚",
             "غير واضح",
+            "لم نحصل على إجابة واضحة",
         ),
     ):
         return _label(message, "negative_feedback", "negative_feedback_phrase_v1")
@@ -312,6 +300,19 @@ def _user_label(
         ),
     ):
         return _label(message, "positive_feedback", "positive_feedback_phrase_v1")
+    if (
+        parent is not None
+        and parent.user_role == "user"
+        and message.user_id_hash != parent.user_id_hash
+        and not is_question(message.text)
+    ):
+        return _label(
+            message,
+            "peer_support",
+            "user_reply_to_peer_v1",
+            (parent, message),
+            RELATIONAL_EVIDENCE_STRENGTH,
+        )
     if _contains_any(
         normalized,
         (
