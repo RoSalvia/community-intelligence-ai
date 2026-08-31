@@ -1,14 +1,32 @@
-"""Deterministic campaign-claim coverage from explicit curated resources."""
+"""Community-scoped campaign judgments from explicit curated resources."""
 
 from __future__ import annotations
 
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import Literal
 
 from community_intelligence.message_rules import normalize_text, validate_message_graph
 from community_intelligence.models import CampaignRecord, ClaimRecord, MessageRecord
 
-CampaignJudgmentStatus = Literal["covered", "missing", "incorrect", "ambiguous"]
+CampaignJudgmentStatus = Literal[
+    "covered",
+    "partially_covered",
+    "contradicted",
+    "incorrect",
+    "not_covered",
+    "uncertain",
+]
+
+SEMANTIC_COVERAGE_FORMULA = (
+    "(covered + 0.5 * partially_covered) / total_claims"
+)
+CLAIM_COMPLETENESS_FORMULA = "covered / total_claims"
+CAMPAIGN_SUMMARY_DENOMINATOR = "all atomic claims for the campaign in this community"
+BASELINE_LIMITATION = (
+    "Deterministic curated phrase baseline; literal matching is not full semantic AI and "
+    "requires human review."
+)
 
 
 @dataclass(frozen=True)
@@ -17,14 +35,24 @@ class CampaignClaimResource:
 
     claim_id: str
     aliases: tuple[str, ...]
-    contradiction_patterns: tuple[str, ...]
+    partial_aliases: tuple[str, ...] = ()
+    contradiction_patterns: tuple[str, ...] = ()
+    incorrect_patterns: tuple[str, ...] = ()
+    uncertain_patterns: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.claim_id.strip():
             raise ValueError("claim_id must not be empty")
         if not self.aliases:
             raise ValueError("aliases must not be empty")
-        if any(not item.strip() for item in self.aliases + self.contradiction_patterns):
+        patterns = (
+            self.aliases
+            + self.partial_aliases
+            + self.contradiction_patterns
+            + self.incorrect_patterns
+            + self.uncertain_patterns
+        )
+        if any(not item.strip() for item in patterns):
             raise ValueError("campaign match patterns must not be empty")
 
 
@@ -43,19 +71,42 @@ class CampaignResource:
 
 @dataclass(frozen=True)
 class CampaignClaimJudgment:
+    campaign_id: str
     claim_id: str
+    community_id: str
     status: CampaignJudgmentStatus
     confidence: float
-    match_strength: float
     evidence_message_ids: tuple[str, ...]
-    evidence_texts: tuple[str, ...]
-    method: str = "curated_alias_baseline"
+    evidence_text: tuple[str, ...]
+    translation: str | None
+    notes: str
+    method: str
+    review_status: str
+    match_strength: float
     general_semantic_ai: str = "Not implemented"
+
+
+@dataclass(frozen=True)
+class CampaignCommunitySummary:
+    campaign_id: str
+    community_id: str
+    total_claims: int
+    semantic_coverage: float
+    claim_completeness: float
+    accuracy_warning_count: int
+    semantic_drift_count: int
+    status_counts: tuple[tuple[str, int], ...]
+    semantic_coverage_formula: str = SEMANTIC_COVERAGE_FORMULA
+    claim_completeness_formula: str = CLAIM_COMPLETENESS_FORMULA
+    denominator: str = CAMPAIGN_SUMMARY_DENOMINATOR
+    method: str = "curated_alias_baseline"
+    interpretation_limit: str = BASELINE_LIMITATION
 
 
 @dataclass(frozen=True)
 class _Match:
     message: MessageRecord
+    status: CampaignJudgmentStatus
     strength: float
 
 
@@ -79,24 +130,71 @@ def _best_match(
 
 def _claim_matches(
     messages: tuple[MessageRecord, ...], resource: CampaignClaimResource
-) -> tuple[list[_Match], list[_Match]]:
-    all_patterns = resource.aliases + resource.contradiction_patterns
+) -> list[_Match]:
+    status_patterns: tuple[tuple[CampaignJudgmentStatus, tuple[str, ...]], ...] = (
+        ("covered", resource.aliases),
+        ("partially_covered", resource.partial_aliases),
+        ("contradicted", resource.contradiction_patterns),
+        ("incorrect", resource.incorrect_patterns),
+        ("uncertain", resource.uncertain_patterns),
+    )
+    all_patterns = tuple(
+        pattern for _, patterns in status_patterns for pattern in patterns
+    )
     longest_pattern_length = max(len(normalize_text(pattern)) for pattern in all_patterns)
-    positive: list[_Match] = []
-    negative: list[_Match] = []
+    matches: list[_Match] = []
     for message in messages:
-        positive_strength = _best_match(message.text, resource.aliases, longest_pattern_length)
-        negative_strength = _best_match(
-            message.text, resource.contradiction_patterns, longest_pattern_length
+        strengths = {
+            status: _best_match(message.text, patterns, longest_pattern_length)
+            for status, patterns in status_patterns
+            if patterns
+        }
+        strongest = max(strengths.values(), default=0.0)
+        matches.extend(
+            _Match(message=message, status=status, strength=strength)
+            for status, strength in strengths.items()
+            if strength == strongest and strength > 0
         )
-        if positive_strength > negative_strength:
-            positive.append(_Match(message, positive_strength))
-        elif negative_strength > positive_strength:
-            negative.append(_Match(message, negative_strength))
-        elif positive_strength:
-            positive.append(_Match(message, positive_strength))
-            negative.append(_Match(message, negative_strength))
-    return positive, negative
+    return matches
+
+
+def _judgment(
+    campaign_id: str,
+    claim_id: str,
+    community_id: str,
+    matches: list[_Match],
+) -> CampaignClaimJudgment:
+    matched_statuses = {match.status for match in matches}
+    if not matches:
+        status: CampaignJudgmentStatus = "not_covered"
+    elif len(matched_statuses) == 1:
+        status = next(iter(matched_statuses))
+    else:
+        status = "uncertain"
+
+    evidence_by_id = {match.message.message_id: match.message for match in matches}
+    evidence = sorted(
+        evidence_by_id.values(),
+        key=lambda message: (message.timestamp, message.message_id),
+    )
+    match_strength = max((match.strength for match in matches), default=0.0)
+    notes = BASELINE_LIMITATION
+    if len(matched_statuses) > 1:
+        notes = f"Conflicting curated evidence categories: {sorted(matched_statuses)}. {notes}"
+    return CampaignClaimJudgment(
+        campaign_id=campaign_id,
+        claim_id=claim_id,
+        community_id=community_id,
+        status=status,
+        confidence=round(match_strength, 6),
+        evidence_message_ids=tuple(message.message_id for message in evidence),
+        evidence_text=tuple(message.text for message in evidence),
+        translation=None,
+        notes=notes,
+        method="curated_alias_baseline",
+        review_status="pending",
+        match_strength=round(match_strength, 6),
+    )
 
 
 def analyze_campaign(
@@ -104,21 +202,39 @@ def analyze_campaign(
     claims: list[ClaimRecord],
     messages: list[MessageRecord],
     resource: CampaignResource,
+    *,
+    community_ids: list[str] | None = None,
 ) -> list[CampaignClaimJudgment]:
-    """Judge atomic claims without consulting synthetic annotation labels."""
+    """Judge each atomic claim independently in every requested community."""
 
     if resource.campaign_id != campaign.campaign_id:
         raise ValueError("resource campaign_id must match campaign")
     if any(claim.campaign_id != campaign.campaign_id for claim in claims):
         raise ValueError("all claims must belong to the campaign")
+    claim_ids = [claim.claim_id for claim in claims]
+    if len(claim_ids) != len(set(claim_ids)):
+        raise ValueError("claim_id values must be unique")
 
     validated = validate_message_graph(messages)
-    scoped_messages = tuple(
-        message
-        for message in validated.messages
-        if message.campaign_id == campaign.campaign_id
-        and campaign.start_time <= message.timestamp < campaign.end_time
+    requested_communities = (
+        tuple(validated.community_ids)
+        if community_ids is None
+        else tuple(sorted(community_ids))
     )
+    if len(requested_communities) != len(set(requested_communities)) or any(
+        not community_id.strip() for community_id in requested_communities
+    ):
+        raise ValueError("community_ids must be unique non-empty values")
+
+    scoped_by_community: dict[str, list[MessageRecord]] = defaultdict(list)
+    for message in validated.messages:
+        if (
+            message.community_id in requested_communities
+            and message.campaign_id == campaign.campaign_id
+            and campaign.start_time <= message.timestamp < campaign.end_time
+        ):
+            scoped_by_community[message.community_id].append(message)
+
     resource_by_claim = {item.claim_id: item for item in resource.claims}
     missing_resources = [
         claim.claim_id for claim in claims if claim.claim_id not in resource_by_claim
@@ -127,41 +243,54 @@ def analyze_campaign(
         raise ValueError(f"missing campaign resources for claims: {', '.join(missing_resources)}")
 
     judgments: list[CampaignClaimJudgment] = []
-    for claim in claims:
-        positive, negative = _claim_matches(scoped_messages, resource_by_claim[claim.claim_id])
-        if positive and negative:
-            status: CampaignJudgmentStatus = "ambiguous"
-            evidence = positive + negative
-        elif positive:
-            status = "covered"
-            evidence = positive
-        elif negative:
-            status = "incorrect"
-            evidence = negative
-        else:
-            status = "missing"
-            evidence = []
+    for community_id in requested_communities:
+        community_messages = tuple(scoped_by_community[community_id])
+        for claim in claims:
+            judgments.append(
+                _judgment(
+                    campaign.campaign_id,
+                    claim.claim_id,
+                    community_id,
+                    _claim_matches(
+                        community_messages, resource_by_claim[claim.claim_id]
+                    ),
+                )
+            )
+    return judgments
 
-        evidence_by_id = {match.message.message_id: match for match in evidence}
-        ordered_evidence = sorted(
-            evidence_by_id.values(),
-            key=lambda match: (
-                match.message.timestamp,
-                match.message.community_id,
-                match.message.message_id,
-            ),
-        )
-        match_strength = max((match.strength for match in evidence), default=0.0)
-        judgments.append(
-            CampaignClaimJudgment(
-                claim_id=claim.claim_id,
-                status=status,
-                confidence=round(match_strength, 6),
-                match_strength=round(match_strength, 6),
-                evidence_message_ids=tuple(
-                    match.message.message_id for match in ordered_evidence
+
+def summarize_campaign(
+    judgments: list[CampaignClaimJudgment],
+) -> list[CampaignCommunitySummary]:
+    """Aggregate claim judgments using explicit formulas and denominators."""
+
+    grouped: dict[tuple[str, str], list[CampaignClaimJudgment]] = defaultdict(list)
+    for judgment in judgments:
+        grouped[(judgment.campaign_id, judgment.community_id)].append(judgment)
+
+    summaries: list[CampaignCommunitySummary] = []
+    for (campaign_id, community_id), group in sorted(grouped.items()):
+        claim_ids = [judgment.claim_id for judgment in group]
+        if len(claim_ids) != len(set(claim_ids)):
+            raise ValueError("campaign summary requires one judgment per claim and community")
+        counts = Counter(judgment.status for judgment in group)
+        total_claims = len(group)
+        summaries.append(
+            CampaignCommunitySummary(
+                campaign_id=campaign_id,
+                community_id=community_id,
+                total_claims=total_claims,
+                semantic_coverage=(
+                    counts["covered"] + 0.5 * counts["partially_covered"]
+                )
+                / total_claims,
+                claim_completeness=counts["covered"] / total_claims,
+                accuracy_warning_count=sum(
+                    counts[status]
+                    for status in ("contradicted", "incorrect", "uncertain")
                 ),
-                evidence_texts=tuple(match.message.text for match in ordered_evidence),
+                semantic_drift_count=counts["contradicted"] + counts["incorrect"],
+                status_counts=tuple(sorted(counts.items())),
             )
         )
-    return judgments
+    return summaries
