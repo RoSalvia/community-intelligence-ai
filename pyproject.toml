@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "community-intelligence-ai"
+version = "0.1.0"
+description = "Offline synthetic-first multilingual community intelligence MVP"
+requires-python = ">=3.11"
+dependencies = [
+    "networkx>=3.4",
+    "numpy>=2.1",
+    "pandas>=2.2",
+    "pydantic>=2.9",
+    "scikit-learn>=1.5",
+    "scipy>=1.14",
+    "streamlit>=1.39",
+]
+
+[project.optional-dependencies]
+semantic = ["sentence-transformers>=3.2"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.6",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "semantic: requires a separately prefetched local sentence-transformer model",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
