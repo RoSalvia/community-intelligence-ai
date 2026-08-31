@@ -72,10 +72,11 @@ def build_model_manifest(model_dir: str | Path) -> dict[str, object]:
     """Verify and describe the exact pinned artifact for offline loading."""
 
     directory = Path(model_dir).resolve()
+    root_manifest = directory / MANIFEST_FILENAME
     files = {
         path.relative_to(directory).as_posix(): _sha256(path)
         for path in sorted(directory.rglob("*"))
-        if path.is_file() and path.name != MANIFEST_FILENAME
+        if path.is_file() and path != root_manifest
     }
     if not files:
         raise ValueError("model directory contains no artifacts")
@@ -128,7 +129,7 @@ def _validated_model_directory(model_dir: str | Path) -> Path:
     actual_files = {
         path.relative_to(directory).as_posix()
         for path in directory.rglob("*")
-        if path.is_file() and path.name != MANIFEST_FILENAME
+        if path.is_file() and path != manifest_path
     }
     if any(
         Path(relative_path).suffix.casefold() in _UNSAFE_WEIGHT_SUFFIXES
@@ -199,6 +200,8 @@ class SentenceTransformerProvider:
             raise ValueError("semantic text must not be empty")
         tokenizer = self._model.tokenizer
         token_ids = tokenizer.encode(text, add_special_tokens=False)
+        if not token_ids:
+            raise ValueError("semantic text is semantically empty: tokenizer produced zero tokens")
         special_tokens = int(tokenizer.num_special_tokens_to_add(pair=False))
         content_limit = MODEL_MAX_SEQUENCE_LENGTH - special_tokens
         if content_limit < 1:

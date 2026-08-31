@@ -186,6 +186,18 @@ def test_manifest_rejects_pickle_only_and_alternative_safetensors_dirs(
         build_model_manifest(alternative)
 
 
+def test_nested_manifest_basename_is_an_unexpected_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    model_dir = local_model_dir(tmp_path, monkeypatch)
+    nested_manifest = model_dir / "nested" / MANIFEST_FILENAME
+    nested_manifest.parent.mkdir()
+    nested_manifest.write_text("{}\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="pinned artifact SHA-256"):
+        build_model_manifest(model_dir)
+
+
 class WeightedFakeModel(FakeModel):
     def encode(
         self,
@@ -216,6 +228,33 @@ def test_chunk_pooling_is_weighted_by_token_count(
     assert vector[0] / vector[1] == pytest.approx(126.0)
 
 
+class TokenlessFakeTokenizer(FakeTokenizer):
+    def encode(self, text: str, *, add_special_tokens: bool) -> list[int]:
+        assert add_special_tokens is False
+        assert set(text) <= {"\u200b", "\u200d", "\ufeff"}
+        return []
+
+
+class TokenlessFakeModel(FakeModel):
+    tokenizer = TokenlessFakeTokenizer()
+
+    def encode(self, *args: object, **kwargs: object) -> np.ndarray:
+        raise AssertionError("tokenless text must be rejected before model encoding")
+
+
+@pytest.mark.parametrize("text", ["\u200b", "\u200d", "\ufeff", "\u200b\u200d\ufeff"])
+def test_tokenless_semantic_text_is_rejected_before_weighted_pooling(
+    text: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    model_dir = local_model_dir(tmp_path, monkeypatch)
+    provider = SentenceTransformerProvider(
+        model_dir, model_loader=lambda *args, **kwargs: TokenlessFakeModel()
+    )
+
+    with pytest.raises(ValueError, match="zero tokens|semantically empty"):
+        provider.embed([text])
+
+
 @pytest.fixture
 def local_semantic_model() -> Path:
     configured = os.environ.get("COMMUNITY_INTELLIGENCE_SEMANTIC_MODEL")
@@ -236,3 +275,11 @@ def test_multilingual_model_ranks_correct_claim_first(local_semantic_model: Path
     )
     assert ranked[0].text == "质押截止时间是星期五"
     assert ranked[0].score > ranked[1].score
+
+
+@pytest.mark.semantic
+def test_real_model_rejects_zero_width_only_text(local_semantic_model: Path) -> None:
+    provider = SentenceTransformerProvider(local_semantic_model)
+
+    with pytest.raises(ValueError, match="zero tokens|semantically empty"):
+        provider.embed(["\u200b\u200d\ufeff"])
