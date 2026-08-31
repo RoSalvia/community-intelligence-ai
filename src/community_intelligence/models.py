@@ -25,6 +25,8 @@ ClaimStatus = Literal[
 ]
 
 _HASHED_USER_ID = re.compile(r"usr_[0-9a-f]+\Z")
+_LANGUAGE_CODE = re.compile(r"[a-z]{2,3}(?:-[a-z0-9]{2,8})*\Z")
+_SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 
 
 def _require_nonempty(value: str) -> str:
@@ -50,7 +52,7 @@ def _require_utc(value: datetime) -> datetime:
 class ContractModel(BaseModel):
     """Base contract that rejects unrecognized fields."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
 
 class MessageRecord(ContractModel):
@@ -83,6 +85,13 @@ class MessageRecord(ContractModel):
     def validate_hashed_user_id(cls, value: str) -> str:
         if not _HASHED_USER_ID.fullmatch(value):
             raise ValueError("user_id_hash must match usr_ followed by lowercase hexadecimal")
+        return value
+
+    @field_validator("language")
+    @classmethod
+    def validate_language_code(cls, value: str) -> str:
+        if not _LANGUAGE_CODE.fullmatch(value):
+            raise ValueError("language must be a lowercase BCP-47-like primary tag")
         return value
 
 
@@ -154,9 +163,25 @@ class DatasetManifest(ContractModel):
     campaign_ids: list[str]
     scenarios: dict[str, str]
     generated_at: datetime
+    generation_id: str
+    artifact_checksums: dict[str, str]
 
     _nonempty = field_validator("dataset_id", "schema_version")(_require_nonempty)
     _generated_at_utc = field_validator("generated_at")(_require_utc)
+
+    @field_validator("generation_id")
+    @classmethod
+    def validate_generation_id(cls, value: str) -> str:
+        if not _SHA256.fullmatch(value):
+            raise ValueError("generation_id must be a lowercase SHA-256 digest")
+        return value
+
+    @field_validator("artifact_checksums")
+    @classmethod
+    def validate_artifact_checksums(cls, value: dict[str, str]) -> dict[str, str]:
+        if not value or any(not _SHA256.fullmatch(checksum) for checksum in value.values()):
+            raise ValueError("artifact checksums must be lowercase SHA-256 digests")
+        return value
 
 
 class SyntheticDataset(ContractModel):
@@ -171,16 +196,45 @@ class SyntheticDataset(ContractModel):
     def validate_references(self) -> SyntheticDataset:
         message_ids = [message.message_id for message in self.messages]
         campaign_ids = [campaign.campaign_id for campaign in self.campaigns]
+        claim_ids = [claim.claim_id for claim in self.claims]
+        annotation_ids = [annotation.annotation_id for annotation in self.annotations]
 
         if len(message_ids) != len(set(message_ids)):
             raise ValueError("message_id values must be unique")
         if len(campaign_ids) != len(set(campaign_ids)):
             raise ValueError("campaign_id values must be unique")
+        if len(claim_ids) != len(set(claim_ids)):
+            raise ValueError("claim_id values must be unique")
+        if len(annotation_ids) != len(set(annotation_ids)):
+            raise ValueError("annotation_id values must be unique")
         if self.manifest.message_count != len(self.messages):
             raise ValueError("manifest message_count does not match messages")
 
         message_id_set = set(message_ids)
         campaign_id_set = set(campaign_ids)
+        community_id_set = {message.community_id for message in self.messages}
+        language_set = {message.language for message in self.messages}
+        if self.manifest.synthetic is not True:
+            raise ValueError("manifest synthetic must be true")
+        if (
+            len(self.manifest.community_ids) != len(set(self.manifest.community_ids))
+            or set(self.manifest.community_ids) != community_id_set
+        ):
+            raise ValueError("manifest community_ids do not match messages")
+        if (
+            len(self.manifest.languages) != len(set(self.manifest.languages))
+            or set(self.manifest.languages) != language_set
+        ):
+            raise ValueError("manifest languages do not match messages")
+        if (
+            len(self.manifest.campaign_ids) != len(set(self.manifest.campaign_ids))
+            or set(self.manifest.campaign_ids) != campaign_id_set
+        ):
+            raise ValueError("manifest campaign_ids do not match campaigns")
+        if set(self.manifest.scenarios) != community_id_set:
+            raise ValueError("manifest scenarios do not match communities")
+
+        message_by_id = {message.message_id: message for message in self.messages}
         for message in self.messages:
             if message.reply_to_message_id not in message_id_set | {None}:
                 raise ValueError("reply_to_message_id must reference a dataset message")
@@ -188,10 +242,61 @@ class SyntheticDataset(ContractModel):
                 raise ValueError("a message cannot reply to itself")
             if message.campaign_id not in campaign_id_set | {None}:
                 raise ValueError("message campaign_id must reference a dataset campaign")
+
+        reply_state: dict[str, int] = {}
+
+        def visit_reply(message_id: str) -> None:
+            state = reply_state.get(message_id, 0)
+            if state == 1:
+                raise ValueError("reply graph must be acyclic")
+            if state == 2:
+                return
+            reply_state[message_id] = 1
+            parent_id = message_by_id[message_id].reply_to_message_id
+            if parent_id is not None:
+                visit_reply(parent_id)
+            reply_state[message_id] = 2
+
+        for message_id in message_ids:
+            visit_reply(message_id)
+
+        message_position = {message_id: index for index, message_id in enumerate(message_ids)}
+        for message in self.messages:
+            parent_id = message.reply_to_message_id
+            if parent_id is None:
+                continue
+            parent = message_by_id[parent_id]
+            if message_position[parent_id] >= message_position[message.message_id]:
+                raise ValueError("reply must reference an earlier message")
+            if message.timestamp <= parent.timestamp:
+                raise ValueError("reply timestamp must be after parent timestamp")
+            if (
+                message.campaign_id is not None
+                and parent.campaign_id is not None
+                and message.campaign_id != parent.campaign_id
+            ):
+                raise ValueError("replies must remain within a campaign")
+
         if any(claim.campaign_id not in campaign_id_set for claim in self.claims):
             raise ValueError("claim campaign_id must reference a dataset campaign")
         if any(outcome.campaign_id not in campaign_id_set for outcome in self.outcomes):
             raise ValueError("outcome campaign_id must reference a dataset campaign")
+        if any(outcome.community_id not in community_id_set for outcome in self.outcomes):
+            raise ValueError("outcome community_id must reference a dataset community")
+        if any(not outcome.synthetic for outcome in self.outcomes):
+            raise ValueError("outcome synthetic flags must match the synthetic manifest")
+        outcome_pairs = [
+            (outcome.community_id, outcome.campaign_id) for outcome in self.outcomes
+        ]
+        if len(outcome_pairs) != len(set(outcome_pairs)):
+            raise ValueError("outcome community/campaign pairs must be unique")
+        expected_outcome_pairs = {
+            (community_id, campaign_id)
+            for community_id in community_id_set
+            for campaign_id in campaign_id_set
+        }
+        if set(outcome_pairs) != expected_outcome_pairs:
+            raise ValueError("outcomes must cover every community/campaign pair")
         if any(annotation.message_id not in message_id_set for annotation in self.annotations):
             raise ValueError("annotation message_id must reference a dataset message")
         return self

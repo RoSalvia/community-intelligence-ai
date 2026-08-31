@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
 import os
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -19,6 +21,15 @@ from community_intelligence.models import (
     OutcomeRecord,
     SyntheticDataset,
 )
+
+DATA_ARTIFACT_NAMES = (
+    "messages.jsonl",
+    "campaigns.json",
+    "claims.json",
+    "outcomes.csv",
+    "annotations.jsonl",
+)
+PUBLISHED_ARTIFACT_NAMES = frozenset((*DATA_ARTIFACT_NAMES, "manifest.json"))
 
 
 def _json(value: Any, *, indent: int | None = None) -> str:
@@ -48,35 +59,108 @@ def _jsonl(records: list[Any]) -> str:
     return "".join(f"{_json(record.model_dump(mode='json'))}\n" for record in records)
 
 
-def write_dataset(dataset: SyntheticDataset, output_dir: str | Path) -> Path:
-    """Write the six validated dataset artifacts using replace-on-complete files."""
-
-    output_path = Path(output_dir).expanduser().resolve()
-    output_path.mkdir(parents=True, exist_ok=True)
-
-    _atomic_write_text(output_path / "messages.jsonl", _jsonl(dataset.messages))
-    _atomic_write_text(
-        output_path / "campaigns.json",
-        _json([record.model_dump(mode="json") for record in dataset.campaigns], indent=2) + "\n",
-    )
-    _atomic_write_text(
-        output_path / "claims.json",
-        _json([record.model_dump(mode="json") for record in dataset.claims], indent=2) + "\n",
-    )
-
+def _outcomes_csv(outcomes: list[OutcomeRecord]) -> str:
     outcome_buffer = io.StringIO(newline="")
     fieldnames = list(OutcomeRecord.model_fields)
     writer = csv.DictWriter(outcome_buffer, fieldnames=fieldnames)
     writer.writeheader()
-    for outcome in dataset.outcomes:
+    for outcome in outcomes:
         writer.writerow(outcome.model_dump(mode="json"))
-    _atomic_write_text(output_path / "outcomes.csv", outcome_buffer.getvalue())
+    return outcome_buffer.getvalue()
 
-    _atomic_write_text(output_path / "annotations.jsonl", _jsonl(dataset.annotations))
-    _atomic_write_text(
-        output_path / "manifest.json",
-        _json(dataset.manifest.model_dump(mode="json"), indent=2) + "\n",
+
+def data_artifact_contents(
+    messages: list[MessageRecord],
+    campaigns: list[CampaignRecord],
+    claims: list[ClaimRecord],
+    outcomes: list[OutcomeRecord],
+    annotations: list[AnnotationRecord],
+) -> dict[str, str]:
+    """Serialize the five payload artifacts deterministically."""
+
+    return {
+        "messages.jsonl": _jsonl(messages),
+        "campaigns.json": (
+            _json([record.model_dump(mode="json") for record in campaigns], indent=2) + "\n"
+        ),
+        "claims.json": (
+            _json([record.model_dump(mode="json") for record in claims], indent=2) + "\n"
+        ),
+        "outcomes.csv": _outcomes_csv(outcomes),
+        "annotations.jsonl": _jsonl(annotations),
+    }
+
+
+def publication_metadata(dataset_id: str, contents: dict[str, str]) -> tuple[str, dict[str, str]]:
+    """Return deterministic completion metadata for serialized payload artifacts."""
+
+    checksums = {
+        name: hashlib.sha256(contents[name].encode("utf-8")).hexdigest()
+        for name in DATA_ARTIFACT_NAMES
+    }
+    return _generation_id(dataset_id, checksums), checksums
+
+
+def _generation_id(dataset_id: str, checksums: dict[str, str]) -> str:
+    generation_source = _json(
+        {"artifact_checksums": checksums, "dataset_id": dataset_id}
+    ).encode("utf-8")
+    return hashlib.sha256(generation_source).hexdigest()
+
+
+def _publish_staged_directory(staging_path: Path, output_path: Path) -> None:
+    backup_path = Path(
+        tempfile.mkdtemp(dir=output_path.parent, prefix=f".{output_path.name}.backup-")
     )
+    backup_path.rmdir()
+    previous_exists = output_path.exists()
+    if previous_exists:
+        if not output_path.is_dir():
+            raise ValueError("output path must be a directory")
+        os.replace(output_path, backup_path)
+    try:
+        os.replace(staging_path, output_path)
+    except BaseException:
+        if previous_exists and backup_path.exists():
+            os.replace(backup_path, output_path)
+        raise
+    if backup_path.exists():
+        shutil.rmtree(backup_path)
+
+
+def write_dataset(dataset: SyntheticDataset, output_dir: str | Path) -> Path:
+    """Validate and publish all six artifacts as one directory generation."""
+
+    dataset = SyntheticDataset.model_validate(dataset.model_dump(mode="python"))
+    output_path = Path(output_dir).expanduser().resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    contents = data_artifact_contents(
+        dataset.messages,
+        dataset.campaigns,
+        dataset.claims,
+        dataset.outcomes,
+        dataset.annotations,
+    )
+    generation_id, checksums = publication_metadata(dataset.manifest.dataset_id, contents)
+    if dataset.manifest.generation_id != generation_id:
+        raise ValueError("manifest generation_id does not match dataset artifacts")
+    if dataset.manifest.artifact_checksums != checksums:
+        raise ValueError("manifest artifact checksums do not match dataset artifacts")
+    contents["manifest.json"] = (
+        _json(dataset.manifest.model_dump(mode="json"), indent=2) + "\n"
+    )
+
+    staging_path = Path(
+        tempfile.mkdtemp(dir=output_path.parent, prefix=f".{output_path.name}.staging-")
+    )
+    try:
+        for name in sorted(PUBLISHED_ARTIFACT_NAMES):
+            _atomic_write_text(staging_path / name, contents[name])
+        read_dataset(staging_path)
+        _publish_staged_directory(staging_path, output_path)
+    finally:
+        if staging_path.exists():
+            shutil.rmtree(staging_path)
     return output_path
 
 
@@ -84,10 +168,43 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
 
 
+def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def _read_manifest(path: Path) -> DatasetManifest:
+    try:
+        value = json.loads(
+            path.read_text(encoding="utf-8"),
+            object_pairs_hook=_reject_duplicate_json_keys,
+        )
+    except json.JSONDecodeError as error:
+        raise ValueError("invalid manifest JSON") from error
+    return DatasetManifest.model_validate(value)
+
+
 def read_dataset(input_dir: str | Path) -> SyntheticDataset:
     """Load all six artifacts and revalidate their records and references."""
 
     input_path = Path(input_dir).expanduser().resolve()
+    published_names = {path.name for path in input_path.iterdir() if path.is_file()}
+    if published_names != PUBLISHED_ARTIFACT_NAMES:
+        raise ValueError("complete dataset publication must contain exactly six artifacts")
+    manifest = _read_manifest(input_path / "manifest.json")
+    checksums = {
+        name: hashlib.sha256((input_path / name).read_bytes()).hexdigest()
+        for name in DATA_ARTIFACT_NAMES
+    }
+    if manifest.artifact_checksums != checksums:
+        raise ValueError("artifact checksum mismatch")
+    generation_id = _generation_id(manifest.dataset_id, checksums)
+    if manifest.generation_id != generation_id:
+        raise ValueError("generation identifier mismatch")
     messages = [
         MessageRecord.model_validate(row)
         for row in _read_jsonl(input_path / "messages.jsonl")
@@ -106,9 +223,6 @@ def read_dataset(input_dir: str | Path) -> SyntheticDataset:
         AnnotationRecord.model_validate(row)
         for row in _read_jsonl(input_path / "annotations.jsonl")
     ]
-    manifest = DatasetManifest.model_validate_json(
-        (input_path / "manifest.json").read_text(encoding="utf-8")
-    )
     return SyntheticDataset(
         messages=messages,
         campaigns=campaigns,

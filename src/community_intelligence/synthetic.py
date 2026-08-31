@@ -4,17 +4,22 @@ from __future__ import annotations
 
 import hashlib
 import random
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 
+from community_intelligence.io import data_artifact_contents, publication_metadata
 from community_intelligence.models import (
     AnnotationRecord,
     CampaignRecord,
     ClaimRecord,
+    ClaimStatus,
     DatasetManifest,
     MessageRecord,
     OutcomeRecord,
     ScenarioName,
     SyntheticDataset,
+    UserRole,
 )
 
 BASE_TIME = datetime(2026, 9, 1, 0, 0, tzinfo=UTC)
@@ -32,6 +37,217 @@ SCENARIO_DESCRIPTIONS = {
     "community_c": "Localized synthetic posts contain known reward and deadline drift.",
     "community_d": "User questions are often unanswered and negative feedback increases.",
 }
+
+
+@dataclass(frozen=True)
+class MessageTemplate:
+    text: str
+    role: UserRole
+    behaviors: tuple[str, ...]
+    claim_status: ClaimStatus
+    question_status: Literal["answered", "unanswered"] | None
+    reply_to_template: int | None = None
+
+
+SCENARIO_TEMPLATES: dict[ScenarioName, tuple[MessageTemplate, ...]] = {
+    "high_volume_filler_duplicates": (
+        MessageTemplate(
+            text="{campaign_name} synthetic update: great!",
+            role="moderator",
+            behaviors=("duplicate_promotion",),
+            claim_status="not_covered",
+            question_status=None,
+        ),
+        MessageTemplate(
+            text="{campaign_name} synthetic update: great!",
+            role="moderator",
+            behaviors=("duplicate_promotion",),
+            claim_status="not_covered",
+            question_status=None,
+            reply_to_template=0,
+        ),
+        MessageTemplate(
+            text="{campaign_name}: ok",
+            role="moderator",
+            behaviors=("filler",),
+            claim_status="not_covered",
+            question_status=None,
+            reply_to_template=1,
+        ),
+        MessageTemplate(
+            text="{campaign_name} correct reminder: {correct_fact_en}.",
+            role="moderator",
+            behaviors=("campaign_propagation",),
+            claim_status="covered",
+            question_status=None,
+            reply_to_template=2,
+        ),
+        MessageTemplate(
+            text="{campaign_name}: thanks for the synthetic update.",
+            role="user",
+            behaviors=("meaningful_interaction",),
+            claim_status="not_covered",
+            question_status=None,
+            reply_to_template=3,
+        ),
+    ),
+    "healthy_replies": (
+        MessageTemplate(
+            text="{campaign_name}: campaña sintética; {correct_fact_es}.",
+            role="moderator",
+            behaviors=("campaign_propagation",),
+            claim_status="covered",
+            question_status=None,
+        ),
+        MessageTemplate(
+            text="{campaign_name}: ¿pueden confirmar las condiciones de la campaña sintética?",
+            role="user",
+            behaviors=("campaign_question",),
+            claim_status="uncertain",
+            question_status="answered",
+            reply_to_template=0,
+        ),
+        MessageTemplate(
+            text="{campaign_name}: sí; {correct_fact_es}.",
+            role="moderator",
+            behaviors=("question_answering",),
+            claim_status="covered",
+            question_status="answered",
+            reply_to_template=1,
+        ),
+        MessageTemplate(
+            text="{campaign_name}: gracias, ya entiendo las condiciones sintéticas.",
+            role="user",
+            behaviors=("meaningful_interaction",),
+            claim_status="not_covered",
+            question_status=None,
+            reply_to_template=2,
+        ),
+        MessageTemplate(
+            text="{campaign_name}: también confirmo que {correct_fact_es}.",
+            role="user",
+            behaviors=("peer_support",),
+            claim_status="covered",
+            question_status=None,
+            reply_to_template=1,
+        ),
+    ),
+    "semantic_drift": (
+        MessageTemplate(
+            text="{campaign_name}：本地错误版本写的是{drift_fact_zh}。",
+            role="moderator",
+            behaviors=("campaign_propagation",),
+            claim_status="incorrect",
+            question_status=None,
+        ),
+        MessageTemplate(
+            text="{campaign_name}：我看到的合成说明写的是 {correct_fact_zh}。",
+            role="user",
+            behaviors=("correction",),
+            claim_status="covered",
+            question_status=None,
+            reply_to_template=0,
+        ),
+        MessageTemplate(
+            text="{campaign_name}：本地消息仍按{drift_fact_zh}发布。",
+            role="moderator",
+            behaviors=("campaign_propagation",),
+            claim_status="incorrect",
+            question_status=None,
+            reply_to_template=1,
+        ),
+        MessageTemplate(
+            text="{campaign_name}：资格条件是不是也发生了变化？",
+            role="user",
+            behaviors=("confusion",),
+            claim_status="uncertain",
+            question_status="unanswered",
+            reply_to_template=2,
+        ),
+        MessageTemplate(
+            text="{campaign_name}：已核对，正确说明是 {correct_fact_zh}。",
+            role="moderator",
+            behaviors=("question_answering",),
+            claim_status="covered",
+            question_status="answered",
+            reply_to_template=3,
+        ),
+    ),
+    "unanswered_questions_negative_feedback": (
+        MessageTemplate(
+            text="{campaign_name}: هل يمكن توضيح شروط الحملة الاصطناعية؟",
+            role="user",
+            behaviors=("campaign_question",),
+            claim_status="uncertain",
+            question_status="unanswered",
+        ),
+        MessageTemplate(
+            text="{campaign_name}: لم نحصل على إجابة واضحة حتى الآن.",
+            role="user",
+            behaviors=("negative_feedback",),
+            claim_status="not_covered",
+            question_status=None,
+            reply_to_template=0,
+        ),
+        MessageTemplate(
+            text="{campaign_name}: لماذا تبدو معلومات الحملة الاصطناعية غير واضحة؟",
+            role="user",
+            behaviors=("campaign_question",),
+            claim_status="uncertain",
+            question_status="unanswered",
+            reply_to_template=1,
+        ),
+        MessageTemplate(
+            text="{campaign_name}: التواصل غير واضح وهذا محبط.",
+            role="user",
+            behaviors=("negative_feedback",),
+            claim_status="not_covered",
+            question_status=None,
+            reply_to_template=2,
+        ),
+        MessageTemplate(
+            text="{campaign_name}: سنراجع الأسئلة لاحقاً وفق المعلومات الرسمية: {correct_fact_ar}.",
+            role="moderator",
+            behaviors=("moderator_follow_up",),
+            claim_status="partially_covered",
+            question_status=None,
+            reply_to_template=3,
+        ),
+    ),
+}
+
+
+CAMPAIGN_FACTS = {
+    "campaign_stake": {
+        "correct_fact_en": "verified members stake before Friday for 100 synthetic tokens",
+        "correct_fact_es": "los miembros verificados participan antes del viernes por 100 tokens",
+        "correct_fact_zh": "100 个代币和星期五",
+        "correct_fact_ar": "الموعد الجمعة والمكافأة 100 رمز اصطناعي",
+        "drift_fact_zh": "50 个代币和周日",
+    },
+    "campaign_referral": {
+        "correct_fact_en": "two eligible friends are referred by September 15 for 25 tokens",
+        "correct_fact_es": (
+            "se recomiendan dos amigos elegibles antes del 15 de septiembre por 25 tokens"
+        ),
+        "correct_fact_zh": "推荐两名合格好友、9 月 15 日截止和 25 个代币",
+        "correct_fact_ar": "إحالة صديقين مؤهلين قبل 15 سبتمبر والمكافأة 25 رمزاً",
+        "drift_fact_zh": "推荐一名好友、9 月 18 日截止和 10 个代币",
+    },
+    "campaign_launch": {
+        "correct_fact_en": "the feature launches September 20 and feedback is invited",
+        "correct_fact_es": "la función se lanza el 20 de septiembre y se solicitan comentarios",
+        "correct_fact_zh": "9 月 20 日上线并邀请反馈",
+        "correct_fact_ar": "الإطلاق في 20 سبتمبر والتعليقات مرحب بها",
+        "drift_fact_zh": "9 月 25 日上线且不再征集反馈",
+    },
+}
+
+MIN_MESSAGE_COUNT = (
+    len(COMMUNITIES)
+    * len(CAMPAIGN_FACTS)
+    * max(len(templates) for templates in SCENARIO_TEMPLATES.values())
+)
 
 
 def _hashed_user(seed: int, community_id: str, role: str, index: int) -> str:
@@ -98,136 +314,110 @@ def _claims() -> list[ClaimRecord]:
 
 
 def _allocation(message_count: int) -> list[int]:
-    if message_count < len(COMMUNITIES):
-        raise ValueError("message_count must be at least 4 to represent every community")
-    remaining = message_count - len(COMMUNITIES)
+    if message_count < MIN_MESSAGE_COUNT:
+        raise ValueError(f"message_count must be at least {MIN_MESSAGE_COUNT}")
+    minimum_per_community = MIN_MESSAGE_COUNT // len(COMMUNITIES)
+    remaining = message_count - MIN_MESSAGE_COUNT
     weights = (45, 25, 17, 13)
-    counts = [1 + remaining * weight // 100 for weight in weights]
+    counts = [minimum_per_community + remaining * weight // 100 for weight in weights]
     for index in range(message_count - sum(counts)):
         counts[index % len(counts)] += 1
     return counts
 
 
-def _scenario_message(
-    scenario: ScenarioName,
-    index: int,
-    previous_id: str | None,
-    question_id: str | None,
-) -> tuple[str, str, str | None, list[str], str | None, str | None]:
-    if scenario == "high_volume_filler_duplicates":
-        texts = (
-            "Synthetic update: great!",
-            "Synthetic update: great!",
-            "ok",
-            "Synthetic campaign reminder.",
-        )
-        role = "moderator" if index % 8 else "user"
-        reply_to = previous_id if index % 11 == 0 else None
-        behavior = ["duplicate_promotion"] if index % 4 < 2 else ["filler"]
-        return texts[index % len(texts)], role, reply_to, behavior, "not_covered", None
-
-    if scenario == "healthy_replies":
-        step = index % 5
-        rows = (
-            (
-                "Campaña sintética: participa antes del viernes para recibir 100 tokens.",
-                "moderator",
-            ),
-            ("¿La fecha límite de la campaña sintética es el viernes?", "user"),
-            ("Sí, el viernes; participan los miembros verificados.", "moderator"),
-            ("Gracias, ya entiendo las condiciones sintéticas.", "user"),
-            ("También confirmo la fecha para otros usuarios.", "user"),
-        )
-        text, role = rows[step]
-        if step == 0:
-            reply_to = None
-        elif step == 1:
-            reply_to = previous_id
-        elif step == 2:
-            reply_to = question_id
-        else:
-            reply_to = previous_id
-        status = "answered" if step in {1, 2} else None
-        behavior = ["question_answering"] if step == 2 else ["meaningful_interaction"]
-        return text, role, reply_to, behavior, "covered", status
-
-    if scenario == "semantic_drift":
-        rows = (
-            ("合成活动奖励是 50 个代币，截止日期是周日。", "moderator"),
-            ("我看到的合成说明写的是 100 个代币和星期五。", "user"),
-            ("本地消息仍按 50 个代币和周日发布。", "moderator"),
-            ("资格条件是不是也发生了变化？", "user"),
-        )
-        text, role = rows[index % len(rows)]
-        reply_to = previous_id if index % len(rows) else None
-        behavior = ["campaign_propagation"] if role == "moderator" else ["confusion"]
-        return text, role, reply_to, behavior, "incorrect", None
-
-    rows = (
-        ("هل الموعد النهائي للحملة الاصطناعية يوم الجمعة؟", "user"),
-        ("لم نحصل على إجابة واضحة حتى الآن.", "user"),
-        ("لماذا تغيرت مكافأة الحملة الاصطناعية؟", "user"),
-        ("التواصل غير واضح وهذا محبط.", "user"),
-        ("سنراجع الأسئلة لاحقاً.", "moderator"),
-    )
-    text, role = rows[index % len(rows)]
-    reply_to = previous_id if index % 5 in {1, 3} else None
-    behavior = ["negative_feedback"] if index % 5 in {1, 3} else ["campaign_question"]
-    question_status = "unanswered" if index % 5 in {0, 2} else None
-    return text, role, reply_to, behavior, "not_covered", question_status
-
-
 def _messages_and_annotations(
     seed: int,
     message_count: int,
-    campaign_ids: list[str],
+    campaigns: list[CampaignRecord],
 ) -> tuple[list[MessageRecord], list[AnnotationRecord]]:
-    rng = random.Random(seed)
-    counts = _allocation(message_count)
+    community_counts = dict(
+        zip(
+            (community_id for community_id, _, _ in COMMUNITIES),
+            _allocation(message_count),
+            strict=True,
+        )
+    )
+    episode_counts = {
+        (community_id, campaign.campaign_id): count
+        for community_id, total in community_counts.items()
+        for campaign, count in zip(
+            campaigns,
+            _balanced_counts(total, len(campaigns)),
+            strict=True,
+        )
+    }
     messages: list[MessageRecord] = []
     annotations: list[AnnotationRecord] = []
     sequence = 0
 
-    for (community_id, language, scenario), count in zip(COMMUNITIES, counts, strict=True):
-        previous_id: str | None = None
-        question_id: str | None = None
-        for local_index in range(count):
-            sequence += 1
-            message_id = f"msg_{sequence:06d}"
-            text, role, reply_to, behaviors, claim_status, question_status = _scenario_message(
-                scenario,
-                local_index,
-                previous_id,
-                question_id,
-            )
-            campaign_id = campaign_ids[(local_index + rng.randrange(len(campaign_ids))) % 3]
-            message = MessageRecord(
-                message_id=message_id,
-                community_id=community_id,
-                language=language,
-                user_id_hash=_hashed_user(seed, community_id, role, local_index),
-                user_role=role,
-                timestamp=BASE_TIME + timedelta(minutes=sequence * 3 + rng.randrange(3)),
-                text=text,
-                reply_to_message_id=reply_to,
-                campaign_id=campaign_id,
-            )
-            messages.append(message)
-            annotations.append(
-                AnnotationRecord(
-                    annotation_id=f"ann_{sequence:06d}",
-                    message_id=message_id,
-                    scenario=scenario,
-                    expected_behaviors=behaviors,
-                    expected_claim_status=claim_status,
-                    expected_question_status=question_status,
-                    notes="Synthetic reference annotation; not a production message field.",
+    for campaign_index, campaign in enumerate(campaigns):
+        campaign_total = sum(
+            episode_counts[(community_id, campaign.campaign_id)]
+            for community_id, _, _ in COMMUNITIES
+        )
+        campaign_ordinal = 0
+        for community_id, language, scenario in COMMUNITIES:
+            count = episode_counts[(community_id, campaign.campaign_id)]
+            templates = SCENARIO_TEMPLATES[scenario]
+            cycle_message_ids: list[str] = []
+            for local_index in range(count):
+                template_index = local_index % len(templates)
+                if template_index == 0:
+                    cycle_message_ids = []
+                template = templates[template_index]
+                sequence += 1
+                campaign_ordinal += 1
+                message_id = f"msg_{sequence:06d}"
+                reply_to = (
+                    cycle_message_ids[template.reply_to_template]
+                    if template.reply_to_template is not None
+                    else None
                 )
-            )
-            if scenario == "healthy_replies" and local_index % 5 == 1:
-                question_id = message_id
-            previous_id = message_id
+                timestamp = campaign.start_time + (
+                    (campaign.end_time - campaign.start_time)
+                    * campaign_ordinal
+                    / (campaign_total + 1)
+                )
+                text = template.text.format(
+                    campaign_name=campaign.campaign_name,
+                    **CAMPAIGN_FACTS[campaign.campaign_id],
+                )
+                messages.append(
+                    MessageRecord(
+                        message_id=message_id,
+                        community_id=community_id,
+                        language=language,
+                        user_id_hash=_hashed_user(
+                            seed,
+                            community_id,
+                            template.role,
+                            campaign_index * 10_000 + local_index,
+                        ),
+                        user_role=template.role,
+                        timestamp=timestamp,
+                        text=text,
+                        reply_to_message_id=reply_to,
+                        campaign_id=campaign.campaign_id,
+                    )
+                )
+                annotations.append(
+                    AnnotationRecord(
+                        annotation_id=f"ann_{sequence:06d}",
+                        message_id=message_id,
+                        scenario=scenario,
+                        expected_behaviors=list(template.behaviors),
+                        expected_claim_status=template.claim_status,
+                        expected_question_status=template.question_status,
+                        notes="Synthetic reference annotation; not a production message field.",
+                    )
+                )
+                cycle_message_ids.append(message_id)
     return messages, annotations
+
+
+def _balanced_counts(total: int, buckets: int) -> list[int]:
+    base, remainder = divmod(total, buckets)
+    return [base + (index < remainder) for index in range(buckets)]
 
 
 def _outcomes(seed: int, campaign_ids: list[str]) -> list[OutcomeRecord]:
@@ -262,9 +452,16 @@ def generate_dataset(seed: int = 20260901, message_count: int = 1200) -> Synthet
 
     campaigns = _campaigns()
     campaign_ids = [campaign.campaign_id for campaign in campaigns]
-    messages, annotations = _messages_and_annotations(seed, message_count, campaign_ids)
+    messages, annotations = _messages_and_annotations(seed, message_count, campaigns)
+    claims = _claims()
+    outcomes = _outcomes(seed, campaign_ids)
+    dataset_id = f"synthetic-community-intelligence-{seed}-{message_count}"
+    generation_id, artifact_checksums = publication_metadata(
+        dataset_id,
+        data_artifact_contents(messages, campaigns, claims, outcomes, annotations),
+    )
     manifest = DatasetManifest(
-        dataset_id=f"synthetic-community-intelligence-{seed}-{message_count}",
+        dataset_id=dataset_id,
         schema_version="1.0",
         synthetic=True,
         seed=seed,
@@ -274,12 +471,14 @@ def generate_dataset(seed: int = 20260901, message_count: int = 1200) -> Synthet
         campaign_ids=campaign_ids,
         scenarios=SCENARIO_DESCRIPTIONS,
         generated_at=BASE_TIME,
+        generation_id=generation_id,
+        artifact_checksums=artifact_checksums,
     )
     return SyntheticDataset(
         messages=messages,
         campaigns=campaigns,
-        claims=_claims(),
-        outcomes=_outcomes(seed, campaign_ids),
+        claims=claims,
+        outcomes=outcomes,
         annotations=annotations,
         manifest=manifest,
     )
