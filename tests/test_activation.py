@@ -336,7 +336,7 @@ def test_activation_applies_language_equivalent_filler_rules(
     )
 
 
-def test_activation_records_explicit_mixed_community_and_utc_window_scope() -> None:
+def test_activation_records_mixed_community_scope_and_observed_utc_bounds() -> None:
     messages = [
         message(
             "m1",
@@ -360,10 +360,12 @@ def test_activation_records_explicit_mixed_community_and_utc_window_scope() -> N
     result = analyze_activation(messages)
 
     assert result.included_community_ids == ("community_a", "community_b")
-    assert result.window_start == BASE_TIME
-    assert result.window_end == BASE_TIME + timedelta(seconds=10)
-    assert result.window_start.utcoffset() == timedelta(0)
-    assert result.window_end.utcoffset() == timedelta(0)
+    assert result.observed_start == BASE_TIME
+    assert result.observed_end == BASE_TIME + timedelta(seconds=10)
+    assert result.observed_start.utcoffset() == timedelta(0)
+    assert result.observed_end.utcoffset() == timedelta(0)
+    assert not hasattr(result, "window_start")
+    assert not hasattr(result, "window_end")
     assert result.analysis_rule_version == "2.0.0"
 
 

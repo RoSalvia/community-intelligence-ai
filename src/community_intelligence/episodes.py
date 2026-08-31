@@ -113,13 +113,14 @@ def _candidate_answer_ids(
     subgraph: nx.DiGraph,
     message_by_id: dict[str, MessageRecord],
 ) -> tuple[str, ...]:
-    """Follow question-only clarification chains to structural answer candidates."""
+    """Follow bounded clarification chains to structural answer candidates."""
 
     question = message_by_id[question_id]
     pending = list(subgraph.successors(question_id))
     visited: set[str] = set()
     candidates: list[str] = []
-    while pending:
+    traversal_limit = subgraph.number_of_nodes()
+    while pending and len(visited) < traversal_limit:
         reply_id = min(pending, key=lambda node: _message_key(message_by_id[node]))
         pending.remove(reply_id)
         if reply_id in visited:
@@ -131,8 +132,10 @@ def _candidate_answer_ids(
         if is_question(reply.text):
             pending.extend(subgraph.successors(reply_id))
             continue
-        if reply.user_id_hash != question.user_id_hash:
-            candidates.append(reply_id)
+        if reply.user_id_hash == question.user_id_hash:
+            pending.extend(subgraph.successors(reply_id))
+            continue
+        candidates.append(reply_id)
     return tuple(candidates)
 
 

@@ -78,6 +78,16 @@ def test_duplicate_and_filler_evidence_retains_rules_metrics_and_denominators() 
     assert filler[0].supporting_message_ids == ("m4",)
 
 
+def test_duplicate_message_ids_fail_before_evidence_construction() -> None:
+    messages = [
+        message("same_id", "Repeated content", seconds=0),
+        message("same_id", "Repeated content", seconds=1),
+    ]
+
+    with pytest.raises(ValueError, match="message_id values must be unique"):
+        analyze_hygiene(messages)
+
+
 def test_repeated_content_is_scoped_to_actor_and_community() -> None:
     messages = [
         message("m1", "same useful sentence", user_id_hash="usr_01"),

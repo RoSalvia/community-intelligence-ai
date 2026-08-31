@@ -57,8 +57,8 @@ class ActivationResult:
     meaningful_interaction_ratio: float
     response_latency_seconds: float | None
     included_community_ids: tuple[str, ...]
-    window_start: datetime | None
-    window_end: datetime | None
+    observed_start: datetime | None
+    observed_end: datetime | None
     analysis_rule_version: str
     meaningful_interaction_rules: tuple[MeaningfulTextRule, ...]
     metadata: Mapping[str, MetricMetadata]
@@ -244,8 +244,8 @@ def analyze_activation(messages: list[MessageRecord]) -> ActivationResult:
         meaningful_interaction_ratio=_safe_ratio(meaningful_count, user_count),
         response_latency_seconds=sum(latencies) / len(latencies) if latencies else None,
         included_community_ids=validated.community_ids,
-        window_start=ordered[0].timestamp if ordered else None,
-        window_end=ordered[-1].timestamp if ordered else None,
+        observed_start=ordered[0].timestamp if ordered else None,
+        observed_end=ordered[-1].timestamp if ordered else None,
         analysis_rule_version=RULE_VERSION,
         meaningful_interaction_rules=tuple(
             meaningful_rules[language] for language in sorted(meaningful_rules)

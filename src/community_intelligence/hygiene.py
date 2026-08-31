@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from types import MappingProxyType
 
-from community_intelligence.message_rules import normalize_text
+from community_intelligence.message_rules import normalize_text, validate_unique_message_ids
 from community_intelligence.models import MessageRecord
 
 RULE_VERSION = "1.0.0"
@@ -109,6 +109,7 @@ def detect_bursts(
     """Find UTC rolling-window bursts, scoped to one community and actor."""
 
     _validate_burst_thresholds(minimum_messages, window_seconds)
+    validate_unique_message_ids(messages)
     grouped: dict[tuple[str, str], list[MessageRecord]] = defaultdict(list)
     for message in messages:
         grouped[(message.community_id, message.user_id_hash)].append(message)
@@ -173,6 +174,7 @@ def analyze_hygiene(
     at least ``repeated_content_minimum`` posts by the same community actor.
     """
 
+    validate_unique_message_ids(messages)
     if short_message_max_chars < 0:
         raise ValueError("short_message_max_chars must be non-negative")
     if repeated_content_minimum < 2:

@@ -237,6 +237,52 @@ def test_clarification_chain_retains_candidate_evidence_for_each_question() -> N
     ) == (("m1", "m3"), ("m2", "m3"))
 
 
+def test_same_asker_clarification_leads_to_final_moderator_candidate_answer() -> None:
+    messages = [
+        message(
+            "m1",
+            "Where is the registration form?",
+            seconds=0,
+            user_id_hash="usr_01",
+            user_role="user",
+        ),
+        message(
+            "m2",
+            "Which form do you mean?",
+            seconds=10,
+            user_id_hash="usr_aa",
+            user_role="moderator",
+            reply_to_message_id="m1",
+        ),
+        message(
+            "m3",
+            "I mean the registration form.",
+            seconds=20,
+            user_id_hash="usr_01",
+            user_role="user",
+            reply_to_message_id="m2",
+        ),
+        message(
+            "m4",
+            "The registration form is pinned.",
+            seconds=30,
+            user_id_hash="usr_aa",
+            user_role="moderator",
+            reply_to_message_id="m3",
+        ),
+    ]
+
+    episode = build_episodes(messages)[0]
+
+    original_question_evidence = tuple(
+        (item.question_id, item.candidate_answer_id)
+        for item in episode.candidate_answer_evidence
+        if item.question_id == "m1"
+    )
+    assert original_question_evidence == (("m1", "m4"),)
+    assert "m1" in episode.resolved_question_message_ids
+
+
 def test_episode_evidence_collections_are_deeply_immutable() -> None:
     messages = [
         message(

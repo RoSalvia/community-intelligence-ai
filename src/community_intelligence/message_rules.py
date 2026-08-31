@@ -93,11 +93,17 @@ def classify_meaningful_text(text: str, language: str) -> MeaningfulTextClassifi
     )
 
 
-def validate_message_graph(messages: list[MessageRecord]) -> ValidatedMessageGraph:
-    """Validate the strict reply-graph contract used by public analyzers."""
+def validate_unique_message_ids(messages: list[MessageRecord]) -> None:
+    """Reject ambiguous message identities without imposing reply-graph rules."""
 
     if len({message.message_id for message in messages}) != len(messages):
         raise ValueError("message_id values must be unique")
+
+
+def validate_message_graph(messages: list[MessageRecord]) -> ValidatedMessageGraph:
+    """Validate the strict reply-graph contract used by public analyzers."""
+
+    validate_unique_message_ids(messages)
 
     ordered = tuple(sorted(messages, key=message_sort_key))
     message_by_id = {message.message_id: message for message in ordered}
