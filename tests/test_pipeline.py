@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import stat
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -78,26 +79,39 @@ def _evidence_references(value: object) -> set[str]:
     return references
 
 
+def _source_snapshot(root: Path) -> dict[str, tuple[int, str | None, str | None]]:
+    snapshot: dict[str, tuple[int, str | None, str | None]] = {}
+    for entry in sorted(root.iterdir(), key=lambda path: path.name):
+        mode = stat.S_IFMT(entry.lstat().st_mode)
+        target = os.readlink(entry) if entry.is_symlink() else None
+        digest = hashlib.sha256(entry.read_bytes()).hexdigest() if entry.is_file() else None
+        snapshot[entry.name] = (mode, target, digest)
+    return snapshot
+
+
 def test_pipeline_is_deterministic_evidence_linked_and_does_not_mutate_source(
     tmp_path: Path,
 ) -> None:
     dataset_dir = _dataset(tmp_path)
-    before = {
-        path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in dataset_dir.iterdir()
-    }
+    before = _source_snapshot(dataset_dir)
 
     first = run_pipeline(dataset_dir, tmp_path / "report-a")
     second = run_pipeline(dataset_dir, tmp_path / "report-b")
 
     assert (first / "report.json").read_bytes() == (second / "report.json").read_bytes()
     assert (first / "evidence.jsonl").read_bytes() == (second / "evidence.jsonl").read_bytes()
-    assert before == {
-        path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in dataset_dir.iterdir()
-    }
+    assert before == _source_snapshot(dataset_dir)
 
     report, evidence = _read_report(first)
     assert report["data_status"] == "synthetic"
-    assert report["limitations"]["general_multilingual_semantic_ai"] == "Not implemented"
+    assert report["capabilities"] == {
+        "general_multilingual_semantic_campaign_judgment": "Not implemented",
+        "llm_behavior_interpretation": "Not implemented",
+        "multilingual_embedding_retrieval_provider": "Implemented and verified offline",
+        "pipeline_semantic_retrieval_integration": "Not implemented",
+    }
+    assert report["analysis_methods"]["campaign"] == "curated_alias_baseline"
+    assert report["analysis_methods"]["semantic_provider_used_by_pipeline"] is False
     assert "moderator_score" not in json.dumps(report).lower()
     assert len(report["Campaign"]["judgments"]) == 28
     assert report["Campaign"]["resource_source"] == (
@@ -122,6 +136,104 @@ def test_pipeline_is_deterministic_evidence_linked_and_does_not_mutate_source(
     for item in evidence:
         if item["message_id"] is not None:
             assert item["source_text"] == messages[item["message_id"]].text
+
+
+def test_every_metric_record_has_auditable_evidence_with_specialized_routing(
+    tmp_path: Path,
+) -> None:
+    dataset_dir = _dataset(tmp_path)
+    output = run_pipeline(dataset_dir, tmp_path / "report")
+    report, evidence = _read_report(output)
+    evidence_by_id = {item["evidence_id"]: item for item in evidence}
+    dataset = read_dataset(dataset_dir)
+    message_ids = {message.message_id for message in dataset.messages}
+    claim_ids = {claim.claim_id for claim in dataset.claims}
+    campaign_ids = {campaign.campaign_id for campaign in dataset.campaigns}
+    community_ids = set(dataset.manifest.community_ids)
+
+    records = report["Metric Lab"]["metric_records"]
+    assert len(records) == 120
+    assert all(record["evidence_ids"] for record in records)
+    for record in records:
+        linked = [evidence_by_id[evidence_id] for evidence_id in record["evidence_ids"]]
+        assert all(item["campaign_id"] == record["campaign_id"] for item in linked)
+        assert all(item["community_id"] == record["community_id"] for item in linked)
+
+    campaign_records = [
+        record for record in records if record["metric_name"] == "campaign_discussion_share"
+    ]
+    assert all(
+        all(
+            evidence_by_id[evidence_id]["method"]
+            == "metric:campaign_discussion_share:campaign_message"
+            for evidence_id in record["evidence_ids"]
+        )
+        for record in campaign_records
+    )
+
+    organic_records = [
+        record for record in records if record["metric_name"] == "organic_project_mention_rate"
+    ]
+    assert all(record["evidence_ids"] for record in organic_records)
+    assert {
+        evidence_by_id[evidence_id]["method"]
+        for record in organic_records
+        for evidence_id in record["evidence_ids"]
+    } == {"metric:organic_project_mention_rate:zero_denominator_scope"}
+
+    semantic_records = [
+        record
+        for record in records
+        if record["metric_name"] in {"semantic_campaign_coverage", "semantic_drift_rate"}
+    ]
+    assert all(
+        all(evidence_by_id[evidence_id]["claim_id"] for evidence_id in record["evidence_ids"])
+        for record in semantic_records
+    )
+    assert any(
+        item["message_id"] is None
+        and item["method"] == "curated_alias_baseline:no_message_judgment"
+        for item in evidence
+    )
+
+    for item in evidence:
+        assert item["message_id"] is None or item["message_id"] in message_ids
+        assert item["claim_id"] is None or item["claim_id"] in claim_ids
+        assert item["campaign_id"] is None or item["campaign_id"] in campaign_ids
+        assert item["community_id"] is None or item["community_id"] in community_ids
+
+
+def test_report_exposes_feedback_seed_evidence_without_faking_missing_capabilities(
+    tmp_path: Path,
+) -> None:
+    report, evidence = _read_report(run_pipeline(_dataset(tmp_path), tmp_path / "report"))
+    feedback = report["Community Feedback"]
+    available = {
+        "complaint",
+        "positive_feedback",
+        "negative_feedback",
+        "feature_request",
+        "FUD",
+    }
+    assert set(feedback["seed_counts"]) == available
+    assert all(
+        item["status"] == "deterministic seed evidence available"
+        for item in feedback["seed_counts"].values()
+    )
+    referenced = {
+        evidence_id
+        for item in feedback["seed_counts"].values()
+        for evidence_id in item["evidence_ids"]
+    }
+    assert referenced <= {item["evidence_id"] for item in evidence}
+    assert feedback["seed_capabilities"]["confusion"] == "Not implemented"
+    assert feedback["capabilities"] == {
+        "concern_clustering": "Not implemented",
+        "general_multilingual_sentiment": "Not implemented",
+        "stance": "Not implemented",
+        "topic_extraction": "Not implemented",
+    }
+    assert set(feedback["limitations"]) == set(feedback["capabilities"]) | {"confusion"}
 
 
 def test_pipeline_does_not_depend_on_annotations(tmp_path: Path) -> None:
@@ -161,6 +273,28 @@ def test_pipeline_rejects_missing_or_tampered_source(tmp_path: Path) -> None:
         handle.write("{}\n")
     with pytest.raises(ValueError, match="checksum"):
         run_pipeline(tampered, tmp_path / "tampered-report")
+
+
+@pytest.mark.parametrize("placement", ["equal", "nested", "normalized_symlink"])
+def test_pipeline_rejects_output_in_dataset_without_mutating_input(
+    tmp_path: Path, placement: str
+) -> None:
+    dataset_dir = _dataset(tmp_path)
+    before = _source_snapshot(dataset_dir)
+    if placement == "equal":
+        output = dataset_dir
+    elif placement == "nested":
+        output = dataset_dir / "reports" / "current"
+    else:
+        alias = tmp_path / "dataset-alias"
+        alias.symlink_to(dataset_dir, target_is_directory=True)
+        output = alias / "nested" / ".." / "report"
+
+    with pytest.raises(ValueError, match="inside dataset_dir"):
+        run_pipeline(dataset_dir, output)
+    assert before == _source_snapshot(dataset_dir)
+    if output != dataset_dir:
+        assert not os.path.lexists(output)
 
 
 def test_pipeline_cleans_staging_and_reserved_output_on_write_failure(

@@ -102,9 +102,9 @@ def publication_metadata(dataset_id: str, contents: dict[str, str]) -> tuple[str
 
 
 def _generation_id(dataset_id: str, checksums: dict[str, str]) -> str:
-    generation_source = _json(
-        {"artifact_checksums": checksums, "dataset_id": dataset_id}
-    ).encode("utf-8")
+    generation_source = _json({"artifact_checksums": checksums, "dataset_id": dataset_id}).encode(
+        "utf-8"
+    )
     return hashlib.sha256(generation_source).hexdigest()
 
 
@@ -136,9 +136,7 @@ def write_dataset(dataset: SyntheticDataset, output_dir: str | Path) -> Path:
         raise ValueError("manifest generation_id does not match dataset artifacts")
     if dataset.manifest.artifact_checksums != checksums:
         raise ValueError("manifest artifact checksums do not match dataset artifacts")
-    contents["manifest.json"] = (
-        _json(dataset.manifest.model_dump(mode="json"), indent=2) + "\n"
-    )
+    contents["manifest.json"] = _json(dataset.manifest.model_dump(mode="json"), indent=2) + "\n"
 
     staging_path = Path(
         tempfile.mkdtemp(dir=output_path.parent, prefix=f".{output_path.name}.staging-")
@@ -191,9 +189,21 @@ def read_dataset(input_dir: str | Path) -> SyntheticDataset:
     """Load all six artifacts and revalidate their records and references."""
 
     input_path = Path(input_dir).expanduser().resolve()
-    published_names = {path.name for path in input_path.iterdir() if path.is_file()}
-    if published_names != PUBLISHED_ARTIFACT_NAMES:
-        raise ValueError("complete dataset publication must contain exactly six artifacts")
+    if not input_path.is_dir():
+        raise ValueError(
+            "complete dataset publication must contain exactly six artifacts; "
+            "all must be regular non-symlink artifacts"
+        )
+    entries = list(os.scandir(input_path))
+    published_names = {entry.name for entry in entries}
+    valid_types = all(
+        entry.is_file(follow_symlinks=False) and not entry.is_symlink() for entry in entries
+    )
+    if published_names != PUBLISHED_ARTIFACT_NAMES or not valid_types:
+        raise ValueError(
+            "complete dataset publication must contain exactly six artifacts; "
+            "all must be regular non-symlink artifacts"
+        )
     manifest = _read_manifest(input_path / "manifest.json")
     checksums = {
         name: hashlib.sha256((input_path / name).read_bytes()).hexdigest()
@@ -205,8 +215,7 @@ def read_dataset(input_dir: str | Path) -> SyntheticDataset:
     if manifest.generation_id != generation_id:
         raise ValueError("generation identifier mismatch")
     messages = [
-        MessageRecord.model_validate(row)
-        for row in _read_jsonl(input_path / "messages.jsonl")
+        MessageRecord.model_validate(row) for row in _read_jsonl(input_path / "messages.jsonl")
     ]
     campaigns = [
         CampaignRecord.model_validate(row)

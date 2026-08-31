@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -39,9 +40,7 @@ def test_demo_cli_is_create_only_and_builds_dataset_and_report(
 
 
 @pytest.mark.parametrize("existing_kind", ["file", "directory", "symlink"])
-def test_demo_cli_rejects_every_existing_workspace_kind(
-    tmp_path: Path, existing_kind: str
-) -> None:
+def test_demo_cli_rejects_every_existing_workspace_kind(tmp_path: Path, existing_kind: str) -> None:
     workspace = tmp_path / "demo"
     if existing_kind == "file":
         workspace.write_text("keep", encoding="utf-8")
@@ -65,3 +64,23 @@ def test_analyze_cli_rejects_existing_output(tmp_path: Path) -> None:
     output.mkdir()
     with pytest.raises(FileExistsError):
         main(["analyze", "--input", str(dataset), "--output", str(output)])
+
+
+def test_analyze_cli_rejects_nested_output_without_creating_it(tmp_path: Path) -> None:
+    dataset = write_dataset(generate_dataset(message_count=120), tmp_path / "dataset")
+    output = dataset / "reports" / "current"
+    with pytest.raises(ValueError, match="inside dataset_dir"):
+        main(["analyze", "--input", str(dataset), "--output", str(output)])
+    assert not output.exists()
+
+
+def test_analyze_cli_normalizes_symlink_and_parent_segments_before_output(
+    tmp_path: Path,
+) -> None:
+    dataset = write_dataset(generate_dataset(message_count=120), tmp_path / "dataset")
+    alias = tmp_path / "dataset-alias"
+    alias.symlink_to(dataset, target_is_directory=True)
+    output = alias / "nested" / ".." / "report"
+    with pytest.raises(ValueError, match="inside dataset_dir"):
+        main(["analyze", "--input", str(dataset), "--output", str(output)])
+    assert not os.path.lexists(dataset / "report")

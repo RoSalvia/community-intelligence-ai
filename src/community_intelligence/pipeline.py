@@ -40,6 +40,13 @@ ASSOCIATION_LIMIT = (
     "synthetic evidence requires human review and external validation."
 )
 REVIEW_STATUS = "pending"
+_FEEDBACK_SEED_BEHAVIORS = (
+    "FUD",
+    "complaint",
+    "feature_request",
+    "negative_feedback",
+    "positive_feedback",
+)
 
 _RESOURCE_PATTERNS: Mapping[str, Mapping[str, tuple[str, ...]]] = {
     "stake_deadline": {
@@ -198,6 +205,46 @@ class _EvidenceCollector:
     def add_many(self, message_ids: Sequence[str], **metadata: Any) -> list[str]:
         return [self.add(message_id, **metadata) for message_id in message_ids]
 
+    def add_claim_judgment(
+        self,
+        claim: ClaimRecord,
+        *,
+        community_id: str,
+        status: str,
+        confidence: float,
+        confidence_semantics: str,
+    ) -> str:
+        identity = {
+            "message_id": None,
+            "claim_id": claim.claim_id,
+            "campaign_id": claim.campaign_id,
+            "community_id": community_id,
+            "method": "curated_alias_baseline:no_message_judgment",
+            "status": status,
+        }
+        digest = hashlib.sha256(
+            json.dumps(identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()[:24]
+        evidence_id = f"evidence_{digest}"
+        record = EvidenceRecord(
+            evidence_id=evidence_id,
+            message_id=None,
+            claim_id=claim.claim_id,
+            campaign_id=claim.campaign_id,
+            community_id=community_id,
+            source_text=claim.claim_text,
+            translation=None,
+            confidence=confidence,
+            confidence_semantics=confidence_semantics,
+            method="curated_alias_baseline:no_message_judgment",
+            review_status=REVIEW_STATUS,
+        )
+        existing = self._records.get(evidence_id)
+        if existing is not None and existing != record:
+            raise ValueError("evidence identifier collision")
+        self._records[evidence_id] = record
+        return evidence_id
+
     @property
     def records(self) -> tuple[EvidenceRecord, ...]:
         return tuple(self._records[key] for key in sorted(self._records))
@@ -290,6 +337,7 @@ def _campaign_analysis(
         summaries = summarize_campaign(
             judgments, expected_claim_ids=[claim.claim_id for claim in claims]
         )
+        claim_by_id = {claim.claim_id: claim for claim in claims}
         for judgment in judgments:
             evidence_ids = collector.add_many(
                 judgment.evidence_message_ids,
@@ -300,10 +348,20 @@ def _campaign_analysis(
                 confidence=judgment.confidence,
                 confidence_semantics=judgment.confidence_semantics,
             )
+            if judgment.status in {"not_covered", "uncertain"}:
+                evidence_ids.append(
+                    collector.add_claim_judgment(
+                        claim_by_id[judgment.claim_id],
+                        community_id=judgment.community_id,
+                        status=judgment.status,
+                        confidence=judgment.confidence,
+                        confidence_semantics=judgment.confidence_semantics,
+                    )
+                )
             judgment_record = _record_dict(judgment)
             judgment_record.pop("evidence_message_ids")
             judgment_record.pop("evidence_text")
-            judgments_output.append({**judgment_record, "evidence_ids": evidence_ids})
+            judgments_output.append({**judgment_record, "evidence_ids": sorted(set(evidence_ids))})
         for summary in summaries:
             summaries_by_key[(summary.campaign_id, summary.community_id)] = summary
             summaries_output.append(_record_dict(summary))
@@ -393,6 +451,11 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
     campaign_judgments, campaign_summaries, campaign_summary_by_key = _campaign_analysis(
         dataset, collector
     )
+    campaign_judgment_evidence: dict[tuple[str, str], list[str]] = defaultdict(list)
+    for judgment in campaign_judgments:
+        campaign_judgment_evidence[(judgment["campaign_id"], judgment["community_id"])].extend(
+            judgment["evidence_ids"]
+        )
 
     hygiene_rows: list[dict[str, Any]] = []
     activation_rows: list[dict[str, Any]] = []
@@ -439,15 +502,16 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
         )
 
         activation_evidence_ids: list[str] = []
+        activation_evidence_by_metric: dict[str, list[str]] = defaultdict(list)
         for evidence in activation.evidence:
-            activation_evidence_ids.extend(
-                collector.add_many(
-                    evidence.supporting_message_ids,
-                    method=f"activation:{evidence.rule_id}",
-                    campaign_id=campaign.campaign_id,
-                    community_id=community_id,
-                )
+            ids = collector.add_many(
+                evidence.supporting_message_ids,
+                method=f"activation:{evidence.rule_id}",
+                campaign_id=campaign.campaign_id,
+                community_id=community_id,
             )
+            activation_evidence_ids.extend(ids)
+            activation_evidence_by_metric[evidence.metric_id].extend(ids)
         activation_rows.append(
             {
                 "observation_id": observation_id,
@@ -484,13 +548,35 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
             message for message in users if message.campaign_id == campaign.campaign_id
         ]
         noncampaign_users = [message for message in users if message.campaign_id is None]
+        campaign_discussion_evidence_ids = collector.add_many(
+            [message.message_id for message in campaign_users],
+            method="metric:campaign_discussion_share:campaign_message",
+            campaign_id=campaign.campaign_id,
+            community_id=community_id,
+        )
         campaign_discussion, campaign_discussion_reason = _metric_value(
             len(campaign_users), len(users)
         )
-        organic_mentions = sum(
-            "project" in normalize_text(message.text) for message in noncampaign_users
-        )
+        organic_mention_messages = [
+            message for message in noncampaign_users if "project" in normalize_text(message.text)
+        ]
+        organic_mentions = len(organic_mention_messages)
         organic_rate, organic_reason = _metric_value(organic_mentions, len(noncampaign_users))
+        if organic_mention_messages:
+            organic_evidence_messages = organic_mention_messages
+            organic_evidence_method = "metric:organic_project_mention_rate:qualifying_message"
+        elif noncampaign_users:
+            organic_evidence_messages = noncampaign_users
+            organic_evidence_method = "metric:organic_project_mention_rate:negative_denominator"
+        else:
+            organic_evidence_messages = scoped
+            organic_evidence_method = "metric:organic_project_mention_rate:zero_denominator_scope"
+        organic_evidence_ids = collector.add_many(
+            [message.message_id for message in organic_evidence_messages],
+            method=organic_evidence_method,
+            campaign_id=campaign.campaign_id,
+            community_id=community_id,
+        )
         peer_first, answered_questions = _peer_support_counts(episodes, message_by_id)
         peer_support, peer_reason = _adapt_single_metric(
             "peer_support_ratio",
@@ -574,6 +660,33 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
             "language": language_by_community[community_id],
         }
         catalog = metric_catalog()
+        metric_evidence: dict[str, list[str]] = {
+            "campaign_discussion_share": campaign_discussion_evidence_ids,
+            "community_response_latency": activation_evidence_by_metric["response_latency_seconds"],
+            "conversation_propagation_depth": episode_evidence_ids,
+            "meaningful_interaction_ratio": activation_evidence_by_metric[
+                "meaningful_interaction_ratio"
+            ],
+            "organic_project_mention_rate": organic_evidence_ids,
+            "peer_support_ratio": episode_evidence_ids,
+            "semantic_campaign_coverage": campaign_judgment_evidence[
+                (campaign.campaign_id, community_id)
+            ],
+            "semantic_drift_rate": campaign_judgment_evidence[(campaign.campaign_id, community_id)],
+            "unanswered_question_rate": episode_evidence_ids,
+            "user_to_user_interaction_ratio": activation_evidence_by_metric[
+                "user_to_user_interaction_ratio"
+            ],
+        }
+        for metric_name, evidence_ids in metric_evidence.items():
+            if evidence_ids:
+                continue
+            metric_evidence[metric_name] = collector.add_many(
+                [message.message_id for message in (users or scoped)],
+                method=f"metric:{metric_name}:denominator_scope",
+                campaign_id=campaign.campaign_id,
+                community_id=community_id,
+            )
         for metric_name in sorted(catalog):
             value, diagnostic = metric_values[metric_name]
             wide_row[metric_name] = value
@@ -590,25 +703,7 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
                     "denominator": _PIPELINE_METRIC_CONTRACTS[metric_name]["denominator"],
                     "method": "canonical_deterministic_adapter",
                     "review_status": REVIEW_STATUS,
-                    "evidence_ids": sorted(
-                        set(
-                            episode_evidence_ids
-                            if metric_name
-                            in {
-                                "peer_support_ratio",
-                                "conversation_propagation_depth",
-                                "unanswered_question_rate",
-                            }
-                            else activation_evidence_ids
-                            if metric_name
-                            in {
-                                "community_response_latency",
-                                "meaningful_interaction_ratio",
-                                "user_to_user_interaction_ratio",
-                            }
-                            else []
-                        )
-                    ),
+                    "evidence_ids": sorted(set(metric_evidence[metric_name])),
                 }
             )
         metric_wide_rows.append(wide_row)
@@ -627,6 +722,19 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
         label_record.pop("evidence_message_ids")
         label_record.pop("evidence_texts")
         seed_output.append({**label_record, "evidence_ids": evidence_ids})
+
+    feedback_seed_counts: dict[str, dict[str, Any]] = {}
+    for behavior in _FEEDBACK_SEED_BEHAVIORS:
+        matching = [item for item in seed_output if item["behavior"] == behavior]
+        feedback_seed_counts[behavior] = {
+            "status": "deterministic seed evidence available",
+            "count": len(matching),
+            "evidence_ids": sorted(
+                {evidence_id for item in matching for evidence_id in item["evidence_ids"]}
+            ),
+            "method": "deterministic_seed_rule",
+            "review_status": REVIEW_STATUS,
+        }
 
     cluster_count = _select_cluster_count(dataset.messages)
     clusters = (
@@ -673,9 +781,26 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
             "campaign": "curated_alias_baseline",
             "behavior": ["deterministic_seed_rule", "tfidf_kmeans"],
             "metrics": "canonical_deterministic_adapter + bounded_statistical_validation",
+            "semantic_provider_used_by_pipeline": False,
+        },
+        "capabilities": {
+            "multilingual_embedding_retrieval_provider": ("Implemented and verified offline"),
+            "pipeline_semantic_retrieval_integration": "Not implemented",
+            "general_multilingual_semantic_campaign_judgment": "Not implemented",
+            "llm_behavior_interpretation": "Not implemented",
         },
         "limitations": {
-            "general_multilingual_semantic_ai": "Not implemented",
+            "pipeline_semantic_retrieval_integration": (
+                "Not implemented; the pipeline does not load or call the verified "
+                "multilingual embedding provider."
+            ),
+            "general_multilingual_semantic_campaign_judgment": (
+                "Not implemented; Campaign uses curated_alias_baseline only."
+            ),
+            "llm_behavior_interpretation": (
+                "Not implemented; Behavior uses deterministic seed rules and "
+                "review-pending TF-IDF/KMeans clusters."
+            ),
             "association_not_causation": ASSOCIATION_LIMIT,
             "human_review": "All AI-like judgments and behavior clusters remain pending review.",
         },
@@ -704,6 +829,39 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
             "clusters": cluster_output,
             "selected_cluster_count": cluster_count,
             "selection_method": "min(8, sqrt(message_count/2), distinct_tfidf_vectors)",
+            "review_status": REVIEW_STATUS,
+        },
+        "Community Feedback": {
+            "seed_counts": feedback_seed_counts,
+            "seed_capabilities": {
+                **{
+                    behavior: "deterministic seed evidence available"
+                    for behavior in _FEEDBACK_SEED_BEHAVIORS
+                },
+                "confusion": "Not implemented",
+            },
+            "capabilities": {
+                "topic_extraction": "Not implemented",
+                "general_multilingual_sentiment": "Not implemented",
+                "stance": "Not implemented",
+                "concern_clustering": "Not implemented",
+            },
+            "limitations": {
+                "topic_extraction": "Not implemented; no feedback-topic model is run.",
+                "general_multilingual_sentiment": (
+                    "Not implemented; deterministic seed labels are not a general "
+                    "multilingual sentiment model."
+                ),
+                "stance": "Not implemented; no stance inference is run.",
+                "concern_clustering": (
+                    "Not implemented; generic behavior clusters are not presented "
+                    "as concern clusters."
+                ),
+                "confusion": (
+                    "Not implemented in the deterministic behavior seed taxonomy; "
+                    "annotation labels are not used as production evidence."
+                ),
+            },
             "review_status": REVIEW_STATUS,
         },
         "Metric Lab": {
@@ -747,12 +905,48 @@ def _evidence_references(value: Any) -> set[str]:
     return references
 
 
-def _validate_publication(report: dict[str, Any], evidence: Sequence[EvidenceRecord]) -> None:
+def _validate_publication(
+    report: dict[str, Any],
+    evidence: Sequence[EvidenceRecord],
+    dataset: SyntheticDataset,
+) -> None:
     evidence_ids = [record.evidence_id for record in evidence]
     if len(evidence_ids) != len(set(evidence_ids)):
         raise ValueError("evidence IDs must be unique")
     if _evidence_references(report) != set(evidence_ids):
         raise ValueError("report/evidence referential integrity failure")
+    if any(not record["evidence_ids"] for record in report["Metric Lab"]["metric_records"]):
+        raise ValueError("every metric record must reference evidence")
+
+    message_by_id = {message.message_id: message for message in dataset.messages}
+    claim_by_id = {claim.claim_id: claim for claim in dataset.claims}
+    campaign_ids = {campaign.campaign_id for campaign in dataset.campaigns}
+    community_ids = set(dataset.manifest.community_ids)
+    for record in evidence:
+        if record.message_id is not None:
+            message = message_by_id.get(record.message_id)
+            if message is None or record.source_text != message.text:
+                raise ValueError("evidence source message is invalid")
+            if record.community_id != message.community_id:
+                raise ValueError("evidence community does not match source message")
+        if record.claim_id is not None:
+            claim = claim_by_id.get(record.claim_id)
+            if claim is None or record.campaign_id != claim.campaign_id:
+                raise ValueError("evidence claim or campaign reference is invalid")
+            if record.message_id is None and record.source_text != claim.claim_text:
+                raise ValueError("claim-level evidence text does not match the claim")
+        if record.campaign_id is not None and record.campaign_id not in campaign_ids:
+            raise ValueError("evidence campaign reference is invalid")
+        if record.community_id is not None and record.community_id not in community_ids:
+            raise ValueError("evidence community reference is invalid")
+
+
+def _is_same_or_inside(candidate: Path, parent: Path) -> bool:
+    try:
+        candidate.relative_to(parent)
+    except ValueError:
+        return False
+    return True
 
 
 def _publish(output_path: Path, report: dict[str, Any], evidence: Sequence[EvidenceRecord]) -> Path:
@@ -784,11 +978,17 @@ def _publish(output_path: Path, report: dict[str, Any], evidence: Sequence[Evide
 def run_pipeline(dataset_dir: str | Path, output_dir: str | Path) -> Path:
     """Validate a six-artifact dataset and publish a deterministic report directory."""
 
-    input_path = Path(dataset_dir).expanduser().resolve()
+    input_lexical_path = Path(os.path.abspath(Path(dataset_dir).expanduser()))
     output_path = Path(os.path.abspath(Path(output_dir).expanduser()))
+    input_path = input_lexical_path.resolve()
+    output_resolved_path = output_path.resolve(strict=False)
+    if _is_same_or_inside(output_path, input_lexical_path) or _is_same_or_inside(
+        output_resolved_path, input_path
+    ):
+        raise ValueError("output_dir must not equal or resolve inside dataset_dir")
     if os.path.lexists(output_path):
         raise FileExistsError(f"output path already exists: {output_path}")
     dataset = read_dataset(input_path)
     report, evidence = _build_report(dataset)
-    _validate_publication(report, evidence)
+    _validate_publication(report, evidence, dataset)
     return _publish(output_path, report, evidence)
