@@ -32,14 +32,15 @@ REQUIRED_USER_TAXONOMY = {
     "campaign_question",
     "product_question",
     "complaint",
-    "feedback",
+    "positive_feedback",
+    "negative_feedback",
     "feature_request",
     "FUD",
     "peer_support",
     "CTA_response",
     "off_topic",
     "external_information_sharing",
-    "usage_intent",
+    "purchase_or_usage_intent",
 }
 
 
@@ -125,7 +126,18 @@ def test_seed_taxonomy_exposes_every_required_candidate() -> None:
         ("campaign_question", "What is the campaign deadline?", "user", "campaign_stake"),
         ("product_question", "How does the wallet feature work?", "user", None),
         ("complaint", "This process is broken and frustrating.", "user", None),
-        ("feedback", "My feedback is that the guide is useful.", "user", None),
+        (
+            "positive_feedback",
+            "I love this update; my feedback is that the guide is useful.",
+            "user",
+            None,
+        ),
+        (
+            "negative_feedback",
+            "My feedback is that the guide is unclear.",
+            "user",
+            None,
+        ),
         ("feature_request", "Feature request: please add dark mode.", "user", None),
         ("FUD", "This looks like a scam and a rug pull.", "user", None),
         ("CTA_response", "Done, I registered for the campaign.", "user", "campaign_stake"),
@@ -136,7 +148,12 @@ def test_seed_taxonomy_exposes_every_required_candidate() -> None:
             "user",
             None,
         ),
-        ("usage_intent", "I plan to use this feature tomorrow.", "user", None),
+        (
+            "purchase_or_usage_intent",
+            "I plan to use this feature tomorrow.",
+            "user",
+            None,
+        ),
     ],
 )
 def test_seed_taxonomy_has_conservative_lexical_trigger_boundaries(
@@ -165,6 +182,47 @@ def test_conversation_initiation_is_a_moderator_root_question() -> None:
     )
 
     assert classify_seed_behaviors([item])["m1"].behavior == "conversation_initiation"
+
+
+def test_positive_and_negative_feedback_are_distinct_canonical_outputs() -> None:
+    positive = message(
+        "positive",
+        "My feedback is positive: the new guide is clear and useful.",
+        seconds=0,
+        campaign_id=None,
+    )
+    negative = message(
+        "negative",
+        "My feedback is negative: the new guide is unclear and confusing.",
+        seconds=1,
+        campaign_id=None,
+    )
+
+    labels = classify_seed_behaviors([negative, positive])
+
+    assert labels["positive"].behavior == "positive_feedback"
+    assert labels["negative"].behavior == "negative_feedback"
+
+
+def test_purchase_or_usage_intent_is_the_canonical_output() -> None:
+    purchase = message(
+        "purchase",
+        "I intend to purchase the product after the synthetic trial.",
+        seconds=0,
+        campaign_id=None,
+    )
+    usage = message(
+        "usage",
+        "I want to use this product next week.",
+        seconds=1,
+        campaign_id=None,
+    )
+
+    labels = classify_seed_behaviors([purchase, usage])
+
+    assert labels["purchase"].behavior == "purchase_or_usage_intent"
+    assert labels["usage"].behavior == "purchase_or_usage_intent"
+    assert "usage_intent" not in USER_SEED_TAXONOMY
 
 
 def test_question_answering_and_peer_support_require_reply_evidence() -> None:

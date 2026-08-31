@@ -39,14 +39,15 @@ USER_SEED_TAXONOMY = (
     "campaign_question",
     "product_question",
     "complaint",
-    "feedback",
+    "positive_feedback",
+    "negative_feedback",
     "feature_request",
     "FUD",
     "peer_support",
     "CTA_response",
     "off_topic",
     "external_information_sharing",
-    "usage_intent",
+    "purchase_or_usage_intent",
 )
 
 _URL_PATTERN = re.compile(r"https?://\S+", re.IGNORECASE)
@@ -236,8 +237,32 @@ def _user_label(
         ("broken", "frustrating", "terrible", "disappointed", "complaint", "糟糕", "失望", "投诉"),
     ):
         return _label(message, "complaint", "complaint_phrase_v1")
-    if _contains_any(normalized, ("my feedback", "feedback is", "my opinion", "反馈", "意见")):
-        return _label(message, "feedback", "feedback_phrase_v1")
+    if _contains_any(
+        normalized,
+        (
+            "feedback is negative",
+            "guide is unclear",
+            "unclear and confusing",
+            "not useful",
+            "negative feedback",
+            "负面反馈",
+            "不清楚",
+        ),
+    ):
+        return _label(message, "negative_feedback", "negative_feedback_phrase_v1")
+    if _contains_any(
+        normalized,
+        (
+            "feedback is positive",
+            "love this update",
+            "clear and useful",
+            "guide is useful",
+            "positive feedback",
+            "正面反馈",
+            "清楚有用",
+        ),
+    ):
+        return _label(message, "positive_feedback", "positive_feedback_phrase_v1")
     if _contains_any(
         normalized,
         (
@@ -263,9 +288,25 @@ def _user_label(
         )
     if _contains_any(
         normalized,
-        ("plan to use", "want to use", "will try", "intend to use", "准备使用", "打算使用"),
+        (
+            "plan to use",
+            "want to use",
+            "will try",
+            "intend to use",
+            "intend to purchase",
+            "plan to purchase",
+            "want to buy",
+            "will buy",
+            "准备使用",
+            "打算使用",
+            "准备购买",
+        ),
     ):
-        return _label(message, "usage_intent", "usage_intent_phrase_v1")
+        return _label(
+            message,
+            "purchase_or_usage_intent",
+            "purchase_or_usage_intent_phrase_v1",
+        )
     if _contains_any(
         normalized,
         ("project roadmap", "token utility", "project governance", "项目路线图", "代币用途"),
