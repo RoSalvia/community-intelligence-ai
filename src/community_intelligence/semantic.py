@@ -7,6 +7,7 @@ import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 import numpy as np
@@ -15,7 +16,39 @@ MODEL_ID = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 MODEL_REVISION = "e8f8c211226b894fcb81acc59f3b34ba3efd5f42"
 MODEL_MAX_SEQUENCE_LENGTH = 128
 MANIFEST_FILENAME = "community_intelligence_manifest.json"
-_UNSAFE_WEIGHT_SUFFIXES = {".bin", ".pt", ".pth"}
+PREFETCH_FLOW_ID = "community_intelligence.prefetch_semantic_model.v2"
+PINNED_ARTIFACT_SHA256 = MappingProxyType(
+    {
+        "1_Pooling/config.json": (
+            "4fef0a7e8c8ee36e74c0fad89bab60ade72324442d43f559ea219bb7c2580710"
+        ),
+        "README.md": (
+            "1e98ea05b0de579fcaad3d625b62ea55647142ed674d5f5ebf1440e4bbbb6f23"
+        ),
+        "config.json": (
+            "bca510755ecfe5db7addd38b7c181176bb5b5fc3e8493897f1c5a25fb430f2e6"
+        ),
+        "config_sentence_transformers.json": (
+            "d05a05d11f53531f9313483f14112b6849e90a039c4c37e734bfb73579f72512"
+        ),
+        "model.safetensors": (
+            "7f4f89d628f87ade0e0b57c40affb6402cd77abc8110584d8d35dc86da514ee8"
+        ),
+        "modules.json": (
+            "e4068aab8a95663636c4c28044a95eafdb6492387397ec8283d8f8b31078d645"
+        ),
+        "sentence_bert_config.json": (
+            "3084164002c0bca01b0259c5327123803fce32e660a57feb93184ffead186fc8"
+        ),
+        "tokenizer.json": (
+            "cad551d5600a84242d0973327029452a1e3672ba6313c2a3c3d69c4310e12719"
+        ),
+        "tokenizer_config.json": (
+            "52202d0e04ff99028314e47c17f34b434d464d5329439874caedaefa9408e047"
+        ),
+    }
+)
+_UNSAFE_WEIGHT_SUFFIXES = {".bin", ".joblib", ".pickle", ".pkl", ".pt", ".pth"}
 
 ModelLoader = Callable[..., Any]
 
@@ -36,7 +69,7 @@ def _sha256(path: Path) -> str:
 
 
 def build_model_manifest(model_dir: str | Path) -> dict[str, object]:
-    """Describe every saved model artifact for later offline verification."""
+    """Verify and describe the exact pinned artifact for offline loading."""
 
     directory = Path(model_dir).resolve()
     files = {
@@ -51,12 +84,21 @@ def build_model_manifest(model_dir: str | Path) -> dict[str, object]:
         for relative_path in files
     ):
         raise ValueError("model directory contains unsafe serialized weights")
+    if "model.safetensors" not in files:
+        raise ValueError("pinned artifact requires model.safetensors")
+    if files != dict(PINNED_ARTIFACT_SHA256):
+        raise ValueError("model directory does not match pinned artifact SHA-256 identity")
     return {
         "model_id": MODEL_ID,
         "revision": MODEL_REVISION,
         "max_seq_length": MODEL_MAX_SEQUENCE_LENGTH,
         "safe_serialization": True,
         "files": files,
+        "provenance": {
+            "flow_id": PREFETCH_FLOW_ID,
+            "source_model_id": MODEL_ID,
+            "source_revision": MODEL_REVISION,
+        },
     }
 
 
@@ -93,8 +135,23 @@ def _validated_model_directory(model_dir: str | Path) -> Path:
         for relative_path in actual_files
     ):
         raise ValueError("verified model directory contains unsafe serialized weights")
+    if "model.safetensors" not in actual_files:
+        raise ValueError("verified model directory requires model.safetensors")
     if actual_files != set(files):
         raise ValueError("verified model directory contains unlisted or missing artifacts")
+    if files != dict(PINNED_ARTIFACT_SHA256):
+        raise ValueError("verified model manifest checksum identity is not the pinned artifact")
+    provenance = manifest.get("provenance")
+    expected_provenance = {
+        "flow_id": PREFETCH_FLOW_ID,
+        "source_model_id": MODEL_ID,
+        "source_revision": MODEL_REVISION,
+    }
+    if provenance is not None and provenance != expected_provenance:
+        raise ValueError("verified model manifest has invalid prefetch provenance")
+    # Legacy manifests from the same prefetch script did not include a provenance
+    # object. Their complete, immutable pinned hash set plus the top-level source
+    # and revision is sufficient to recognize the already-prefetched artifact.
     for relative_path, expected_checksum in files.items():
         if not isinstance(relative_path, str) or not isinstance(expected_checksum, str):
             raise ValueError("verified model manifest contains invalid checksum entries")
@@ -137,7 +194,7 @@ class SentenceTransformerProvider:
         if int(self._model.max_seq_length) != MODEL_MAX_SEQUENCE_LENGTH:
             raise ValueError("loaded model does not expose the verified 128-token limit")
 
-    def _chunks(self, text: str) -> list[str]:
+    def _chunks(self, text: str) -> list[tuple[str, int]]:
         if not text.strip():
             raise ValueError("semantic text must not be empty")
         tokenizer = self._model.tokenizer
@@ -147,9 +204,14 @@ class SentenceTransformerProvider:
         if content_limit < 1:
             raise ValueError("tokenizer special-token count exceeds model limit")
         if len(token_ids) <= content_limit:
-            return [text]
+            return [(text, len(token_ids))]
         return [
-            tokenizer.decode(token_ids[start : start + content_limit], skip_special_tokens=True)
+            (
+                tokenizer.decode(
+                    token_ids[start : start + content_limit], skip_special_tokens=True
+                ),
+                len(token_ids[start : start + content_limit]),
+            )
             for start in range(0, len(token_ids), content_limit)
         ]
 
@@ -158,6 +220,7 @@ class SentenceTransformerProvider:
 
         vectors: list[np.ndarray] = []
         for text in texts:
+            chunks = self._chunks(text)
             chunk_vectors = [
                 np.asarray(
                     self._model.encode(
@@ -168,9 +231,13 @@ class SentenceTransformerProvider:
                     )[0],
                     dtype=float,
                 )
-                for chunk in self._chunks(text)
+                for chunk, _token_count in chunks
             ]
-            pooled = np.mean(np.vstack(chunk_vectors), axis=0)
+            pooled = np.average(
+                np.vstack(chunk_vectors),
+                axis=0,
+                weights=[token_count for _chunk, token_count in chunks],
+            )
             norm = float(np.linalg.norm(pooled))
             if norm == 0:
                 raise ValueError("semantic model returned a zero embedding")

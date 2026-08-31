@@ -54,10 +54,11 @@ def message(
     user_id_hash: str = "usr_01",
     reply_to_message_id: str | None = None,
     campaign_id: str | None = "campaign_stake",
+    community_id: str = "community_a",
 ) -> MessageRecord:
     return MessageRecord(
         message_id=message_id,
-        community_id="community_a",
+        community_id=community_id,
         language=language,
         user_id_hash=user_id_hash,
         user_role=user_role,
@@ -170,6 +171,10 @@ def test_seed_taxonomy_has_conservative_lexical_trigger_boundaries(
     assert label.evidence_texts == (text,)
     assert label.method == "deterministic_seed_rule"
     assert label.rule_id
+    assert 0 < label.confidence < 1
+    assert label.confidence_semantics == (
+        "deterministic heuristic evidence strength; not a calibrated probability"
+    )
 
 
 def test_conversation_initiation_is_a_moderator_root_question() -> None:
@@ -225,6 +230,22 @@ def test_purchase_or_usage_intent_is_the_canonical_output() -> None:
     assert "usage_intent" not in USER_SEED_TAXONOMY
 
 
+def test_latin_terms_require_unicode_word_boundaries_but_cjk_and_arabic_phrases_match() -> None:
+    scampi = message(
+        "scampi", "I cooked scampi for dinner.", seconds=0, campaign_id=None
+    )
+    chinese = message("zh", "这看起来像骗局。", seconds=1, language="zh", campaign_id=None)
+    arabic = message(
+        "ar", "ملاحظاتي أن الدليل غير واضح", seconds=2, language="ar", campaign_id=None
+    )
+
+    labels = classify_seed_behaviors([arabic, scampi, chinese])
+
+    assert labels["scampi"].behavior == "unclassified"
+    assert labels["zh"].behavior == "FUD"
+    assert labels["ar"].behavior == "negative_feedback"
+
+
 def test_question_answering_and_peer_support_require_reply_evidence() -> None:
     question = message("q1", "Where is the staking guide?", seconds=0)
     moderator_answer = message(
@@ -269,10 +290,66 @@ def test_duplicate_promotion_requires_same_moderator_source_text() -> None:
 
     labels = classify_seed_behaviors([first, second])
 
-    assert labels["m1"].behavior == "duplicate_promotion"
+    assert labels["m1"].behavior != "duplicate_promotion"
     assert labels["m2"].behavior == "duplicate_promotion"
-    assert labels["m1"].evidence_message_ids == ("m1", "m2")
-    assert labels["m1"].evidence_texts == (first.text, second.text)
+    assert labels["m2"].evidence_message_ids == ("m1", "m2")
+    assert labels["m2"].evidence_texts == (first.text, second.text)
+
+
+def test_duplicate_promotion_is_scoped_by_campaign_community_actor_and_window() -> None:
+    text = "Official campaign update: reward details are pinned."
+    base = message(
+        "base",
+        text,
+        seconds=0,
+        user_role="moderator",
+        user_id_hash="usr_aa",
+        campaign_id="campaign_a",
+    )
+    later = message(
+        "later",
+        text,
+        seconds=10,
+        user_role="moderator",
+        user_id_hash="usr_aa",
+        campaign_id="campaign_a",
+    )
+    other_campaign = message(
+        "other_campaign",
+        text,
+        seconds=20,
+        user_role="moderator",
+        user_id_hash="usr_aa",
+        campaign_id="campaign_b",
+    )
+    other_community = message(
+        "other_community",
+        text,
+        seconds=30,
+        user_role="moderator",
+        user_id_hash="usr_aa",
+        campaign_id="campaign_a",
+        community_id="community_b",
+    )
+    out_of_window = message(
+        "out_of_window",
+        text,
+        seconds=4_000,
+        user_role="moderator",
+        user_id_hash="usr_aa",
+        campaign_id="campaign_a",
+    )
+
+    labels = classify_seed_behaviors(
+        [out_of_window, other_community, other_campaign, later, base]
+    )
+
+    assert labels["base"].behavior == "campaign_propagation"
+    assert labels["later"].behavior == "duplicate_promotion"
+    assert labels["later"].evidence_message_ids == ("base", "later")
+    assert labels["other_campaign"].behavior != "duplicate_promotion"
+    assert labels["other_community"].behavior != "duplicate_promotion"
+    assert labels["out_of_window"].behavior != "duplicate_promotion"
 
 
 def test_unmatched_rule_remains_explicit_and_does_not_claim_semantic_ai() -> None:
@@ -283,6 +360,7 @@ def test_unmatched_rule_remains_explicit_and_does_not_claim_semantic_ai() -> Non
     label = classify_seed_behaviors([neutral])["m1"]
 
     assert label.behavior == "unclassified"
+    assert label.confidence == 0
     assert label.general_semantic_ai == "Not implemented"
     assert label.evidence_message_ids == ("m1",)
 
@@ -322,6 +400,9 @@ def test_unsupervised_clusters_return_complete_review_contract_and_source_text()
         assert 0 <= cluster.confidence <= 1
         assert cluster.review_status == "pending"
         assert cluster.method == "tfidf_kmeans"
+        assert cluster.included_community_ids
+        assert cluster.analysis_scope == "validated input messages grouped by cluster"
+        assert sum(count for _, count in cluster.community_distribution) == cluster.message_count
         assert sum(count for _, count in cluster.language_distribution) == cluster.message_count
         assert sum(count for _, count in cluster.role_distribution) == cluster.message_count
     assert {
@@ -334,6 +415,35 @@ def test_cluster_ids_members_and_representative_text_are_stable_across_input_ord
     reverse = discover_clusters(list(reversed(cluster_messages())), cluster_count=3, random_state=7)
 
     assert forward == reverse
+
+
+def test_cluster_count_cannot_exceed_distinct_nfkc_tfidf_vectors() -> None:
+    messages = [
+        message("m1", "ＡＢ rewards", seconds=0),
+        message("m2", "AB rewards", seconds=1),
+    ]
+
+    with pytest.raises(ValueError, match="distinct TF-IDF vectors"):
+        discover_clusters(messages, cluster_count=2, random_state=7)
+
+
+def test_clustering_rejects_zero_feature_input_clearly() -> None:
+    messages = [message("m1", "a", seconds=0), message("m2", "b", seconds=1)]
+
+    with pytest.raises(ValueError, match="zero TF-IDF"):
+        discover_clusters(messages, cluster_count=1, random_state=7)
+
+
+def test_behavior_result_containers_are_immutable() -> None:
+    messages = cluster_messages()
+    labels = classify_seed_behaviors(messages)
+    clusters = discover_clusters(messages, cluster_count=3, random_state=7)
+
+    with pytest.raises(TypeError):
+        labels["new"] = labels["m01"]  # type: ignore[index]
+    assert isinstance(clusters, tuple)
+    with pytest.raises(TypeError):
+        clusters[0] = clusters[0]  # type: ignore[index]
 
 
 @pytest.mark.parametrize("cluster_count", [0, 7])

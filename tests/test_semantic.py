@@ -2,10 +2,12 @@ import hashlib
 import json
 import os
 from pathlib import Path
+from types import MappingProxyType
 
 import numpy as np
 import pytest
 
+import community_intelligence.semantic as semantic_module
 from community_intelligence.semantic import (
     MANIFEST_FILENAME,
     MODEL_ID,
@@ -57,11 +59,19 @@ class FakeModel:
         return values / np.where(norms == 0, 1.0, norms)
 
 
-def local_model_dir(tmp_path: Path) -> Path:
+def local_model_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     model_dir = tmp_path / "model"
     model_dir.mkdir()
-    (model_dir / "model.safetensors").write_bytes(b"synthetic-safe-model")
-    (model_dir / "config.json").write_text('{"synthetic": true}\n', encoding="utf-8")
+    fake_hashes: dict[str, str] = {}
+    for relative_path in semantic_module.PINNED_ARTIFACT_SHA256:
+        artifact = model_dir / relative_path
+        artifact.parent.mkdir(parents=True, exist_ok=True)
+        content = f"synthetic:{relative_path}".encode()
+        artifact.write_bytes(content)
+        fake_hashes[relative_path] = hashlib.sha256(content).hexdigest()
+    monkeypatch.setattr(
+        semantic_module, "PINNED_ARTIFACT_SHA256", MappingProxyType(fake_hashes)
+    )
     manifest = build_model_manifest(model_dir)
     (model_dir / MANIFEST_FILENAME).write_text(
         json.dumps(manifest, sort_keys=True) + "\n", encoding="utf-8"
@@ -84,24 +94,30 @@ def test_provider_rejects_remote_or_unverified_model_identifiers(tmp_path: Path)
         SentenceTransformerProvider(unverified)
 
 
-def test_provider_rejects_modified_local_artifact(tmp_path: Path) -> None:
-    model_dir = local_model_dir(tmp_path)
+def test_provider_rejects_modified_local_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    model_dir = local_model_dir(tmp_path, monkeypatch)
     (model_dir / "config.json").write_text('{"tampered": true}\n', encoding="utf-8")
 
     with pytest.raises(ValueError, match="checksum"):
         SentenceTransformerProvider(model_dir)
 
 
-def test_provider_rejects_unlisted_or_unsafe_local_artifact(tmp_path: Path) -> None:
-    model_dir = local_model_dir(tmp_path)
-    (model_dir / "pytorch_model.bin").write_bytes(b"unlisted-unsafe-weights")
+def test_provider_rejects_unlisted_or_unsafe_local_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    model_dir = local_model_dir(tmp_path, monkeypatch)
+    (model_dir / "weights.pkl").write_bytes(b"unlisted-unsafe-weights")
 
     with pytest.raises(ValueError, match="unlisted|unsafe"):
         SentenceTransformerProvider(model_dir, model_loader=lambda *args, **kwargs: FakeModel())
 
 
-def test_provider_loads_local_only_and_chunks_at_128_token_limit(tmp_path: Path) -> None:
-    model_dir = local_model_dir(tmp_path)
+def test_provider_loads_local_only_and_chunks_at_128_token_limit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    model_dir = local_model_dir(tmp_path, monkeypatch)
     fake_model = FakeModel()
     loader_calls: list[tuple[str, bool, bool]] = []
 
@@ -119,8 +135,10 @@ def test_provider_loads_local_only_and_chunks_at_128_token_limit(tmp_path: Path)
     assert np.linalg.norm(vector) == pytest.approx(1.0)
 
 
-def test_cosine_rank_is_descending_and_stable(tmp_path: Path) -> None:
-    model_dir = local_model_dir(tmp_path)
+def test_cosine_rank_is_descending_and_stable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    model_dir = local_model_dir(tmp_path, monkeypatch)
     provider = SentenceTransformerProvider(
         model_dir, model_loader=lambda *args, **kwargs: FakeModel()
     )
@@ -131,18 +149,71 @@ def test_cosine_rank_is_descending_and_stable(tmp_path: Path) -> None:
     assert ranked[0].score >= ranked[1].score >= ranked[2].score
 
 
-def test_manifest_records_sha256_for_every_model_artifact(tmp_path: Path) -> None:
-    model_dir = local_model_dir(tmp_path)
+def test_manifest_records_sha256_identity_and_prefetch_provenance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    model_dir = local_model_dir(tmp_path, monkeypatch)
     manifest = json.loads((model_dir / MANIFEST_FILENAME).read_text(encoding="utf-8"))
 
     assert manifest["model_id"] == MODEL_ID
     assert manifest["revision"] == MODEL_REVISION
     assert manifest["max_seq_length"] == 128
     assert manifest["safe_serialization"] is True
-    assert set(manifest["files"]) == {"config.json", "model.safetensors"}
-    assert manifest["files"]["model.safetensors"] == hashlib.sha256(
-        b"synthetic-safe-model"
-    ).hexdigest()
+    assert manifest["files"] == dict(semantic_module.PINNED_ARTIFACT_SHA256)
+    assert manifest["provenance"] == {
+        "flow_id": semantic_module.PREFETCH_FLOW_ID,
+        "source_model_id": MODEL_ID,
+        "source_revision": MODEL_REVISION,
+    }
+
+
+def test_manifest_rejects_pickle_only_and_alternative_safetensors_dirs(
+    tmp_path: Path,
+) -> None:
+    pickle_dir = tmp_path / "pickle"
+    pickle_dir.mkdir()
+    (pickle_dir / "weights.pkl").write_bytes(b"unsafe")
+    with pytest.raises(ValueError, match="unsafe|safetensors|pinned"):
+        build_model_manifest(pickle_dir)
+
+    alternative = tmp_path / "alternative"
+    alternative.mkdir()
+    for relative_path in semantic_module.PINNED_ARTIFACT_SHA256:
+        artifact = alternative / relative_path
+        artifact.parent.mkdir(parents=True, exist_ok=True)
+        artifact.write_bytes(f"alternative:{relative_path}".encode())
+    with pytest.raises(ValueError, match="pinned artifact SHA-256"):
+        build_model_manifest(alternative)
+
+
+class WeightedFakeModel(FakeModel):
+    def encode(
+        self,
+        texts: list[str],
+        *,
+        normalize_embeddings: bool,
+        convert_to_numpy: bool,
+        show_progress_bar: bool,
+    ) -> np.ndarray:
+        assert normalize_embeddings is True
+        assert convert_to_numpy is True
+        assert show_progress_bar is False
+        token_count = len(self.tokenizer.encode(texts[0], add_special_tokens=False))
+        return np.asarray([[1.0, 0.0] if token_count == 126 else [0.0, 1.0]])
+
+
+def test_chunk_pooling_is_weighted_by_token_count(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    model_dir = local_model_dir(tmp_path, monkeypatch)
+    provider = SentenceTransformerProvider(
+        model_dir, model_loader=lambda *args, **kwargs: WeightedFakeModel()
+    )
+    text = " ".join(f"t{index}" for index in range(127))
+
+    vector = provider.embed([text])[0]
+
+    assert vector[0] / vector[1] == pytest.approx(126.0)
 
 
 @pytest.fixture

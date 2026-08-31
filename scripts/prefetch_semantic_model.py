@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
-import tempfile
 from pathlib import Path
 
 from community_intelligence.semantic import (
@@ -27,14 +26,19 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def reserve_destination(output: Path) -> Path:
+    """Atomically reserve a new local directory without replacing any path."""
+
+    destination = output.expanduser().resolve()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.mkdir(mode=0o700)
+    return destination
+
+
 def prefetch(output: Path) -> Path:
     from sentence_transformers import SentenceTransformer
 
-    destination = output.expanduser().resolve()
-    if destination.exists():
-        raise FileExistsError(f"refusing to replace existing path: {destination}")
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    stage = Path(tempfile.mkdtemp(prefix=f".{destination.name}.", dir=destination.parent))
+    destination = reserve_destination(output)
     try:
         model = SentenceTransformer(
             MODEL_ID,
@@ -43,14 +47,16 @@ def prefetch(output: Path) -> Path:
         )
         if int(model.max_seq_length) != MODEL_MAX_SEQUENCE_LENGTH:
             raise ValueError("downloaded model does not expose the expected 128-token limit")
-        model.save_pretrained(str(stage), safe_serialization=True)
-        manifest = build_model_manifest(stage)
-        (stage / MANIFEST_FILENAME).write_text(
+        model.save_pretrained(str(destination), safe_serialization=True)
+        manifest = build_model_manifest(destination)
+        (destination / MANIFEST_FILENAME).write_text(
             json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
-        stage.rename(destination)
     except BaseException:
-        shutil.rmtree(stage, ignore_errors=True)
+        # Reservation proves this invocation created the path. Never clean a
+        # pre-existing file, directory, or symlink after a failed reservation.
+        if destination.is_dir() and not destination.is_symlink():
+            shutil.rmtree(destination, ignore_errors=True)
         raise
     print(destination)
     return destination

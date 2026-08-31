@@ -105,6 +105,13 @@ def all_claims() -> list[ClaimRecord]:
     return [claim(item.claim_id) for item in resources().claims]
 
 
+def selected_resources(*claim_ids: str) -> CampaignResource:
+    selected = tuple(
+        item for item in resources().claims if item.claim_id in set(claim_ids)
+    )
+    return CampaignResource(campaign_id="campaign_stake", claims=selected)
+
+
 def status_messages(community_id: str = "community_a") -> list[MessageRecord]:
     return [
         message("m_covered", "官方确认：截止时间是星期五。", community_id=community_id, seconds=1),
@@ -173,7 +180,7 @@ def test_campaign_judgments_are_isolated_per_claim_and_community() -> None:
         campaign(),
         [target_claim],
         [community_b, community_c_context, community_a],
-        resources(),
+        selected_resources("c_incorrect"),
     )
     by_community = {item.community_id: item for item in judgments}
 
@@ -193,7 +200,9 @@ def test_campaign_summary_has_explicit_formulas_and_denominators() -> None:
         campaign(), all_claims(), status_messages(), resources()
     )
 
-    summary = summarize_campaign(judgments)[0]
+    summary = summarize_campaign(
+        judgments, expected_claim_ids=tuple(item.claim_id for item in all_claims())
+    )[0]
 
     assert summary.campaign_id == "campaign_stake"
     assert summary.community_id == "community_a"
@@ -212,7 +221,10 @@ def test_campaign_summary_has_explicit_formulas_and_denominators() -> None:
 def test_confidence_is_deterministic_and_tied_to_match_strength() -> None:
     target_claim = claim("c_covered")
     exact = analyze_campaign(
-        campaign(), [target_claim], [message("m1", "截止时间是星期五")], resources()
+        campaign(),
+        [target_claim],
+        [message("m1", "截止时间是星期五")],
+        selected_resources("c_covered"),
     )[0]
     partial_resource = CampaignResource(
         campaign_id="campaign_stake",
@@ -227,9 +239,29 @@ def test_confidence_is_deterministic_and_tied_to_match_strength() -> None:
         campaign(), [target_claim], [message("m1", "星期五")], partial_resource
     )[0]
 
-    assert exact.confidence > weak.confidence > 0
+    assert exact.confidence == weak.confidence == 1.0
     assert exact.match_strength == pytest.approx(1.0)
-    assert weak.match_strength < 1.0
+    assert weak.match_strength == pytest.approx(1.0)
+    assert exact.confidence_semantics == (
+        "deterministic curated evidence strength; not a correctness probability"
+    )
+
+
+def test_conflicting_curated_evidence_is_uncertain_with_reduced_strength() -> None:
+    target_claim = claim("c_incorrect")
+    judgments = analyze_campaign(
+        campaign(),
+        [target_claim],
+        [
+            message("correct", "奖励是 100 个代币", seconds=1),
+            message("wrong", "奖励是 50 个代币", seconds=2),
+        ],
+        selected_resources("c_incorrect"),
+    )
+
+    assert judgments[0].status == "uncertain"
+    assert judgments[0].match_strength == pytest.approx(0.5)
+    assert judgments[0].confidence == pytest.approx(0.5)
 
 
 def test_explicit_community_scope_supports_no_message_judgments() -> None:
@@ -237,7 +269,7 @@ def test_explicit_community_scope_supports_no_message_judgments() -> None:
         campaign(),
         [claim("c_not_covered")],
         [],
-        resources(),
+        selected_resources("c_not_covered"),
         community_ids=["community_empty"],
     )
 
@@ -247,7 +279,10 @@ def test_explicit_community_scope_supports_no_message_judgments() -> None:
 
 
 def test_campaign_analysis_rejects_resource_mismatch() -> None:
-    wrong_resource = CampaignResource(campaign_id="campaign_other", claims=resources().claims)
+    wrong_resource = CampaignResource(
+        campaign_id="campaign_other",
+        claims=selected_resources("c_covered").claims,
+    )
     with pytest.raises(ValueError, match="resource campaign_id"):
         analyze_campaign(
             campaign(),
@@ -266,8 +301,49 @@ def test_campaign_analysis_rejects_duplicate_claim_pairs() -> None:
             campaign(),
             [duplicate, duplicate],
             [message("m1", "截止时间是星期五")],
+            selected_resources("c_covered"),
+        )
+
+
+def test_campaign_requires_exact_claim_resource_universe() -> None:
+    with pytest.raises(ValueError, match="exactly equal"):
+        analyze_campaign(
+            campaign(),
+            [claim("c_covered")],
+            [message("m1", "截止时间是星期五")],
             resources(),
         )
+    with pytest.raises(ValueError, match="exactly equal"):
+        analyze_campaign(
+            campaign(),
+            all_claims(),
+            status_messages(),
+            selected_resources("c_covered"),
+        )
+
+
+def test_summary_rejects_partial_claim_universe_instead_of_false_one() -> None:
+    expected_claim_ids = tuple(item.claim_id for item in all_claims())
+    complete = analyze_campaign(
+        campaign(), all_claims(), status_messages(), resources()
+    )
+    partial = tuple(item for item in complete if item.claim_id == "c_covered")
+
+    with pytest.raises(ValueError, match="complete expected claim universe"):
+        summarize_campaign(partial, expected_claim_ids=expected_claim_ids)
+
+
+def test_campaign_result_containers_are_immutable() -> None:
+    expected_claim_ids = tuple(item.claim_id for item in all_claims())
+    judgments = analyze_campaign(
+        campaign(), all_claims(), status_messages(), resources()
+    )
+    summaries = summarize_campaign(judgments, expected_claim_ids=expected_claim_ids)
+
+    assert isinstance(judgments, tuple)
+    assert isinstance(summaries, tuple)
+    with pytest.raises(TypeError):
+        judgments[0] = judgments[0]  # type: ignore[index]
 
 
 def test_campaign_judgment_never_uses_annotation_labels() -> None:

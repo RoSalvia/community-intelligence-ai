@@ -27,6 +27,9 @@ BASELINE_LIMITATION = (
     "Deterministic curated phrase baseline; literal matching is not full semantic AI and "
     "requires human review."
 )
+CONFIDENCE_SEMANTICS = (
+    "deterministic curated evidence strength; not a correctness probability"
+)
 
 
 @dataclass(frozen=True)
@@ -83,6 +86,7 @@ class CampaignClaimJudgment:
     method: str
     review_status: str
     match_strength: float
+    confidence_semantics: str = CONFIDENCE_SEMANTICS
     general_semantic_ai: str = "Not implemented"
 
 
@@ -110,22 +114,17 @@ class _Match:
     strength: float
 
 
-def _pattern_strength(pattern: str, longest_pattern_length: int) -> float:
-    return len(normalize_text(pattern)) / longest_pattern_length
-
-
-def _best_match(
+def _longest_matched_pattern(
     text: str,
     patterns: tuple[str, ...],
-    longest_pattern_length: int,
-) -> float:
+) -> int:
     normalized_text = normalize_text(text)
-    strengths = [
-        _pattern_strength(pattern, longest_pattern_length)
+    lengths = [
+        len(normalize_text(pattern))
         for pattern in patterns
         if normalize_text(pattern) in normalized_text
     ]
-    return max(strengths, default=0.0)
+    return max(lengths, default=0)
 
 
 def _claim_matches(
@@ -138,22 +137,24 @@ def _claim_matches(
         ("incorrect", resource.incorrect_patterns),
         ("uncertain", resource.uncertain_patterns),
     )
-    all_patterns = tuple(
-        pattern for _, patterns in status_patterns for pattern in patterns
-    )
-    longest_pattern_length = max(len(normalize_text(pattern)) for pattern in all_patterns)
     matches: list[_Match] = []
     for message in messages:
-        strengths = {
-            status: _best_match(message.text, patterns, longest_pattern_length)
+        matched_lengths = {
+            status: _longest_matched_pattern(message.text, patterns)
             for status, patterns in status_patterns
             if patterns
         }
-        strongest = max(strengths.values(), default=0.0)
+        longest_match = max(matched_lengths.values(), default=0)
         matches.extend(
-            _Match(message=message, status=status, strength=strength)
-            for status, strength in strengths.items()
-            if strength == strongest and strength > 0
+            _Match(
+                message=message,
+                status=status,
+                strength={"partially_covered": 0.6, "uncertain": 0.5}.get(
+                    status, 1.0
+                ),
+            )
+            for status, length in matched_lengths.items()
+            if length == longest_match and length > 0
         )
     return matches
 
@@ -177,7 +178,11 @@ def _judgment(
         evidence_by_id.values(),
         key=lambda message: (message.timestamp, message.message_id),
     )
-    match_strength = max((match.strength for match in matches), default=0.0)
+    match_strength = (
+        0.5
+        if len(matched_statuses) > 1
+        else max((match.strength for match in matches), default=0.0)
+    )
     notes = BASELINE_LIMITATION
     if len(matched_statuses) > 1:
         notes = f"Conflicting curated evidence categories: {sorted(matched_statuses)}. {notes}"
@@ -204,7 +209,7 @@ def analyze_campaign(
     resource: CampaignResource,
     *,
     community_ids: list[str] | None = None,
-) -> list[CampaignClaimJudgment]:
+) -> tuple[CampaignClaimJudgment, ...]:
     """Judge each atomic claim independently in every requested community."""
 
     if resource.campaign_id != campaign.campaign_id:
@@ -214,6 +219,9 @@ def analyze_campaign(
     claim_ids = [claim.claim_id for claim in claims]
     if len(claim_ids) != len(set(claim_ids)):
         raise ValueError("claim_id values must be unique")
+    resource_claim_ids = {item.claim_id for item in resource.claims}
+    if set(claim_ids) != resource_claim_ids:
+        raise ValueError("claim IDs and campaign resource claim IDs must be exactly equal")
 
     validated = validate_message_graph(messages)
     requested_communities = (
@@ -236,11 +244,6 @@ def analyze_campaign(
             scoped_by_community[message.community_id].append(message)
 
     resource_by_claim = {item.claim_id: item for item in resource.claims}
-    missing_resources = [
-        claim.claim_id for claim in claims if claim.claim_id not in resource_by_claim
-    ]
-    if missing_resources:
-        raise ValueError(f"missing campaign resources for claims: {', '.join(missing_resources)}")
 
     judgments: list[CampaignClaimJudgment] = []
     for community_id in requested_communities:
@@ -256,13 +259,22 @@ def analyze_campaign(
                     ),
                 )
             )
-    return judgments
+    return tuple(judgments)
 
 
 def summarize_campaign(
-    judgments: list[CampaignClaimJudgment],
-) -> list[CampaignCommunitySummary]:
+    judgments: tuple[CampaignClaimJudgment, ...] | list[CampaignClaimJudgment],
+    *,
+    expected_claim_ids: tuple[str, ...] | list[str],
+) -> tuple[CampaignCommunitySummary, ...]:
     """Aggregate claim judgments using explicit formulas and denominators."""
+
+    expected = tuple(expected_claim_ids)
+    if not expected or len(expected) != len(set(expected)) or any(
+        not claim_id.strip() for claim_id in expected
+    ):
+        raise ValueError("expected_claim_ids must be unique non-empty values")
+    expected_set = set(expected)
 
     grouped: dict[tuple[str, str], list[CampaignClaimJudgment]] = defaultdict(list)
     for judgment in judgments:
@@ -273,6 +285,10 @@ def summarize_campaign(
         claim_ids = [judgment.claim_id for judgment in group]
         if len(claim_ids) != len(set(claim_ids)):
             raise ValueError("campaign summary requires one judgment per claim and community")
+        if set(claim_ids) != expected_set:
+            raise ValueError(
+                "campaign summary requires the complete expected claim universe per community"
+            )
         counts = Counter(judgment.status for judgment in group)
         total_claims = len(group)
         summaries.append(
@@ -293,4 +309,4 @@ def summarize_campaign(
                 status_counts=tuple(sorted(counts.items())),
             )
         )
-    return summaries
+    return tuple(summaries)

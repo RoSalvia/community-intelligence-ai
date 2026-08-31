@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import re
 from collections import Counter, defaultdict
+from collections.abc import Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 
 import numpy as np
 from sklearn.cluster import KMeans
@@ -51,6 +53,15 @@ USER_SEED_TAXONOMY = (
 )
 
 _URL_PATTERN = re.compile(r"https?://\S+", re.IGNORECASE)
+_LATIN_LETTER = re.compile(r"[a-z]")
+DUPLICATE_WINDOW_SECONDS = 3_600
+CONFIDENCE_SEMANTICS = (
+    "deterministic heuristic evidence strength; not a calibrated probability"
+)
+LEXICAL_EVIDENCE_STRENGTH = 0.65
+RELATIONAL_EVIDENCE_STRENGTH = 0.8
+DUPLICATE_EVIDENCE_STRENGTH = 0.85
+FILLER_EVIDENCE_STRENGTH = 0.55
 
 
 @dataclass(frozen=True)
@@ -61,6 +72,7 @@ class SeedBehaviorLabel:
     evidence_message_ids: tuple[str, ...]
     evidence_texts: tuple[str, ...]
     rule_id: str
+    confidence_semantics: str = CONFIDENCE_SEMANTICS
     method: str = "deterministic_seed_rule"
     general_semantic_ai: str = "Not implemented"
 
@@ -72,18 +84,30 @@ class BehaviorCluster:
     top_terms: tuple[str, ...]
     representative_message_ids: tuple[str, ...]
     representative_messages: tuple[str, ...]
+    included_community_ids: tuple[str, ...]
+    community_distribution: tuple[tuple[str, int], ...]
     language_distribution: tuple[tuple[str, int], ...]
     role_distribution: tuple[tuple[str, int], ...]
     message_count: int
     proposed_behavior_name: str | None
     behavior_description: str
     confidence: float
+    analysis_scope: str = "validated input messages grouped by cluster"
     review_status: str = "pending"
     method: str = "tfidf_kmeans"
 
 
 def _contains_any(text: str, terms: tuple[str, ...]) -> bool:
-    return any(term in text for term in terms)
+    for term in terms:
+        normalized_term = normalize_text(term)
+        if _LATIN_LETTER.search(normalized_term):
+            if re.search(
+                rf"(?<!\w){re.escape(normalized_term)}(?!\w)", text, flags=re.UNICODE
+            ):
+                return True
+        elif normalized_term in text:
+            return True
+    return False
 
 
 def _label(
@@ -91,12 +115,17 @@ def _label(
     behavior: str,
     rule_id: str,
     evidence: tuple[MessageRecord, ...] | None = None,
+    confidence: float | None = None,
 ) -> SeedBehaviorLabel:
     source = evidence or (message,)
     return SeedBehaviorLabel(
         message_id=message.message_id,
         behavior=behavior,
-        confidence=1.0,
+        confidence=(
+            0.0 if behavior == "unclassified" else LEXICAL_EVIDENCE_STRENGTH
+        )
+        if confidence is None
+        else confidence,
         evidence_message_ids=tuple(item.message_id for item in source),
         evidence_texts=tuple(item.text for item in source),
         rule_id=rule_id,
@@ -111,10 +140,19 @@ def _moderator_label(
     normalized = normalize_text(message.text)
     if duplicates:
         return _label(
-            message, "duplicate_promotion", "same_actor_exact_text_v1", duplicates
+            message,
+            "duplicate_promotion",
+            "same_actor_campaign_window_exact_text_v1",
+            duplicates,
+            DUPLICATE_EVIDENCE_STRENGTH,
         )
     if classify_meaningful_text(message.text, message.language).is_filler:
-        return _label(message, "filler", "language_filler_v1")
+        return _label(
+            message,
+            "filler",
+            "language_filler_v1",
+            confidence=FILLER_EVIDENCE_STRENGTH,
+        )
     if len(_URL_PATTERN.findall(message.text)) >= 2 or _contains_any(
         normalized, ("buy now", "guaranteed profit", "free airdrop now")
     ):
@@ -127,7 +165,11 @@ def _moderator_label(
         and not is_question(message.text)
     ):
         return _label(
-            message, "question_answering", "moderator_reply_to_question_v1", (parent, message)
+            message,
+            "question_answering",
+            "moderator_reply_to_question_v1",
+            (parent, message),
+            RELATIONAL_EVIDENCE_STRENGTH,
         )
     if parent is None and is_question(message.text):
         return _label(message, "conversation_initiation", "moderator_root_question_v1")
@@ -208,7 +250,13 @@ def _user_label(
         and message.user_id_hash != parent.user_id_hash
         and not is_question(message.text)
     ):
-        return _label(message, "peer_support", "user_reply_to_peer_v1", (parent, message))
+        return _label(
+            message,
+            "peer_support",
+            "user_reply_to_peer_v1",
+            (parent, message),
+            RELATIONAL_EVIDENCE_STRENGTH,
+        )
     if is_question(message.text) and _contains_any(
         normalized, ("product", "wallet", "feature", "how does", "产品", "钱包", "功能")
     ):
@@ -247,6 +295,7 @@ def _user_label(
             "negative feedback",
             "负面反馈",
             "不清楚",
+            "غير واضح",
         ),
     ):
         return _label(message, "negative_feedback", "negative_feedback_phrase_v1")
@@ -317,27 +366,42 @@ def _user_label(
 
 def classify_seed_behaviors(
     messages: list[MessageRecord],
-) -> dict[str, SeedBehaviorLabel]:
+) -> Mapping[str, SeedBehaviorLabel]:
     """Assign one conservative, deterministic primary seed label per message."""
 
     validated = validate_message_graph(messages)
-    duplicate_groups: dict[tuple[str, str, str], list[MessageRecord]] = defaultdict(list)
+    duplicate_groups: dict[
+        tuple[str, str, str | None, str], list[MessageRecord]
+    ] = defaultdict(list)
     for message in validated.messages:
         if message.user_role == "moderator":
             duplicate_groups[
-                (message.community_id, message.user_id_hash, normalize_text(message.text))
+                (
+                    message.community_id,
+                    message.user_id_hash,
+                    message.campaign_id,
+                    normalize_text(message.text),
+                )
             ].append(message)
+
+    duplicate_evidence: dict[str, tuple[MessageRecord, ...]] = {}
+    for group in duplicate_groups.values():
+        for index, current in enumerate(group):
+            prior = tuple(
+                candidate
+                for candidate in group[:index]
+                if 0
+                < (current.timestamp - candidate.timestamp).total_seconds()
+                <= DUPLICATE_WINDOW_SECONDS
+            )
+            if prior:
+                duplicate_evidence[current.message_id] = (prior[-1], current)
 
     results: dict[str, SeedBehaviorLabel] = {}
     for message in validated.messages:
         parent_id = validated.parent_by_child.get(message.message_id)
         parent = validated.message_by_id[parent_id] if parent_id is not None else None
-        duplicate_group = tuple(
-            duplicate_groups[
-                (message.community_id, message.user_id_hash, normalize_text(message.text))
-            ]
-        )
-        duplicates = duplicate_group if len(duplicate_group) > 1 else ()
+        duplicates = duplicate_evidence.get(message.message_id, ())
         if message.user_role == "moderator":
             result = _moderator_label(message, parent, duplicates)
         elif message.user_role == "user":
@@ -345,7 +409,7 @@ def classify_seed_behaviors(
         else:
             result = _label(message, "unclassified", "bot_not_classified_v1")
         results[message.message_id] = result
-    return results
+    return MappingProxyType(results)
 
 
 def _distribution(values: list[str]) -> tuple[tuple[str, int], ...]:
@@ -357,7 +421,7 @@ def discover_clusters(
     *,
     cluster_count: int,
     random_state: int,
-) -> list[BehaviorCluster]:
+) -> tuple[BehaviorCluster, ...]:
     """Discover deterministic review candidates without assigning behavior names."""
 
     validated = validate_message_graph(messages)
@@ -366,12 +430,24 @@ def discover_clusters(
         raise ValueError("cluster_count must be between 1 and the number of messages")
 
     vectorizer = TfidfVectorizer(
-        analyzer="char_wb",
+        analyzer="char",
         ngram_range=(2, 4),
         lowercase=True,
         sublinear_tf=True,
     )
-    matrix = vectorizer.fit_transform(message.text for message in ordered)
+    normalized_texts = [normalize_text(message.text) for message in ordered]
+    try:
+        matrix = vectorizer.fit_transform(normalized_texts)
+    except ValueError as error:
+        raise ValueError("input produced zero TF-IDF features") from error
+    dense_matrix = matrix.toarray()
+    if np.any(np.linalg.norm(dense_matrix, axis=1) == 0):
+        raise ValueError("input contains a zero TF-IDF vector")
+    distinct_vector_count = len(np.unique(dense_matrix, axis=0))
+    if cluster_count > distinct_vector_count:
+        raise ValueError(
+            "cluster_count cannot exceed the number of distinct TF-IDF vectors"
+        )
     estimator = KMeans(n_clusters=cluster_count, random_state=random_state, n_init=10)
     raw_labels = estimator.fit_predict(matrix)
     terms = vectorizer.get_feature_names_out()
@@ -418,6 +494,12 @@ def discover_clusters(
                     validated.message_by_id[message_id].text
                     for message_id in representative_ids
                 ),
+                included_community_ids=tuple(
+                    sorted({message.community_id for message in members})
+                ),
+                community_distribution=_distribution(
+                    [message.community_id for message in members]
+                ),
                 language_distribution=_distribution(
                     [message.language for message in members]
                 ),
@@ -428,7 +510,7 @@ def discover_clusters(
                     "Unsupervised cluster pending human naming; inspect representative "
                     "source text, terms, language, and role distributions."
                 ),
-                confidence=round(float(np.mean(similarities)), 6),
+                confidence=round(float(np.clip(np.mean(similarities), 0, 1)), 6),
             )
         )
-    return clusters
+    return tuple(clusters)
