@@ -35,6 +35,11 @@ _PROMISING_P_VALUE = 0.05
 _REDUNDANCY_ABSOLUTE_RHO = 0.9
 _EXACT_PERMUTATION_MAXIMUM_SAMPLE = 8
 _ASYMPTOTIC_MINIMUM_SAMPLE = 20
+_ADAPTER_REASON_COLUMN = "adapter_diagnostic_reason"
+_P_VALUE_REPORTING_FLOOR = 1e-300
+_MULTIPLICITY_FAMILY_DEFINITION = (
+    "all selected metric-outcome hypotheses in one validate_metrics call"
+)
 
 
 @dataclass(frozen=True)
@@ -73,6 +78,9 @@ class GroupValueDiagnostic:
 class GroupDiagnostics:
     group_column: str
     status: Literal["descriptive_comparison", "insufficient_groups"]
+    raw_missing_group_count: int
+    blank_group_count: int
+    excluded_group_count: int
     group_count: int
     adequate_group_count: int
     minimum_group_size: int
@@ -102,6 +110,7 @@ class RedundancyDiagnostic:
 class OutcomeAssociation:
     """A descriptive Spearman association with an optional uncertainty interval."""
 
+    metric_name: str
     outcome_name: str
     paired_sample_size: int
     outcome_raw_missing_count: int
@@ -113,7 +122,12 @@ class OutcomeAssociation:
     raw_p_value: float | None
     adjusted_p_value: float | None
     outcomes_tested_count: int
+    multiplicity_family_count: int
+    multiplicity_family_definition: str
     adjustment_method: str
+    p_value_floor: float
+    below_reporting_precision: bool
+    p_value_reporting_note: str
     inference_method: str
     confidence_interval_95: tuple[float, float] | None
     uncertainty_reason: str | None
@@ -521,15 +535,20 @@ def _series_quality(series: pd.Series) -> tuple[pd.Series, _SeriesQuality]:
     return numeric, quality
 
 
-def _strict_adapter_values(source: pd.DataFrame, field: str) -> pd.Series:
-    numeric, quality = _series_quality(source[field])
+def _strict_count_values(source: pd.DataFrame, field: str) -> pd.Series:
+    raw = source[field]
+    if raw.map(lambda value: isinstance(value, (bool, np.bool_))).any():
+        raise ValueError(f"count field {field} must not contain bool values")
+    numeric, quality = _series_quality(raw)
     if (
         quality.raw_missing_count
         or quality.invalid_nonnumeric_count
         or quality.positive_infinity_count
         or quality.negative_infinity_count
     ):
-        raise ValueError(f"adapter field {field} must contain only finite numeric values")
+        raise ValueError(f"count field {field} must contain finite integer values")
+    if ((numeric % 1 != 0) | (numeric < 0)).any():
+        raise ValueError(f"count field {field} must contain non-negative integer values")
     return numeric
 
 
@@ -565,33 +584,62 @@ def adapt_metric_source(
         raise ValueError(f"missing canonical adapter fields for {metric_name}: {missing}")
 
     output = source_frame.loc[:, list(keys)].copy()
+    reason = pd.Series("observed", index=source_frame.index, dtype="object")
     if metric_name == "semantic_campaign_coverage":
-        covered = _strict_adapter_values(source_frame, "covered")
-        partial = _strict_adapter_values(source_frame, "partially_covered")
-        total = _strict_adapter_values(source_frame, "total_claims")
-        if ((covered < 0) | (partial < 0) | (total <= 0) | (covered + partial > total)).any():
-            raise ValueError("campaign claim counts must be non-negative and fit total_claims")
-        output[metric_name] = (covered + 0.5 * partial) / total
+        covered = _strict_count_values(source_frame, "covered")
+        partial = _strict_count_values(source_frame, "partially_covered")
+        total = _strict_count_values(source_frame, "total_claims")
+        if (covered + partial > total).any():
+            raise ValueError("campaign claim counts are inconsistent with total_claims")
+        zero_denominator = total == 0
+        output[metric_name] = np.where(
+            zero_denominator,
+            np.nan,
+            (covered + 0.5 * partial) / total,
+        )
+        reason.loc[zero_denominator] = "zero_denominator"
     elif metric_name == "conversation_propagation_depth":
-        depth = _strict_adapter_values(source_frame, "conversation_depth")
-        if ((depth < 1) | (depth % 1 != 0)).any():
+        depth = _strict_count_values(source_frame, "conversation_depth")
+        if (depth < 1).any():
             raise ValueError("conversation_depth must be a positive message-node count")
         output[metric_name] = depth
     elif metric_name == "community_response_latency":
-        latency = _strict_adapter_values(source_frame, "response_latency_seconds")
-        if (latency < 0).any():
+        latency, latency_quality = _series_quality(source_frame["response_latency_seconds"])
+        if (
+            latency_quality.invalid_nonnumeric_count
+            or latency_quality.positive_infinity_count
+            or latency_quality.negative_infinity_count
+        ):
+            raise ValueError("response_latency_seconds must be finite or missing")
+        if (latency.dropna() < 0).any():
             raise ValueError("response_latency_seconds must be non-negative")
+        missing_latency = latency.isna()
+        if "response_latency_denominator_count" in source_frame.columns:
+            denominator = _strict_count_values(source_frame, "response_latency_denominator_count")
+            zero_denominator = denominator == 0
+            if (zero_denominator & ~missing_latency).any() or (
+                ~zero_denominator & missing_latency
+            ).any():
+                raise ValueError("response latency and denominator counts are inconsistent")
+            reason.loc[zero_denominator] = "zero_denominator"
+        else:
+            reason.loc[missing_latency] = "no_observation"
         output[metric_name] = latency
     elif metric_name == "peer_support_ratio":
-        numerator = _strict_adapter_values(source_frame, "peer_first_answered_question_count")
-        denominator = _strict_adapter_values(source_frame, "answered_user_question_count")
-        if (numerator < 0).any() or (denominator <= 0).any() or (numerator > denominator).any():
-            raise ValueError(
-                "peer-support episode counts must satisfy 0 <= numerator <= denominator"
-            )
-        output[metric_name] = numerator / denominator
+        numerator = _strict_count_values(source_frame, "peer_first_answered_question_count")
+        denominator = _strict_count_values(source_frame, "answered_user_question_count")
+        if (numerator > denominator).any():
+            raise ValueError("peer-support numerator and denominator counts are inconsistent")
+        zero_denominator = denominator == 0
+        output[metric_name] = np.where(
+            zero_denominator,
+            np.nan,
+            numerator / denominator,
+        )
+        reason.loc[zero_denominator] = "zero_denominator"
     else:  # pragma: no cover - guarded by adapter_required_fields
         raise ValueError(f"{metric_name} has no implemented source adapter")
+    output[_ADAPTER_REASON_COLUMN] = reason
     return output.sort_values(list(keys), kind="mergesort").reset_index(drop=True)
 
 
@@ -604,22 +652,23 @@ def _group_diagnostics(
     if group_name not in frame.columns:
         return None
     group_series = frame[group_name]
+    missing_group = group_series.isna()
+    blank_group = group_series.map(lambda value: isinstance(value, str) and not value.strip())
+    real_group = ~missing_group & ~blank_group
     unique_groups = sorted(
-        (value for value in group_series.dropna().unique()),
+        group_series[real_group].unique(),
         key=lambda value: str(value),
     )
-    if group_series.isna().any():
-        unique_groups.append(None)
     diagnostics: list[GroupValueDiagnostic] = []
     adequate_means: list[float] = []
     for group_value in unique_groups:
-        mask = group_series.isna() if group_value is None else group_series == group_value
+        mask = real_group & (group_series == group_value)
         scoped_numeric, quality = _series_quality(frame.loc[mask, metric_name])
         finite = scoped_numeric[np.isfinite(scoped_numeric)]
         mean = float(finite.mean()) if quality.finite_count else None
         diagnostics.append(
             GroupValueDiagnostic(
-                group_value="<MISSING>" if group_value is None else str(group_value),
+                group_value=str(group_value),
                 sample_size=int(mask.sum()),
                 raw_missing_count=quality.raw_missing_count,
                 invalid_nonnumeric_count=quality.invalid_nonnumeric_count,
@@ -639,6 +688,9 @@ def _group_diagnostics(
     return GroupDiagnostics(
         group_column=group_name,
         status=status,
+        raw_missing_group_count=int(missing_group.sum()),
+        blank_group_count=int(blank_group.sum()),
+        excluded_group_count=int((missing_group | blank_group).sum()),
         group_count=len(diagnostics),
         adequate_group_count=adequate_count,
         minimum_group_size=minimum_group_size,
@@ -675,13 +727,16 @@ def _exact_permutation_p_value(metric: np.ndarray, outcome: np.ndarray) -> float
 
 
 def _empty_association(
+    metric_name: str,
     outcome_name: str,
     outcome_quality: _SeriesQuality,
     paired_sample_size: int,
     reason: str,
     outcomes_tested_count: int,
+    multiplicity_family_count: int,
 ) -> OutcomeAssociation:
     return OutcomeAssociation(
+        metric_name=metric_name,
         outcome_name=outcome_name,
         paired_sample_size=paired_sample_size,
         outcome_raw_missing_count=outcome_quality.raw_missing_count,
@@ -693,7 +748,12 @@ def _empty_association(
         raw_p_value=None,
         adjusted_p_value=None,
         outcomes_tested_count=outcomes_tested_count,
+        multiplicity_family_count=multiplicity_family_count,
+        multiplicity_family_definition=_MULTIPLICITY_FAMILY_DEFINITION,
         adjustment_method="Holm",
+        p_value_floor=_P_VALUE_REPORTING_FLOOR,
+        below_reporting_precision=False,
+        p_value_reporting_note="No p-value was estimated.",
         inference_method="not_estimated",
         confidence_interval_95=None,
         uncertainty_reason=reason,
@@ -708,6 +768,7 @@ def _association(
     outcome_name: str,
     minimum_sample_size: int,
     outcomes_tested_count: int,
+    multiplicity_family_count: int,
 ) -> OutcomeAssociation:
     metric, metric_quality = _series_quality(joined[metric_name])
     outcome, outcome_quality = _series_quality(joined[f"__outcome__{outcome_name}"])
@@ -721,11 +782,13 @@ def _association(
         or metric_quality.negative_infinity_count
     ):
         return _empty_association(
+            metric_name,
             outcome_name,
             outcome_quality,
             paired_count,
             "invalid_metric_values",
             outcomes_tested_count,
+            multiplicity_family_count,
         )
     if (
         outcome_quality.invalid_nonnumeric_count
@@ -733,39 +796,53 @@ def _association(
         or outcome_quality.negative_infinity_count
     ):
         return _empty_association(
+            metric_name,
             outcome_name,
             outcome_quality,
             paired_count,
             "invalid_outcome_values",
             outcomes_tested_count,
+            multiplicity_family_count,
         )
     if paired_count == 0:
         return _empty_association(
-            outcome_name, outcome_quality, 0, "no_finite_pairs", outcomes_tested_count
+            metric_name,
+            outcome_name,
+            outcome_quality,
+            0,
+            "no_finite_pairs",
+            outcomes_tested_count,
+            multiplicity_family_count,
         )
     if paired_count < minimum_sample_size:
         return _empty_association(
+            metric_name,
             outcome_name,
             outcome_quality,
             paired_count,
             "insufficient_paired_sample",
             outcomes_tested_count,
+            multiplicity_family_count,
         )
     if float(np.var(paired_metric)) == 0.0:
         return _empty_association(
+            metric_name,
             outcome_name,
             outcome_quality,
             paired_count,
             "zero_variance_metric",
             outcomes_tested_count,
+            multiplicity_family_count,
         )
     if float(np.var(paired_outcome)) == 0.0:
         return _empty_association(
+            metric_name,
             outcome_name,
             outcome_quality,
             paired_count,
             "zero_variance_outcome",
             outcomes_tested_count,
+            multiplicity_family_count,
         )
 
     statistic = spearmanr(paired_metric, paired_outcome)
@@ -783,12 +860,15 @@ def _association(
         uncertainty_reason = "inferential_sample_too_small_for_asymptotic_test"
         reason = "inferential_sample_too_small_for_asymptotic_test"
     else:
-        raw_p_value = float(statistic.pvalue)
+        computed_p_value = float(statistic.pvalue)
+        raw_p_value = max(computed_p_value, _P_VALUE_REPORTING_FLOOR)
         inference_method = "asymptotic_spearman"
         interval = _fisher_interval(rho, paired_count)
         uncertainty_reason = "approximate_fisher_z_interval_for_spearman"
         reason = None
+    below_reporting_precision = raw_p_value is not None and raw_p_value <= _P_VALUE_REPORTING_FLOOR
     return OutcomeAssociation(
+        metric_name=metric_name,
         outcome_name=outcome_name,
         paired_sample_size=paired_count,
         outcome_raw_missing_count=outcome_quality.raw_missing_count,
@@ -800,7 +880,16 @@ def _association(
         raw_p_value=raw_p_value,
         adjusted_p_value=None,
         outcomes_tested_count=outcomes_tested_count,
+        multiplicity_family_count=multiplicity_family_count,
+        multiplicity_family_definition=_MULTIPLICITY_FAMILY_DEFINITION,
         adjustment_method="Holm",
+        p_value_floor=_P_VALUE_REPORTING_FLOOR,
+        below_reporting_precision=below_reporting_precision,
+        p_value_reporting_note=(
+            "Computed p-value was at or below the reporting floor and is reported at the floor."
+            if below_reporting_precision
+            else "Reported p-value is above the configured reporting floor."
+        ),
         inference_method=inference_method,
         confidence_interval_95=interval,
         uncertainty_reason=uncertainty_reason,
@@ -813,18 +902,26 @@ def _holm_adjust(associations: tuple[OutcomeAssociation, ...]) -> tuple[OutcomeA
     family_size = len(associations)
     ordered = sorted(
         (
-            (index, association.raw_p_value, association.outcome_name)
+            (
+                index,
+                association.raw_p_value,
+                association.metric_name,
+                association.outcome_name,
+            )
             for index, association in enumerate(associations)
             if association.raw_p_value is not None
         ),
-        key=lambda item: (item[1], item[2]),
+        key=lambda item: (item[1], item[2], item[3]),
     )
     adjusted_by_index: dict[int, float] = {}
     running_maximum = 0.0
-    for rank, (index, raw_p_value, _) in enumerate(ordered):
+    for rank, (index, raw_p_value, _, _) in enumerate(ordered):
         if raw_p_value is None:  # pragma: no cover - excluded above
             continue
-        candidate = min(1.0, (family_size - rank) * raw_p_value)
+        candidate = max(
+            _P_VALUE_REPORTING_FLOOR,
+            min(1.0, (family_size - rank) * raw_p_value),
+        )
         running_maximum = max(running_maximum, candidate)
         adjusted_by_index[index] = running_maximum
     return tuple(
@@ -951,6 +1048,33 @@ def validate_metrics(
         )
 
     redundancy = _redundancy_diagnostics(metric_frame, metrics, minimum_sample_size)
+    associations_by_metric: dict[str, tuple[OutcomeAssociation, ...]] = {
+        name: () for name in metrics
+    }
+    if joined is not None and outcomes:
+        family_count = len(metrics) * len(outcomes)
+        globally_adjusted = _holm_adjust(
+            tuple(
+                _association(
+                    joined,
+                    metric_name,
+                    outcome_name,
+                    minimum_sample_size,
+                    len(outcomes),
+                    family_count,
+                )
+                for metric_name in metrics
+                for outcome_name in outcomes
+            )
+        )
+        associations_by_metric = {
+            metric_name: tuple(
+                association
+                for association in globally_adjusted
+                if association.metric_name == metric_name
+            )
+            for metric_name in metrics
+        }
     results: list[MetricValidationResult] = []
     for metric_name in metrics:
         values, quality = _series_quality(metric_frame[metric_name])
@@ -968,22 +1092,7 @@ def validate_metrics(
         if quality.finite_count and variance == 0.0:
             reasons.append("zero_variance")
 
-        associations = (
-            _holm_adjust(
-                tuple(
-                    _association(
-                        joined,
-                        metric_name,
-                        outcome_name,
-                        minimum_sample_size,
-                        len(outcomes),
-                    )
-                    for outcome_name in outcomes
-                )
-            )
-            if joined is not None and outcomes
-            else ()
-        )
+        associations = associations_by_metric[metric_name]
         if outcome_frame is None:
             reasons.append("no_outcome_frame")
         elif not outcomes:

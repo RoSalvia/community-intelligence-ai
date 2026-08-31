@@ -14,6 +14,7 @@ from community_intelligence.metrics import (
 )
 
 OBSERVATION_KEYS = ("observation_id",)
+ADAPTER_REASON_COLUMN = "adapter_diagnostic_reason"
 CATALOG_NAMES = (
     "campaign_discussion_share",
     "community_response_latency",
@@ -131,8 +132,16 @@ def test_semantic_coverage_adapter_matches_campaign_formula() -> None:
         observation_key_columns=OBSERVATION_KEYS,
     )
     assert adapted.to_dict("records") == [
-        {"observation_id": "a", "semantic_campaign_coverage": 0.6},
-        {"observation_id": "b", "semantic_campaign_coverage": 0.25},
+        {
+            "observation_id": "a",
+            "semantic_campaign_coverage": 0.6,
+            ADAPTER_REASON_COLUMN: "observed",
+        },
+        {
+            "observation_id": "b",
+            "semantic_campaign_coverage": 0.25,
+            ADAPTER_REASON_COLUMN: "observed",
+        },
     ]
 
 
@@ -150,10 +159,12 @@ def test_depth_and_latency_adapters_use_canonical_upstream_fields() -> None:
     assert depth.iloc[0].to_dict() == {
         "observation_id": "a",
         "conversation_propagation_depth": 4.0,
+        ADAPTER_REASON_COLUMN: "observed",
     }
     assert latency.iloc[0].to_dict() == {
         "observation_id": "a",
         "community_response_latency": 45.0,
+        ADAPTER_REASON_COLUMN: "observed",
     }
 
 
@@ -185,6 +196,111 @@ def test_peer_support_adapter_requires_episode_counts_and_rejects_activation_rat
         observation_key_columns=OBSERVATION_KEYS,
     )
     assert adapted["peer_support_ratio"].tolist() == [0.5, 0.25]
+    assert adapted[ADAPTER_REASON_COLUMN].tolist() == ["observed", "observed"]
+
+
+def test_latency_adapter_preserves_no_response_rows_with_explicit_reason() -> None:
+    with_denominator = adapt_metric_source(
+        "community_response_latency",
+        pd.DataFrame(
+            {
+                "observation_id": ["no-response", "responded"],
+                "response_latency_seconds": [np.nan, 30.0],
+                "response_latency_denominator_count": [0, 1],
+            }
+        ),
+        observation_key_columns=OBSERVATION_KEYS,
+    )
+    without_denominator = adapt_metric_source(
+        "community_response_latency",
+        pd.DataFrame(
+            {
+                "observation_id": ["no-response"],
+                "response_latency_seconds": [np.nan],
+            }
+        ),
+        observation_key_columns=OBSERVATION_KEYS,
+    )
+
+    assert with_denominator["observation_id"].tolist() == ["no-response", "responded"]
+    assert np.isnan(with_denominator.loc[0, "community_response_latency"])
+    assert with_denominator[ADAPTER_REASON_COLUMN].tolist() == [
+        "zero_denominator",
+        "observed",
+    ]
+    assert np.isnan(without_denominator.loc[0, "community_response_latency"])
+    assert without_denominator.loc[0, ADAPTER_REASON_COLUMN] == "no_observation"
+
+    validation = _validate(
+        with_denominator,
+        None,
+        metric_columns=("community_response_latency",),
+        minimum_sample_size=3,
+    )[0]
+    assert validation.sample_size == 2
+    assert validation.raw_missing_count == 1
+
+
+def test_peer_adapter_preserves_zero_answered_question_denominator() -> None:
+    adapted = adapt_metric_source(
+        "peer_support_ratio",
+        pd.DataFrame(
+            {
+                "observation_id": ["none-answered", "answered"],
+                "peer_first_answered_question_count": [0, 1],
+                "answered_user_question_count": [0, 4],
+            }
+        ),
+        observation_key_columns=OBSERVATION_KEYS,
+    )
+
+    assert adapted["observation_id"].tolist() == ["answered", "none-answered"]
+    assert adapted.loc[0, "peer_support_ratio"] == pytest.approx(0.25)
+    assert adapted.loc[0, ADAPTER_REASON_COLUMN] == "observed"
+    assert np.isnan(adapted.loc[1, "peer_support_ratio"])
+    assert adapted.loc[1, ADAPTER_REASON_COLUMN] == "zero_denominator"
+
+
+@pytest.mark.parametrize(
+    ("metric_name", "source"),
+    [
+        (
+            "semantic_campaign_coverage",
+            {"covered": [True], "partially_covered": [0], "total_claims": [1]},
+        ),
+        (
+            "semantic_campaign_coverage",
+            {"covered": [0.5], "partially_covered": [0], "total_claims": [1]},
+        ),
+        (
+            "semantic_campaign_coverage",
+            {"covered": [-1], "partially_covered": [0], "total_claims": [1]},
+        ),
+        (
+            "semantic_campaign_coverage",
+            {"covered": [1], "partially_covered": [1], "total_claims": [1]},
+        ),
+        ("conversation_propagation_depth", {"conversation_depth": [True]}),
+        ("conversation_propagation_depth", {"conversation_depth": [1.5]}),
+        (
+            "peer_support_ratio",
+            {
+                "peer_first_answered_question_count": [2],
+                "answered_user_question_count": [1],
+            },
+        ),
+    ],
+)
+def test_count_adapters_reject_noninteger_negative_bool_and_inconsistent_counts(
+    metric_name: str,
+    source: dict[str, list[object]],
+) -> None:
+    with pytest.raises(ValueError, match="count|integer|consistent|numerator"):
+        adapt_metric_source(
+            metric_name,
+            pd.DataFrame({"observation_id": ["a"], **source}),
+            observation_key_columns=OBSERVATION_KEYS,
+        )
 
 
 def test_catalog_and_results_are_deeply_immutable() -> None:
@@ -414,6 +530,12 @@ def test_large_sample_uses_labeled_asymptotic_inference_without_degenerate_ci() 
     assert association.inference_method == "asymptotic_spearman"
     assert association.raw_p_value is not None
     assert association.adjusted_p_value is not None
+    assert association.raw_p_value > 0.0
+    assert association.adjusted_p_value > 0.0
+    assert association.p_value_floor > 0.0
+    assert association.raw_p_value == association.p_value_floor
+    assert association.below_reporting_precision is True
+    assert "floor" in association.p_value_reporting_note
     assert association.confidence_interval_95 is not None
     assert association.confidence_interval_95 != (1.0, 1.0)
     assert result.status == "Promising"
@@ -446,6 +568,32 @@ def test_holm_adjustment_records_multiplicity_and_controls_promotion() -> None:
     assert all(item.raw_p_value == pytest.approx(2 / 120) for item in result.associations)
     assert all(item.adjusted_p_value == pytest.approx(4 * 2 / 120) for item in result.associations)
     assert result.status == "Candidate"
+
+
+def test_holm_family_is_global_across_all_metric_outcome_hypotheses() -> None:
+    values = list(range(5))
+    results = _validate(
+        _metric_frame(metric_a=values, metric_b=list(reversed(values))),
+        _outcome_frame(outcome_a=values, outcome_b=list(reversed(values))),
+        metric_columns=("metric_b", "metric_a"),
+        outcome_columns=("outcome_b", "outcome_a"),
+        minimum_sample_size=3,
+        minimum_group_size=1,
+    )
+
+    associations = tuple(association for result in results for association in result.associations)
+    assert len(associations) == 4
+    assert all(association.multiplicity_family_count == 4 for association in associations)
+    assert all(
+        association.multiplicity_family_definition
+        == "all selected metric-outcome hypotheses in one validate_metrics call"
+        for association in associations
+    )
+    assert all(association.raw_p_value == pytest.approx(2 / 120) for association in associations)
+    assert all(
+        association.adjusted_p_value == pytest.approx(4 * 2 / 120) for association in associations
+    )
+    assert {result.status for result in results} == {"Candidate"}
 
 
 def test_group_diagnostics_are_explicit_and_descriptive() -> None:
@@ -493,6 +641,37 @@ def test_fewer_than_two_adequate_groups_has_no_spread() -> None:
     assert result.language_diagnostics is not None
     assert result.language_diagnostics.status == "insufficient_groups"
     assert result.language_diagnostics.spread is None
+
+
+def test_missing_and_blank_group_dimensions_are_counted_but_never_compared() -> None:
+    frame = pd.DataFrame(
+        {
+            "observation_id": ["a", "b", "c", "d", "e"],
+            "community_id": ["real", "real", None, "  ", ""],
+            "language": ["en", "en", None, "  ", ""],
+            "metric": [1.0, 2.0, 100.0, 200.0, 300.0],
+        }
+    )
+    result = _validate(
+        frame,
+        None,
+        metric_columns=("metric",),
+        minimum_group_size=2,
+    )[0]
+
+    for diagnostic, expected_group in (
+        (result.community_diagnostics, "real"),
+        (result.language_diagnostics, "en"),
+    ):
+        assert diagnostic is not None
+        assert diagnostic.raw_missing_group_count == 1
+        assert diagnostic.blank_group_count == 2
+        assert diagnostic.excluded_group_count == 3
+        assert diagnostic.group_count == 1
+        assert diagnostic.adequate_group_count == 1
+        assert tuple(item.group_value for item in diagnostic.groups) == (expected_group,)
+        assert diagnostic.status == "insufficient_groups"
+        assert diagnostic.spread is None
 
 
 def test_redundancy_diagnostics_are_symmetric_directional_and_deterministic() -> None:
