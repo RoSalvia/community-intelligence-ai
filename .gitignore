@@ -12,6 +12,8 @@ dist/
 htmlcov/
 frontend/node_modules/
 frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
 frontend/*.tsbuildinfo
 .streamlit/secrets.toml
 data/generated/

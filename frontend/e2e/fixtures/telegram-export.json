@@ -1,0 +1,24 @@
+{
+  "name": "Browser Test Community",
+  "type": "private_supergroup",
+  "id": 987654321,
+  "messages": [
+    {
+      "id": 10,
+      "type": "message",
+      "date": "2026-08-31T16:00:00+00:00",
+      "from": "Alice Raw Name",
+      "from_id": "user123456",
+      "text": "Can someone help with the launch?"
+    },
+    {
+      "id": 11,
+      "type": "message",
+      "date": "2026-08-31T16:03:00+00:00",
+      "from": "Bob Raw Name",
+      "from_id": "user999999",
+      "reply_to_message_id": 10,
+      "text": "Here is a helpful reply"
+    }
+  ]
+}
