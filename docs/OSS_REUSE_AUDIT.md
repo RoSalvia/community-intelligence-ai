@@ -51,4 +51,6 @@ Reuse mature infrastructure; custom-build the Community Intelligence contract an
 
 ## License caveat
 
+The project owner selected Apache License 2.0 for this repository after reviewing the direct runtime dependencies and the optional semantic dependency/model. The root `LICENSE` contains the standard license text, and `pyproject.toml` publishes the SPDX expression and license file through PEP 639 metadata.
+
 This audit records top-level licenses and dated repository evidence; it is not a legal opinion or a complete transitive software bill of materials. The final lock file and optional model artifacts require a separate dependency inventory before external distribution.
