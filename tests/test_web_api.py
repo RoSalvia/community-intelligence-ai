@@ -43,7 +43,7 @@ def test_health_and_built_frontend_are_available(tmp_path: Path) -> None:
     homepage = client.get("/")
 
     assert health.status_code == 200
-    assert health.json() == {"status": "ok", "version": "0.1.0"}
+    assert health.json() == {"status": "ok", "version": "0.1.0a0"}
     assert homepage.status_code == 200
     assert "Community Intelligence" in homepage.text
 

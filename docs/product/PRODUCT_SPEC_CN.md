@@ -1,12 +1,16 @@
 # Community Intelligence AI 产品需求文档（PRD）
 
+> 本文同时记录长期产品方向与 V0.1 范围。当前可运行能力、验证证据和明确未实现项分别以仓库根目录 `README.md` 与 `docs/EVALUATION.md` 为准；愿景描述不代表相关 AI 方法已经实现。
+
 ## 1. 文档信息
 
-**产品名称：** Community Intelligence AI  
-**产品类型：** AI 原生多语言社区智能分析平台  
-**当前阶段：** MVP / Portfolio Project  
-**首期场景：** Telegram 多语言社区  
-**长期场景：** Telegram、Discord、Reddit、游戏社区、AI 产品用户群、开发者社区、客服社区和社交媒体评论区
+| 项目 | 内容 |
+| --- | --- |
+| 产品名称 | Community Intelligence AI |
+| 产品类型 | AI 原生多语言社区智能分析平台 |
+| 当前阶段 | v0.1.0-alpha / Portfolio Project |
+| 首期场景 | Telegram 多语言社区 |
+| 长期场景 | Telegram、Discord、Reddit、游戏社区、AI 产品用户群、开发者社区、客服社区和社交媒体评论区 |
 
 ## 2. 产品背景
 

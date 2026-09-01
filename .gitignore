@@ -15,6 +15,9 @@ frontend/coverage/
 frontend/playwright-report/
 frontend/test-results/
 frontend/*.tsbuildinfo
+.playwright-cli/
+/output/
 .streamlit/secrets.toml
 data/generated/
 reports/generated/
+/tmp/

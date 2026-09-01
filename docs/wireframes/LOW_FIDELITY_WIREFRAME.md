@@ -2,7 +2,7 @@
 
 ## Purpose and fixed product rules
 
-This wireframe translates the Task 5 product brief into a seven-view local web application. It deliberately describes information architecture before decorative styling. Message count is context, not quality. A page may show volume to explain the analysis scope, but it may not turn activity volume into an overall Moderator Score or imply that more messages mean healthier operations.
+This wireframe translates the V0.1 product brief into a seven-view local web application. It deliberately describes information architecture before decorative styling. Message count is context, not quality. A page may show volume to explain the analysis scope, but it may not turn activity volume into an overall Moderator Score or imply that more messages mean healthier operations.
 
 Every important judgment must expose evidence IDs, source messages, method, confidence semantics and review status. “Available”, “Not available for this dataset” and “Not implemented” are separate states. “Not available” means the method exists but the current input lacks the required data; “Not implemented” means the product does not claim the capability. Human review remains visible wherever candidate behavior names, campaign coverage or other interpretive outputs are shown.
 
@@ -56,4 +56,3 @@ Evidence is the audit surface for all analytical claims. Users can filter by evi
 ## Acceptance notes
 
 The implementation matches this wireframe when all seven routes are reachable by keyboard, synthetic demo data fills every supported page, a Telegram JSON import reaches the same report views, evidence triggers open source-linked detail, mobile navigation works, empty/error/partial states are understandable, and unsupported capabilities remain explicit. Visual differences are acceptable when they improve usability without changing these information and evidence contracts.
-

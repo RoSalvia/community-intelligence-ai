@@ -1,4 +1,4 @@
-# Task 5 Low-Fidelity Wireframes
+# V0.1 Low-Fidelity Wireframes
 
 This directory is the versioned interaction contract for the Community Intelligence local web product. It defines hierarchy, navigation, evidence access and capability states before visual polish. It does not contain production analytics, final copy or a substitute for implementation tests.
 
@@ -17,4 +17,3 @@ The production interface may refine spacing, typography and responsive behavior,
 | Response Patterns | [response-patterns.svg](response-patterns.svg) |
 | Metric Lab | [metric-lab.svg](metric-lab.svg) |
 | Evidence | [evidence.svg](evidence.svg) |
-
