@@ -4,6 +4,8 @@ import hashlib
 import json
 import os
 import stat
+import subprocess
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -107,6 +109,56 @@ def _silent_scope_dataset(
     return write_dataset(dataset, tmp_path / "dataset")
 
 
+def _variant_dataset(
+    source: SyntheticDataset,
+    output: Path,
+    *,
+    messages: list[MessageRecord] | None = None,
+    campaigns: list[object] | None = None,
+    claims: list[object] | None = None,
+    outcomes: list[object] | None = None,
+    annotations: list[object] | None = None,
+) -> Path:
+    selected_messages = source.messages if messages is None else messages
+    selected_campaigns = source.campaigns if campaigns is None else campaigns
+    selected_claims = source.claims if claims is None else claims
+    selected_outcomes = source.outcomes if outcomes is None else outcomes
+    selected_annotations = source.annotations if annotations is None else annotations
+    contents = data_artifact_contents(
+        selected_messages,
+        selected_campaigns,
+        selected_claims,
+        selected_outcomes,
+        selected_annotations,
+    )
+    generation_id, checksums = publication_metadata(source.manifest.dataset_id, contents)
+    community_ids = sorted({message.community_id for message in selected_messages})
+    dataset = SyntheticDataset(
+        messages=selected_messages,
+        campaigns=selected_campaigns,
+        claims=selected_claims,
+        outcomes=selected_outcomes,
+        annotations=selected_annotations,
+        manifest=source.manifest.model_copy(
+            update={
+                "message_count": len(selected_messages),
+                "community_ids": community_ids,
+                "languages": sorted({message.language for message in selected_messages}),
+                "campaign_ids": sorted(
+                    campaign.campaign_id for campaign in selected_campaigns
+                ),
+                "scenarios": {
+                    community_id: source.manifest.scenarios[community_id]
+                    for community_id in community_ids
+                },
+                "generation_id": generation_id,
+                "artifact_checksums": checksums,
+            }
+        ),
+    )
+    return write_dataset(dataset, output)
+
+
 def _read_report(output: Path) -> tuple[dict[str, object], list[dict[str, object]]]:
     report = json.loads((output / "report.json").read_text(encoding="utf-8"))
     evidence = [
@@ -207,7 +259,9 @@ def test_every_metric_record_has_auditable_evidence_with_specialized_routing(
     assert all(record["evidence_ids"] for record in records)
     for record in records:
         linked = [evidence_by_id[evidence_id] for evidence_id in record["evidence_ids"]]
-        assert all(item["campaign_id"] == record["campaign_id"] for item in linked)
+        assert all(
+            item["analysis_campaign_id"] == record["campaign_id"] for item in linked
+        )
         assert all(item["community_id"] == record["community_id"] for item in linked)
         assert sum(item["evidence_type"] == "analysis_scope" for item in linked) == 1
 
@@ -221,7 +275,7 @@ def test_every_metric_record_has_auditable_evidence_with_specialized_routing(
         }
         assert methods == {
             "analysis_scope_v1",
-            "metric:campaign_discussion_share:campaign_message",
+            "source_message",
         }
 
     organic_records = [
@@ -232,10 +286,7 @@ def test_every_metric_record_has_auditable_evidence_with_specialized_routing(
         evidence_by_id[evidence_id]["method"]
         for record in organic_records
         for evidence_id in record["evidence_ids"]
-    } == {
-        "analysis_scope_v1",
-        "metric:organic_project_mention_rate:zero_denominator_scope",
-    }
+    } == {"analysis_scope_v1"}
 
     semantic_records = [
         record
@@ -245,9 +296,8 @@ def test_every_metric_record_has_auditable_evidence_with_specialized_routing(
     for record in semantic_records:
         linked = [evidence_by_id[evidence_id] for evidence_id in record["evidence_ids"]]
         assert all(
-            item["claim_id"]
+            item["evidence_type"] in {"analysis_scope", "claim_judgment", "source_message"}
             for item in linked
-            if item["evidence_type"] != "analysis_scope"
         )
     assert any(
         item["message_id"] is None
@@ -258,7 +308,14 @@ def test_every_metric_record_has_auditable_evidence_with_specialized_routing(
     for item in evidence:
         assert item["message_id"] is None or item["message_id"] in message_ids
         assert item["claim_id"] is None or item["claim_id"] in claim_ids
-        assert item["campaign_id"] is None or item["campaign_id"] in campaign_ids
+        assert (
+            item["source_campaign_id"] is None
+            or item["source_campaign_id"] in campaign_ids
+        )
+        assert (
+            item["analysis_campaign_id"] is None
+            or item["analysis_campaign_id"] in campaign_ids
+        )
         assert item["community_id"] is None or item["community_id"] in community_ids
 
 
@@ -272,7 +329,7 @@ def test_silent_community_campaign_scope_is_audited_without_fabricated_message(
         item
         for item in evidence
         if item["evidence_type"] == "analysis_scope"
-        and item["campaign_id"] == "campaign_stake"
+        and item["analysis_campaign_id"] == "campaign_stake"
         and item["community_id"] == "community_a"
     ]
     assert len(scope_records) == 1
@@ -486,6 +543,33 @@ def test_pipeline_cleans_staging_and_reserved_output_on_write_failure(
     assert not list(tmp_path.glob(".report.staging-*"))
 
 
+def test_pipeline_concurrent_destination_creation_is_preserved_without_partial_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dataset_dir = _dataset(tmp_path)
+    output = tmp_path / "report"
+    import community_intelligence.pipeline as pipeline
+    from community_intelligence.io import publish_directory_no_replace as real_publish
+
+    def create_racer(staging: Path, destination: Path) -> Path:
+        destination.mkdir()
+        (destination / "keep.txt").write_text("racer", encoding="utf-8")
+        return real_publish(staging, destination)
+
+    monkeypatch.setattr(
+        pipeline,
+        "publish_directory_no_replace",
+        create_racer,
+        raising=False,
+    )
+
+    with pytest.raises(FileExistsError):
+        run_pipeline(dataset_dir, output)
+    assert (output / "keep.txt").read_text(encoding="utf-8") == "racer"
+    assert sorted(path.name for path in output.iterdir()) == ["keep.txt"]
+    assert not list(tmp_path.glob(".report.staging-*"))
+
+
 def test_pipeline_preserves_undefined_metric_rows(tmp_path: Path) -> None:
     output = run_pipeline(_dataset(tmp_path), tmp_path / "report")
     report, _ = _read_report(output)
@@ -497,6 +581,235 @@ def test_pipeline_preserves_undefined_metric_rows(tmp_path: Path) -> None:
     assert len(organic) == 12
     assert all(row["value"] is None for row in organic)
     assert all(row["diagnostic"] == "zero_denominator" for row in organic)
+
+
+def test_campaign_resource_rejects_changed_canonical_claim_content(tmp_path: Path) -> None:
+    source = generate_dataset(message_count=120)
+    claims = [
+        claim.model_copy(
+            update={"claim_text": "The reward is 200 synthetic tokens."}
+        )
+        if claim.claim_id == "stake_reward"
+        else claim
+        for claim in source.claims
+    ]
+    dataset = _variant_dataset(source, tmp_path / "dataset", claims=claims)
+    output = tmp_path / "report"
+
+    with pytest.raises(ValueError, match="Not implemented.*resource mismatch"):
+        run_pipeline(dataset, output)
+    assert not os.path.lexists(output)
+
+
+def test_organic_project_mention_uses_multilingual_rule_and_preserves_campaign_provenance(
+    tmp_path: Path,
+) -> None:
+    source = generate_dataset(message_count=120)
+    campaign = next(item for item in source.campaigns if item.campaign_id == "campaign_stake")
+    organic = MessageRecord(
+        message_id="msg_organic_zh",
+        community_id="community_a",
+        language="zh",
+        user_id_hash="usr_abcdef",
+        user_role="user",
+        timestamp=campaign.start_time,
+        text="我在讨论这个项目的路线图。",
+        reply_to_message_id=None,
+        campaign_id=None,
+    )
+    dataset = _variant_dataset(
+        source,
+        tmp_path / "dataset",
+        messages=[*source.messages, organic],
+    )
+    report, evidence = _read_report(run_pipeline(dataset, tmp_path / "report"))
+    record = next(
+        item
+        for item in report["Metric Lab"]["metric_records"]
+        if item["observation_id"] == "campaign_stake:community_a"
+        and item["metric_name"] == "organic_project_mention_rate"
+    )
+    assert record["value"] == 1.0
+    assert record["diagnostic"] == "observed"
+    linked = {
+        item["evidence_id"]: item
+        for item in evidence
+        if item["evidence_id"] in record["evidence_ids"]
+    }
+    source_record = next(
+        item for item in linked.values() if item["message_id"] == "msg_organic_zh"
+    )
+    assert source_record["source_text"] == organic.text
+    assert source_record["source_campaign_id"] is None
+    assert source_record["analysis_campaign_id"] == "campaign_stake"
+
+
+def test_user_question_metrics_exclude_moderator_questions_and_their_evidence(
+    tmp_path: Path,
+) -> None:
+    source = generate_dataset(message_count=120)
+    baseline_dir = _variant_dataset(source, tmp_path / "baseline-dataset")
+    baseline, _ = _read_report(run_pipeline(baseline_dir, tmp_path / "baseline-report"))
+    campaign = next(item for item in source.campaigns if item.campaign_id == "campaign_stake")
+    moderator_question = MessageRecord(
+        message_id="msg_moderator_question",
+        community_id="community_a",
+        language="en",
+        user_id_hash="usr_aabbcc",
+        user_role="moderator",
+        timestamp=campaign.start_time,
+        text="What should moderators explain next?",
+        reply_to_message_id=None,
+        campaign_id="campaign_stake",
+    )
+    user_answer = MessageRecord(
+        message_id="msg_user_answer_to_moderator",
+        community_id="community_a",
+        language="en",
+        user_id_hash="usr_ddeeff",
+        user_role="user",
+        timestamp=campaign.start_time.replace(microsecond=1),
+        text="Please explain the verification flow.",
+        reply_to_message_id=moderator_question.message_id,
+        campaign_id="campaign_stake",
+    )
+    dataset = _variant_dataset(
+        source,
+        tmp_path / "dataset",
+        messages=[*source.messages, moderator_question, user_answer],
+    )
+    report, evidence = _read_report(run_pipeline(dataset, tmp_path / "report"))
+    evidence_by_id = {item["evidence_id"]: item for item in evidence}
+
+    for metric_name in {"peer_support_ratio", "unanswered_question_rate"}:
+        baseline_record = next(
+            item
+            for item in baseline["Metric Lab"]["metric_records"]
+            if item["observation_id"] == "campaign_stake:community_a"
+            and item["metric_name"] == metric_name
+        )
+        record = next(
+            item
+            for item in report["Metric Lab"]["metric_records"]
+            if item["observation_id"] == "campaign_stake:community_a"
+            and item["metric_name"] == metric_name
+        )
+        assert (record["value"], record["diagnostic"]) == (
+            baseline_record["value"],
+            baseline_record["diagnostic"],
+        )
+        linked_message_ids = {
+            evidence_by_id[evidence_id]["message_id"]
+            for evidence_id in record["evidence_ids"]
+            if evidence_by_id[evidence_id]["message_id"] is not None
+        }
+        assert moderator_question.message_id not in linked_message_ids
+        assert user_answer.message_id not in linked_message_ids
+
+
+def test_mixed_language_community_uses_complete_distribution_and_explicit_scope(
+    tmp_path: Path,
+) -> None:
+    source = generate_dataset(message_count=120)
+    target = next(
+        message
+        for message in source.messages
+        if message.community_id == "community_a" and message.language == "en"
+    )
+    messages = [
+        message.model_copy(update={"language": "zh"})
+        if message.message_id == target.message_id
+        else message
+        for message in source.messages
+    ]
+    dataset = _variant_dataset(source, tmp_path / "dataset", messages=messages)
+    report, _ = _read_report(run_pipeline(dataset, tmp_path / "report"))
+    expected_distribution = {
+        language: sum(
+            message.community_id == "community_a" and message.language == language
+            for message in messages
+        )
+        for language in ("en", "zh")
+    }
+    rows = [
+        row
+        for row in report["Metric Lab"]["observations"]
+        if row["community_id"] == "community_a"
+    ]
+    assert rows
+    assert all(row["languages"] == ["en", "zh"] for row in rows)
+    assert all(row["language_distribution"] == expected_distribution for row in rows)
+    assert all(row["language_scope"] == "multilingual:en,zh" for row in rows)
+    assert all(row["language"] == "multilingual:en,zh" for row in rows)
+    assert "community_level_mixed_language_aggregation" in report["limitations"]
+
+
+def test_pipeline_rejects_contract_valid_dataset_without_campaigns_before_frame_operations(
+    tmp_path: Path,
+) -> None:
+    source = generate_dataset(message_count=120)
+    messages = [
+        message.model_copy(update={"campaign_id": None}) for message in source.messages
+    ]
+    dataset = _variant_dataset(
+        source,
+        tmp_path / "dataset",
+        messages=messages,
+        campaigns=[],
+        claims=[],
+        outcomes=[],
+    )
+    output = tmp_path / "report"
+
+    with pytest.raises(
+        ValueError,
+        match="at least one campaign required for this campaign-centric MVP",
+    ):
+        run_pipeline(dataset, output)
+    assert not os.path.lexists(output)
+
+
+def test_evidence_semantics_are_deduplicated_while_all_metric_records_remain_linked(
+    tmp_path: Path,
+) -> None:
+    report, evidence = _read_report(run_pipeline(_dataset(tmp_path), tmp_path / "report"))
+    semantic_payloads = [
+        json.dumps(
+            {key: value for key, value in item.items() if key != "evidence_id"},
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        for item in evidence
+    ]
+    assert len(semantic_payloads) == len(set(semantic_payloads))
+    assert len(evidence) < 858
+    records = report["Metric Lab"]["metric_records"]
+    assert len(records) == 120
+    assert all(record["evidence_ids"] for record in records)
+
+
+def test_jsonable_set_order_is_stable_across_python_hash_seeds() -> None:
+    code = (
+        "from community_intelligence.pipeline import _json_text; "
+        "print(_json_text({'values': {'gamma', 'alpha', 'beta'}}), end='')"
+    )
+    outputs = []
+    for seed in ("1", "2", "3"):
+        source_root = Path(__file__).parents[1] / "src"
+        environment = {
+            **os.environ,
+            "PYTHONHASHSEED": seed,
+            "PYTHONPATH": str(source_root),
+        }
+        outputs.append(
+            subprocess.check_output(
+                [sys.executable, "-c", code],
+                cwd=Path(__file__).parents[1],
+                env=environment,
+            )
+        )
+    assert outputs[0] == outputs[1] == outputs[2]
+    assert json.loads(outputs[0]) == {"values": ["alpha", "beta", "gamma"]}
 
 
 def test_cluster_selection_degrades_for_a_tiny_tokenless_vector_space() -> None:

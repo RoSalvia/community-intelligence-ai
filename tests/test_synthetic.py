@@ -367,23 +367,22 @@ def test_failed_first_publication_removes_only_staging_directory(
     output_dir = tmp_path / "dataset"
     unrelated = tmp_path / "keep-me.txt"
     unrelated.write_bytes(b"outside staging\n")
-    real_rename = dataset_io.os.rename
     injected = False
 
-    def fail_staging_publish(source: str | Path, destination: str | Path) -> None:
+    def fail_staging_publish(
+        parent_fd: int, source_name: str, destination_name: str
+    ) -> None:
         nonlocal injected
-        source_path = Path(source)
-        destination_path = Path(destination)
         if (
             not injected
-            and destination_path == output_dir
-            and ".staging-" in source_path.name
+            and destination_name == output_dir.name
+            and ".staging-" in source_name
         ):
             injected = True
             raise OSError("injected publish failure")
-        real_rename(source, destination)
+        raise AssertionError("unexpected second publication attempt")
 
-    monkeypatch.setattr(dataset_io.os, "rename", fail_staging_publish)
+    monkeypatch.setattr(dataset_io, "_rename_directory_no_replace", fail_staging_publish)
 
     with pytest.raises(OSError, match="injected publish failure"):
         write_dataset(generate_dataset(seed=67, message_count=120), output_dir)

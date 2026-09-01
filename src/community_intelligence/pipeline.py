@@ -6,7 +6,7 @@ import hashlib
 import json
 import math
 import os
-import shutil
+import re
 import tempfile
 from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
@@ -29,7 +29,11 @@ from community_intelligence.campaign import (
 )
 from community_intelligence.episodes import build_episodes
 from community_intelligence.hygiene import analyze_hygiene
-from community_intelligence.io import read_dataset
+from community_intelligence.io import (
+    cleanup_private_directory,
+    publish_directory_no_replace,
+    read_dataset,
+)
 from community_intelligence.message_rules import normalize_text
 from community_intelligence.metrics import adapt_metric_source, metric_catalog, validate_metrics
 from community_intelligence.models import (
@@ -53,19 +57,27 @@ _FEEDBACK_SEED_BEHAVIORS = (
     "positive_feedback",
 )
 
-_RESOURCE_PATTERNS: Mapping[str, Mapping[str, tuple[str, ...]]] = {
+_RESOURCE_PATTERNS: Mapping[str, Mapping[str, Any]] = {
     "stake_deadline": {
+        "canonical_claim_text": "The staking deadline is Friday.",
+        "claim_content_sha256": "d66f52e44108baa4c16692ffd1870ed0c6a47c2a18e10bfee8cf375a2d6386c3",
         "aliases": ("before Friday", "antes del viernes", "星期五", "الجمعة"),
         "incorrect_patterns": ("周日", "Sunday"),
     },
     "stake_reward": {
+        "canonical_claim_text": "The reward is 100 synthetic tokens.",
+        "claim_content_sha256": "ad7a648f2b287fff7ed79a4d9e47de721639fb4cfe8f3bc94797490cbbc0b767",
         "aliases": ("100 synthetic tokens", "100 tokens", "100 个代币", "100 رمز"),
         "incorrect_patterns": ("50 个代币", "50 tokens"),
     },
     "stake_eligibility": {
+        "canonical_claim_text": "Verified members are eligible.",
+        "claim_content_sha256": "b3bde5a8ed4a2a39f9ce049359595fdc0cb8466482a9d1398a8696e31b815a3a",
         "aliases": ("verified members", "miembros verificados", "已验证成员"),
     },
     "referral_count": {
+        "canonical_claim_text": "Two eligible referrals are required.",
+        "claim_content_sha256": "33c61ac2b682f20b2088a37b2c4e7677b64a54deb706d1c87a0be197fb207a6b",
         "aliases": (
             "two eligible friends",
             "dos amigos elegibles",
@@ -75,10 +87,14 @@ _RESOURCE_PATTERNS: Mapping[str, Mapping[str, tuple[str, ...]]] = {
         "incorrect_patterns": ("一名好友", "one friend"),
     },
     "referral_reward": {
+        "canonical_claim_text": "The reward is 25 synthetic tokens.",
+        "claim_content_sha256": "d1fbefce92c788bdc0630598ce1fcd6233d9b7afbb789806771b36d24a45411b",
         "aliases": ("25 synthetic tokens", "25 tokens", "25 个代币", "25 رمز"),
         "incorrect_patterns": ("10 个代币", "10 tokens"),
     },
     "launch_date": {
+        "canonical_claim_text": "The synthetic feature launches September 20.",
+        "claim_content_sha256": "90ca1c6f0f2fa2f854fcbd6df82e439304051210ce6afc331c619c481030b7d8",
         "aliases": (
             "launches September 20",
             "lanza el 20 de septiembre",
@@ -88,6 +104,8 @@ _RESOURCE_PATTERNS: Mapping[str, Mapping[str, tuple[str, ...]]] = {
         "incorrect_patterns": ("9 月 25 日", "September 25"),
     },
     "launch_feedback": {
+        "canonical_claim_text": "Community feedback is invited.",
+        "claim_content_sha256": "262af355a58343a80b86759a947a577bae6778703aeaf56f3ed3ca85b7c89594",
         "aliases": (
             "feedback is invited",
             "solicitan comentarios",
@@ -96,6 +114,13 @@ _RESOURCE_PATTERNS: Mapping[str, Mapping[str, tuple[str, ...]]] = {
         ),
         "contradiction_patterns": ("不再征集反馈", "feedback is closed"),
     },
+}
+
+_PROJECT_MENTION_LEXICON: Mapping[str, tuple[str, ...]] = {
+    "en": ("project", "product", "roadmap"),
+    "es": ("proyecto", "producto", "hoja de ruta"),
+    "zh": ("项目", "产品", "路线图"),
+    "ar": ("مشروع", "منتج", "خارطة الطريق", "خريطة الطريق"),
 }
 
 _PIPELINE_METRIC_CONTRACTS: Mapping[str, Mapping[str, str]] = {
@@ -150,7 +175,8 @@ class EvidenceRecord:
     evidence_type: str
     message_id: str | None
     claim_id: str | None
-    campaign_id: str | None
+    source_campaign_id: str | None
+    analysis_campaign_id: str | None
     community_id: str | None
     source_text: str | None
     message_count: int | None
@@ -171,21 +197,14 @@ class _EvidenceCollector:
         self,
         message_id: str,
         *,
-        method: str,
-        claim_id: str | None = None,
-        campaign_id: str | None = None,
+        analysis_campaign_id: str | None = None,
         community_id: str | None = None,
-        confidence: float | None = None,
-        confidence_semantics: str = "deterministic rule evidence; not a calibrated probability",
-        translation: str | None = None,
     ) -> str:
         message = self._messages[message_id]
         identity = {
             "message_id": message_id,
-            "claim_id": claim_id,
-            "campaign_id": campaign_id,
+            "analysis_campaign_id": analysis_campaign_id,
             "community_id": community_id or message.community_id,
-            "method": method,
         }
         digest = hashlib.sha256(
             json.dumps(identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -195,16 +214,17 @@ class _EvidenceCollector:
             evidence_id=evidence_id,
             evidence_type="source_message",
             message_id=message_id,
-            claim_id=claim_id,
-            campaign_id=campaign_id or message.campaign_id,
+            claim_id=None,
+            source_campaign_id=message.campaign_id,
+            analysis_campaign_id=analysis_campaign_id,
             community_id=community_id or message.community_id,
             source_text=message.text,
             message_count=None,
             denominator_facts=None,
-            translation=translation,
-            confidence=confidence,
-            confidence_semantics=confidence_semantics,
-            method=method,
+            translation=None,
+            confidence=None,
+            confidence_semantics="exact captured source message; not a probability",
+            method="source_message",
             review_status=REVIEW_STATUS,
         )
         existing = self._records.get(evidence_id)
@@ -242,7 +262,8 @@ class _EvidenceCollector:
             evidence_type="claim_judgment",
             message_id=None,
             claim_id=claim.claim_id,
-            campaign_id=claim.campaign_id,
+            source_campaign_id=None,
+            analysis_campaign_id=claim.campaign_id,
             community_id=community_id,
             source_text=claim.claim_text,
             message_count=None,
@@ -296,7 +317,8 @@ class _EvidenceCollector:
             evidence_type="analysis_scope",
             message_id=None,
             claim_id=None,
-            campaign_id=campaign.campaign_id,
+            source_campaign_id=None,
+            analysis_campaign_id=campaign.campaign_id,
             community_id=community_id,
             source_text=None,
             message_count=len(messages),
@@ -323,7 +345,18 @@ def _jsonable(value: Any) -> Any:
         return _jsonable(_record_dict(value))
     if isinstance(value, Mapping):
         return {str(key): _jsonable(value[key]) for key in sorted(value, key=str)}
-    if isinstance(value, (tuple, list, set, frozenset)):
+    if isinstance(value, (set, frozenset)):
+        converted = [_jsonable(item) for item in value]
+        return sorted(
+            converted,
+            key=lambda item: json.dumps(
+                item,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+        )
+    if isinstance(value, (tuple, list)):
         return [_jsonable(item) for item in value]
     if isinstance(value, datetime):
         return value.isoformat().replace("+00:00", "Z")
@@ -369,7 +402,17 @@ def _write_text(path: Path, content: str) -> None:
 def _resource_for_claim(claim: ClaimRecord) -> CampaignClaimResource:
     configured = _RESOURCE_PATTERNS.get(claim.claim_id)
     if configured is None:
-        return CampaignClaimResource(claim_id=claim.claim_id, aliases=(claim.claim_text,))
+        raise ValueError(
+            f"Not implemented: no curated campaign resource for claim {claim.claim_id}"
+        )
+    fingerprint = hashlib.sha256(claim.claim_text.encode("utf-8")).hexdigest()
+    if (
+        claim.claim_text != configured["canonical_claim_text"]
+        or fingerprint != configured["claim_content_sha256"]
+    ):
+        raise ValueError(
+            f"Not implemented: curated campaign resource mismatch for claim {claim.claim_id}"
+        )
     return CampaignClaimResource(
         claim_id=claim.claim_id,
         aliases=configured["aliases"],
@@ -378,6 +421,24 @@ def _resource_for_claim(claim: ClaimRecord) -> CampaignClaimResource:
         incorrect_patterns=configured.get("incorrect_patterns", ()),
         uncertain_patterns=configured.get("uncertain_patterns", ()),
     )
+
+
+def _contains_project_mention(text: str, language: str) -> bool:
+    normalized = normalize_text(text)
+    primary_language = language.split("-", 1)[0]
+    terms = _PROJECT_MENTION_LEXICON.get(primary_language, ())
+    for term in terms:
+        normalized_term = normalize_text(term)
+        if primary_language == "zh":
+            if normalized_term in normalized:
+                return True
+        elif re.search(
+            rf"(?<!\w){re.escape(normalized_term)}(?!\w)",
+            normalized,
+            flags=re.UNICODE,
+        ):
+            return True
+    return False
 
 
 def _campaign_analysis(
@@ -409,12 +470,8 @@ def _campaign_analysis(
         for judgment in judgments:
             evidence_ids = collector.add_many(
                 judgment.evidence_message_ids,
-                method=judgment.method,
-                claim_id=judgment.claim_id,
-                campaign_id=judgment.campaign_id,
+                analysis_campaign_id=judgment.campaign_id,
                 community_id=judgment.community_id,
-                confidence=judgment.confidence,
-                confidence_semantics=judgment.confidence_semantics,
             )
             if not judgment.evidence_message_ids:
                 evidence_ids.append(
@@ -483,6 +540,9 @@ def _peer_support_counts(
         for item in episode.candidate_answer_evidence:
             candidates[item.question_id].append(item.candidate_answer_id)
         for question_id, answer_ids in candidates.items():
+            question = message_by_id[question_id]
+            if question.user_role != "user":
+                continue
             answered += 1
             first_id = min(
                 answer_ids,
@@ -491,11 +551,26 @@ def _peer_support_counts(
                     message_id,
                 ),
             )
-            question = message_by_id[question_id]
             answer = message_by_id[first_id]
             if answer.user_role == "user" and answer.user_id_hash != question.user_id_hash:
                 peer_first += 1
     return peer_first, answered
+
+
+def _user_question_evidence_ids(
+    episodes: Sequence[Any], message_by_id: Mapping[str, MessageRecord]
+) -> tuple[list[str], list[str]]:
+    question_ids: set[str] = set()
+    peer_metric_ids: set[str] = set()
+    for episode in episodes:
+        for question_id in episode.question_message_ids:
+            if message_by_id[question_id].user_role == "user":
+                question_ids.add(question_id)
+                peer_metric_ids.add(question_id)
+        for item in episode.candidate_answer_evidence:
+            if message_by_id[item.question_id].user_role == "user":
+                peer_metric_ids.add(item.candidate_answer_id)
+    return sorted(question_ids), sorted(peer_metric_ids)
 
 
 def _select_cluster_count(messages: Sequence[MessageRecord]) -> int:
@@ -530,12 +605,25 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
     episode_rows: list[dict[str, Any]] = []
     metric_wide_rows: list[dict[str, Any]] = []
     metric_long_rows: list[dict[str, Any]] = []
-    language_by_community = {
-        community_id: next(
-            message.language for message in dataset.messages if message.community_id == community_id
+    language_metadata_by_community: dict[str, dict[str, Any]] = {}
+    for community_id in sorted(dataset.manifest.community_ids):
+        distribution = Counter(
+            message.language
+            for message in dataset.messages
+            if message.community_id == community_id
         )
-        for community_id in dataset.manifest.community_ids
-    }
+        languages = sorted(distribution)
+        language_scope = (
+            languages[0]
+            if len(languages) == 1
+            else f"multilingual:{','.join(languages)}"
+        )
+        language_metadata_by_community[community_id] = {
+            "language": language_scope,
+            "language_scope": language_scope,
+            "languages": languages,
+            "language_distribution": dict(sorted(distribution.items())),
+        }
 
     for campaign, community_id, scoped in _scope_rows(dataset):
         observation_id = f"{campaign.campaign_id}:{community_id}"
@@ -553,8 +641,7 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
             hygiene_evidence_ids.extend(
                 collector.add_many(
                     evidence.supporting_message_ids,
-                    method=f"hygiene:{evidence.rule_id}",
-                    campaign_id=campaign.campaign_id,
+                    analysis_campaign_id=campaign.campaign_id,
                     community_id=community_id,
                 )
             )
@@ -579,8 +666,7 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
         for evidence in activation.evidence:
             ids = collector.add_many(
                 evidence.supporting_message_ids,
-                method=f"activation:{evidence.rule_id}",
-                campaign_id=campaign.campaign_id,
+                analysis_campaign_id=campaign.campaign_id,
                 community_id=community_id,
             )
             activation_evidence_ids.extend(ids)
@@ -601,8 +687,7 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
         for episode in episodes:
             ids = collector.add_many(
                 episode.message_ids,
-                method="reply_graph_episode",
-                campaign_id=campaign.campaign_id,
+                analysis_campaign_id=campaign.campaign_id,
                 community_id=community_id,
             )
             episode_evidence_ids.extend(ids)
@@ -623,31 +708,22 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
         noncampaign_users = [message for message in users if message.campaign_id is None]
         campaign_discussion_evidence_ids = collector.add_many(
             [message.message_id for message in campaign_users],
-            method="metric:campaign_discussion_share:campaign_message",
-            campaign_id=campaign.campaign_id,
+            analysis_campaign_id=campaign.campaign_id,
             community_id=community_id,
         )
         campaign_discussion, campaign_discussion_reason = _metric_value(
             len(campaign_users), len(users)
         )
         organic_mention_messages = [
-            message for message in noncampaign_users if "project" in normalize_text(message.text)
+            message
+            for message in noncampaign_users
+            if _contains_project_mention(message.text, message.language)
         ]
         organic_mentions = len(organic_mention_messages)
         organic_rate, organic_reason = _metric_value(organic_mentions, len(noncampaign_users))
-        if organic_mention_messages:
-            organic_evidence_messages = organic_mention_messages
-            organic_evidence_method = "metric:organic_project_mention_rate:qualifying_message"
-        elif noncampaign_users:
-            organic_evidence_messages = noncampaign_users
-            organic_evidence_method = "metric:organic_project_mention_rate:negative_denominator"
-        else:
-            organic_evidence_messages = scoped
-            organic_evidence_method = "metric:organic_project_mention_rate:zero_denominator_scope"
         organic_evidence_ids = collector.add_many(
-            [message.message_id for message in organic_evidence_messages],
-            method=organic_evidence_method,
-            campaign_id=campaign.campaign_id,
+            [message.message_id for message in organic_mention_messages],
+            analysis_campaign_id=campaign.campaign_id,
             community_id=community_id,
         )
         peer_first, answered_questions = _peer_support_counts(episodes, message_by_id)
@@ -658,9 +734,26 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
                 "answered_user_question_count": answered_questions,
             },
         )
-        total_questions = sum(episode.question_count for episode in episodes)
-        unanswered_questions = sum(episode.unanswered_question_count for episode in episodes)
+        user_question_ids, peer_question_evidence_message_ids = _user_question_evidence_ids(
+            episodes, message_by_id
+        )
+        total_questions = len(user_question_ids)
+        unanswered_questions = sum(
+            message_by_id[question_id].user_role == "user"
+            for episode in episodes
+            for question_id in episode.unanswered_question_message_ids
+        )
         unanswered_rate, unanswered_reason = _metric_value(unanswered_questions, total_questions)
+        peer_question_evidence_ids = collector.add_many(
+            peer_question_evidence_message_ids,
+            analysis_campaign_id=campaign.campaign_id,
+            community_id=community_id,
+        )
+        unanswered_question_evidence_ids = collector.add_many(
+            user_question_ids,
+            analysis_campaign_id=campaign.campaign_id,
+            community_id=community_id,
+        )
         if episodes:
             adapted_depths = adapt_metric_source(
                 "conversation_propagation_depth",
@@ -730,7 +823,7 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
             "observation_id": observation_id,
             "campaign_id": campaign.campaign_id,
             "community_id": community_id,
-            "language": language_by_community[community_id],
+            **language_metadata_by_community[community_id],
         }
         catalog = metric_catalog()
         metric_evidence: dict[str, list[str]] = {
@@ -741,25 +834,16 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
                 "meaningful_interaction_ratio"
             ],
             "organic_project_mention_rate": organic_evidence_ids,
-            "peer_support_ratio": episode_evidence_ids,
+            "peer_support_ratio": peer_question_evidence_ids,
             "semantic_campaign_coverage": campaign_judgment_evidence[
                 (campaign.campaign_id, community_id)
             ],
             "semantic_drift_rate": campaign_judgment_evidence[(campaign.campaign_id, community_id)],
-            "unanswered_question_rate": episode_evidence_ids,
+            "unanswered_question_rate": unanswered_question_evidence_ids,
             "user_to_user_interaction_ratio": activation_evidence_by_metric[
                 "user_to_user_interaction_ratio"
             ],
         }
-        for metric_name, evidence_ids in metric_evidence.items():
-            if evidence_ids:
-                continue
-            metric_evidence[metric_name] = collector.add_many(
-                [message.message_id for message in (users or scoped)],
-                method=f"metric:{metric_name}:denominator_scope",
-                campaign_id=campaign.campaign_id,
-                community_id=community_id,
-            )
         for metric_name in sorted(catalog):
             value, diagnostic = metric_values[metric_name]
             wide_row[metric_name] = value
@@ -768,7 +852,7 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
                     "observation_id": observation_id,
                     "campaign_id": campaign.campaign_id,
                     "community_id": community_id,
-                    "language": language_by_community[community_id],
+                    **language_metadata_by_community[community_id],
                     "metric_name": metric_name,
                     "value": value,
                     "diagnostic": diagnostic,
@@ -789,9 +873,6 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
         label = seed_labels[message_id]
         evidence_ids = collector.add_many(
             label.evidence_message_ids,
-            method=f"{label.method}:{label.rule_id}:{label.message_id}",
-            confidence=label.confidence,
-            confidence_semantics=label.confidence_semantics,
         )
         label_record = _record_dict(label)
         label_record.pop("evidence_message_ids")
@@ -830,8 +911,6 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
     for cluster in clusters:
         evidence_ids = collector.add_many(
             cluster.representative_message_ids,
-            method=cluster.method,
-            confidence=cluster.confidence,
         )
         cluster_record = _record_dict(cluster)
         cluster_record.pop("representative_message_ids")
@@ -865,6 +944,7 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
             "campaign": "curated_alias_baseline",
             "behavior": ["deterministic_seed_rule", "tfidf_kmeans"],
             "metrics": "canonical_deterministic_adapter + bounded_statistical_validation",
+            "organic_project_mention": "deterministic_multilingual_lexicon_v1",
             "semantic_provider_used_by_pipeline": False,
         },
         "capabilities": {
@@ -887,6 +967,15 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
             ),
             "association_not_causation": ASSOCIATION_LIMIT,
             "human_review": "All AI-like judgments and behavior clusters remain pending review.",
+            "community_level_mixed_language_aggregation": (
+                "Community-level metric comparisons use the complete deterministic language "
+                "distribution and a multilingual scope label; they do not isolate per-language "
+                "effects within a mixed community."
+            ),
+            "organic_project_mention": (
+                "Deterministic Unicode-aware lexicon matching for en, es, zh, and ar; "
+                "indirect semantic mentions are not implemented."
+            ),
         },
         "Overview": {
             "message_count": len(dataset.messages),
@@ -1006,6 +1095,16 @@ def _validate_publication(
         raise ValueError("report/evidence referential integrity failure")
     if any(not record["evidence_ids"] for record in report["Metric Lab"]["metric_records"]):
         raise ValueError("every metric record must reference evidence")
+    semantic_records = [
+        tuple(
+            (field.name, _json_text(getattr(record, field.name)))
+            for field in fields(record)
+            if field.name != "evidence_id"
+        )
+        for record in evidence
+    ]
+    if len(semantic_records) != len(set(semantic_records)):
+        raise ValueError("duplicate evidence semantics are not allowed")
 
     message_by_id = {message.message_id: message for message in dataset.messages}
     claim_by_id = {claim.claim_id: claim for claim in dataset.claims}
@@ -1021,8 +1120,16 @@ def _validate_publication(
             "analysis_scope",
         }:
             raise ValueError("unsupported evidence type")
-        if record.campaign_id is not None and record.campaign_id not in campaign_ids:
-            raise ValueError("evidence campaign reference is invalid")
+        if (
+            record.source_campaign_id is not None
+            and record.source_campaign_id not in campaign_ids
+        ):
+            raise ValueError("evidence source campaign reference is invalid")
+        if (
+            record.analysis_campaign_id is not None
+            and record.analysis_campaign_id not in campaign_ids
+        ):
+            raise ValueError("evidence analysis campaign reference is invalid")
         if record.community_id is not None and record.community_id not in community_ids:
             raise ValueError("evidence community reference is invalid")
 
@@ -1033,11 +1140,12 @@ def _validate_publication(
                 or record.source_text is not None
                 or record.translation is not None
                 or record.confidence is not None
-                or record.campaign_id is None
+                or record.source_campaign_id is not None
+                or record.analysis_campaign_id is None
                 or record.community_id is None
             ):
                 raise ValueError("analysis-scope evidence must not fabricate source evidence")
-            campaign = campaign_by_id[record.campaign_id]
+            campaign = campaign_by_id[record.analysis_campaign_id]
             scoped = [
                 message
                 for message in dataset.messages
@@ -1072,11 +1180,17 @@ def _validate_publication(
                 raise ValueError("evidence source message is invalid")
             if record.community_id != message.community_id:
                 raise ValueError("evidence community does not match source message")
+            if record.source_campaign_id != message.campaign_id:
+                raise ValueError("evidence source campaign does not match source message")
         elif record.message_id is not None or record.claim_id is None:
             raise ValueError("claim-judgment evidence requires only a claim reference")
         if record.claim_id is not None:
             claim = claim_by_id.get(record.claim_id)
-            if claim is None or record.campaign_id != claim.campaign_id:
+            if (
+                claim is None
+                or record.source_campaign_id is not None
+                or record.analysis_campaign_id != claim.campaign_id
+            ):
                 raise ValueError("evidence claim or campaign reference is invalid")
             if record.message_id is None and record.source_text != claim.claim_text:
                 raise ValueError("claim-level evidence text does not match the claim")
@@ -1091,29 +1205,21 @@ def _is_same_or_inside(candidate: Path, parent: Path) -> bool:
 
 
 def _publish(output_path: Path, report: dict[str, Any], evidence: Sequence[EvidenceRecord]) -> Path:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path = output_path.parent.resolve(strict=True) / output_path.name
     if os.path.lexists(output_path):
         raise FileExistsError(f"output path already exists: {output_path}")
-    output_path.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(dir=output_path.parent, prefix=f".{output_path.name}.staging-"))
-    reserved = False
+    staging_inode = staging.lstat().st_ino
     try:
         _write_text(staging / "report.json", _json_text(report))
         _write_text(staging / "evidence.jsonl", _jsonl_text(evidence))
         json.loads((staging / "report.json").read_text(encoding="utf-8"))
         for line in (staging / "evidence.jsonl").read_text(encoding="utf-8").splitlines():
             json.loads(line)
-        os.mkdir(output_path)
-        reserved = True
-        for name in ("evidence.jsonl", "report.json"):
-            os.rename(staging / name, output_path / name)
-        return output_path
-    except BaseException:
-        if reserved and output_path.is_dir() and not output_path.is_symlink():
-            shutil.rmtree(output_path)
-        raise
+        return publish_directory_no_replace(staging, output_path)
     finally:
-        if staging.exists():
-            shutil.rmtree(staging)
+        cleanup_private_directory(staging, expected_inode=staging_inode)
 
 
 def run_pipeline(dataset_dir: str | Path, output_dir: str | Path) -> Path:
@@ -1130,6 +1236,10 @@ def run_pipeline(dataset_dir: str | Path, output_dir: str | Path) -> Path:
     if os.path.lexists(output_path):
         raise FileExistsError(f"output path already exists: {output_path}")
     dataset = read_dataset(input_path)
+    if not dataset.campaigns:
+        raise ValueError(
+            "at least one campaign required for this campaign-centric MVP"
+        )
     report, evidence = _build_report(dataset)
     _validate_publication(report, evidence, dataset)
     return _publish(output_path, report, evidence)

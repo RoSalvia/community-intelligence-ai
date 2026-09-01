@@ -5,12 +5,16 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
+import sys
 import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 
-from community_intelligence.io import write_dataset
+from community_intelligence.io import (
+    cleanup_private_directory,
+    publish_directory_no_replace,
+    write_dataset,
+)
 from community_intelligence.pipeline import run_pipeline
 from community_intelligence.synthetic import MIN_MESSAGE_COUNT, generate_dataset
 
@@ -58,50 +62,48 @@ def _summary(dataset_dir: Path, report_dir: Path) -> dict[str, object]:
 
 
 def _demo(workspace: Path, *, seed: int, messages: int) -> dict[str, object]:
-    destination = Path(os.path.abspath(workspace.expanduser()))
+    requested = Path(os.path.abspath(workspace.expanduser()))
+    requested.parent.mkdir(parents=True, exist_ok=True)
+    destination = requested.parent.resolve(strict=True) / requested.name
     if os.path.lexists(destination):
         raise FileExistsError(f"workspace already exists: {destination}")
-    destination.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(dir=destination.parent, prefix=f".{destination.name}.staging-"))
-    reserved = False
+    staging_inode = staging.lstat().st_ino
     try:
         dataset_dir = write_dataset(
             generate_dataset(seed=seed, message_count=messages), staging / "dataset"
         )
-        report_dir = run_pipeline(dataset_dir, staging / "report")
-        os.mkdir(destination)
-        reserved = True
-        os.rename(dataset_dir, destination / "dataset")
-        os.rename(report_dir, destination / "report")
+        run_pipeline(dataset_dir, staging / "report")
+        publish_directory_no_replace(staging, destination)
         return _summary(destination / "dataset", destination / "report")
-    except BaseException:
-        if reserved and destination.is_dir() and not destination.is_symlink():
-            shutil.rmtree(destination)
-        raise
     finally:
-        if staging.exists():
-            shutil.rmtree(staging)
+        cleanup_private_directory(staging, expected_inode=staging_inode)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    if args.command == "generate":
-        dataset = generate_dataset(seed=args.seed, message_count=args.messages)
-        output_path = write_dataset(dataset, args.output)
-        print(output_path)
-        return 0
-    if args.command == "analyze":
-        report_dir = run_pipeline(args.input, args.output)
-        print(json.dumps(_summary(args.input, report_dir), sort_keys=True))
-        return 0
-    if args.command == "demo":
-        print(
-            json.dumps(
-                _demo(args.workspace, seed=args.seed, messages=args.messages),
-                sort_keys=True,
+    try:
+        if args.command == "generate":
+            dataset = generate_dataset(seed=args.seed, message_count=args.messages)
+            output_path = write_dataset(dataset, args.output)
+            print(output_path)
+            return 0
+        if args.command == "analyze":
+            report_dir = run_pipeline(args.input, args.output)
+            print(json.dumps(_summary(args.input, report_dir), sort_keys=True))
+            return 0
+        if args.command == "demo":
+            print(
+                json.dumps(
+                    _demo(args.workspace, seed=args.seed, messages=args.messages),
+                    sort_keys=True,
+                )
             )
-        )
-        return 0
+            return 0
+    except (OSError, ValueError) as error:
+        message = str(error).splitlines()[0]
+        print(f"error: {message}", file=sys.stderr)
+        return 1
     return 2
 
 

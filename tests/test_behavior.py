@@ -232,6 +232,48 @@ def test_exact_synthetic_arabic_negative_feedback_precedes_peer_support() -> Non
     )
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Our fraud prevention guide is clear and useful.",
+        "I am not disappointed; the process is not broken.",
+        "The feature request queue is closed.",
+    ],
+)
+def test_feedback_rules_reject_negated_or_non_request_false_positives(text: str) -> None:
+    item = message("neutral", text, seconds=0, campaign_id=None)
+
+    label = classify_seed_behaviors([item])[item.message_id]
+
+    assert label.behavior not in {"FUD", "complaint", "feature_request"}
+
+
+@pytest.mark.parametrize(
+    ("message_id", "text", "language", "expected"),
+    [
+        ("positive_en", "The guide is clear and useful.", "en", "positive_feedback"),
+        ("positive_zh", "这个指南清楚有用。", "zh", "positive_feedback"),
+        ("negative_zh", "这个项目看起来像骗局。", "zh", "FUD"),
+        ("negative_ar", "التواصل غير واضح", "ar", "negative_feedback"),
+    ],
+)
+def test_feedback_rules_keep_exact_multilingual_positive_and_negative_triggers(
+    message_id: str, text: str, language: str, expected: str
+) -> None:
+    item = message(
+        message_id,
+        text,
+        seconds=0,
+        language=language,
+        campaign_id=None,
+    )
+
+    label = classify_seed_behaviors([item])[message_id]
+
+    assert label.behavior == expected
+    assert label.confidence == 0.65
+
+
 def test_purchase_or_usage_intent_is_the_canonical_output() -> None:
     purchase = message(
         "purchase",
