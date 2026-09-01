@@ -117,8 +117,11 @@ def _contains_unnegated_english_term(text: str, terms: tuple[str, ...]) -> bool:
             text,
             flags=re.UNICODE,
         ):
-            prefix = text[max(0, match.start() - 32) : match.start()]
-            if re.search(r"\b(?:not|never)\s+(?:\w+\s+){0,2}$", prefix):
+            prefix = text[max(0, match.start() - 48) : match.start()]
+            if re.search(
+                r"\b(?:not|never|no\s+longer|far\s+from)\s+(?:\w+\s+){0,2}$",
+                prefix,
+            ):
                 continue
             return True
     return False
@@ -267,7 +270,10 @@ def _user_label(
         or _contains_any(normalized, ("campaign", "deadline", "reward", "活动", "截止", "奖励"))
     ):
         return _label(message, "campaign_question", "campaign_question_phrase_v1")
-    if _contains_any(normalized, ("scam", "rug pull", "dead project", "骗局", "跑路")) or re.search(
+    if _contains_unnegated_english_term(
+        normalized,
+        ("scam", "rug pull", "dead project"),
+    ) or _contains_any(normalized, ("骗局", "跑路")) or re.search(
         r"(?<!\w)(?:this|it|the project)\s+(?:is|looks like)\s+(?:a\s+)?fraud(?!\w)",
         normalized,
         flags=re.UNICODE,
@@ -286,14 +292,18 @@ def _user_label(
         ("糟糕", "失望", "投诉"),
     ):
         return _label(message, "complaint", "complaint_phrase_v1")
-    if _contains_any(
+    if _contains_unnegated_english_term(
         normalized,
         (
             "feedback is negative",
             "guide is unclear",
             "unclear and confusing",
-            "not useful",
             "negative feedback",
+        ),
+    ) or _contains_any(
+        normalized,
+        (
+            "not useful",
             "负面反馈",
             "不清楚",
             "غير واضح",

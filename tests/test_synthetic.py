@@ -370,8 +370,12 @@ def test_failed_first_publication_removes_only_staging_directory(
     injected = False
 
     def fail_staging_publish(
-        parent_fd: int, source_name: str, destination_name: str
+        parent_fd: int,
+        source_name: str,
+        destination_name: str,
+        expected_identity: object,
     ) -> None:
+        del parent_fd, expected_identity
         nonlocal injected
         if (
             not injected
@@ -382,7 +386,7 @@ def test_failed_first_publication_removes_only_staging_directory(
             raise OSError("injected publish failure")
         raise AssertionError("unexpected second publication attempt")
 
-    monkeypatch.setattr(dataset_io, "_rename_directory_no_replace", fail_staging_publish)
+    monkeypatch.setattr(dataset_io, "_before_publish_rename_hook", fail_staging_publish)
 
     with pytest.raises(OSError, match="injected publish failure"):
         write_dataset(generate_dataset(seed=67, message_count=120), output_dir)

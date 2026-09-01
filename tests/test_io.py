@@ -9,8 +9,11 @@ import pytest
 
 import community_intelligence.io as dataset_io
 from community_intelligence.io import (
+    PublicationIdentityError,
+    cleanup_private_directory,
     publish_directory_no_replace,
     read_dataset,
+    seal_staging_directory,
     write_dataset,
 )
 from community_intelligence.synthetic import generate_dataset
@@ -134,9 +137,14 @@ def test_write_dataset_concurrent_destination_creation_never_publishes_partial_o
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, race_kind: str
 ) -> None:
     destination = tmp_path / "dataset"
-    real_rename = dataset_io._rename_directory_no_replace
 
-    def create_racer(parent_fd: int, source_name: str, destination_name: str) -> None:
+    def create_racer(
+        parent_fd: int,
+        source_name: str,
+        destination_name: str,
+        expected_identity: object,
+    ) -> None:
+        del source_name, expected_identity
         if race_kind == "file":
             descriptor = os.open(
                 destination_name,
@@ -150,9 +158,8 @@ def test_write_dataset_concurrent_destination_creation_never_publishes_partial_o
             os.mkdir(destination_name, dir_fd=parent_fd)
         else:
             os.symlink("missing-target", destination_name, dir_fd=parent_fd)
-        real_rename(parent_fd, source_name, destination_name)
 
-    monkeypatch.setattr(dataset_io, "_rename_directory_no_replace", create_racer)
+    monkeypatch.setattr(dataset_io, "_before_publish_rename_hook", create_racer)
 
     with pytest.raises(FileExistsError):
         write_dataset(generate_dataset(message_count=120), destination)
@@ -183,3 +190,183 @@ def test_publish_directory_no_replace_fails_safely_when_platform_primitive_is_un
         publish_directory_no_replace(staging, destination)
     assert staging.is_dir()
     assert not os.path.lexists(destination)
+
+
+def test_publish_directory_pins_marker_inode_and_complete_content_identity(
+    tmp_path: Path,
+) -> None:
+    staging = tmp_path / "private-staging"
+    staging.mkdir()
+    (staging / "complete.txt").write_text("complete", encoding="utf-8")
+    identity = seal_staging_directory(staging)
+
+    assert identity.marker_name.startswith(".community-intelligence-owner-")
+    assert len(identity.marker_token) >= 32
+    assert (staging / identity.marker_name).read_text(encoding="utf-8") == (
+        identity.marker_token
+    )
+    assert identity.device == staging.lstat().st_dev
+    assert identity.inode == staging.lstat().st_ino
+    assert ("complete.txt", "file") in identity.entries
+    assert any(name == "complete.txt" for name, _digest in identity.file_hashes)
+
+    destination = publish_directory_no_replace(
+        staging,
+        tmp_path / "published",
+        expected_identity=identity,
+    )
+
+    assert sorted(path.name for path in destination.iterdir()) == ["complete.txt"]
+    assert (destination / "complete.txt").read_text(encoding="utf-8") == "complete"
+
+
+def test_publish_quarantines_replaced_staging_without_deleting_attacker_content(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    staging = tmp_path / "private-staging"
+    staging.mkdir()
+    (staging / "complete.txt").write_text("owned", encoding="utf-8")
+    identity = seal_staging_directory(staging)
+    owned_relocated = tmp_path / "owned-relocated"
+
+    def replace_after_prevalidation(
+        parent_fd: int,
+        source_name: str,
+        destination_name: str,
+        expected_identity: object,
+    ) -> None:
+        del destination_name, expected_identity
+        os.rename(
+            source_name,
+            owned_relocated.name,
+            src_dir_fd=parent_fd,
+            dst_dir_fd=parent_fd,
+        )
+        os.mkdir(source_name, dir_fd=parent_fd)
+        attacker_fd = os.open(
+            source_name,
+            os.O_RDONLY | os.O_DIRECTORY,
+            dir_fd=parent_fd,
+        )
+        try:
+            descriptor = os.open(
+                "attacker.txt",
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                0o600,
+                dir_fd=attacker_fd,
+            )
+            try:
+                os.write(descriptor, b"attacker survives")
+            finally:
+                os.close(descriptor)
+        finally:
+            os.close(attacker_fd)
+
+    monkeypatch.setattr(
+        dataset_io,
+        "_before_publish_rename_hook",
+        replace_after_prevalidation,
+    )
+
+    with pytest.raises(PublicationIdentityError, match="quarantine") as caught:
+        publish_directory_no_replace(
+            staging,
+            tmp_path / "published",
+            expected_identity=identity,
+        )
+
+    assert not os.path.lexists(tmp_path / "published")
+    assert caught.value.quarantine_path is not None
+    assert (caught.value.quarantine_path / "attacker.txt").read_bytes() == (
+        b"attacker survives"
+    )
+    assert (owned_relocated / "complete.txt").read_text(encoding="utf-8") == "owned"
+
+
+def test_publish_quarantines_non_directory_replacement_after_successful_rename(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    staging = tmp_path / "private-staging"
+    staging.mkdir()
+    (staging / "complete.txt").write_text("owned", encoding="utf-8")
+    identity = seal_staging_directory(staging)
+    owned_relocated = tmp_path / "owned-relocated"
+
+    def replace_with_file(
+        parent_fd: int,
+        source_name: str,
+        destination_name: str,
+        expected_identity: object,
+    ) -> None:
+        del destination_name, expected_identity
+        os.rename(
+            source_name,
+            owned_relocated.name,
+            src_dir_fd=parent_fd,
+            dst_dir_fd=parent_fd,
+        )
+        descriptor = os.open(
+            source_name,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+            0o600,
+            dir_fd=parent_fd,
+        )
+        try:
+            os.write(descriptor, b"attacker file survives")
+        finally:
+            os.close(descriptor)
+
+    monkeypatch.setattr(dataset_io, "_before_publish_rename_hook", replace_with_file)
+
+    with pytest.raises(PublicationIdentityError, match="quarantine") as caught:
+        publish_directory_no_replace(
+            staging,
+            tmp_path / "published",
+            expected_identity=identity,
+        )
+
+    assert not os.path.lexists(tmp_path / "published")
+    assert caught.value.quarantine_path is not None
+    assert caught.value.quarantine_path.read_bytes() == b"attacker file survives"
+    assert (owned_relocated / "complete.txt").read_text(encoding="utf-8") == "owned"
+
+
+def test_cleanup_quarantines_then_preserves_replacement_if_owned_path_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    staging = tmp_path / "private-staging"
+    staging.mkdir()
+    (staging / "complete.txt").write_text("owned", encoding="utf-8")
+    identity = seal_staging_directory(staging)
+    owned_relocated = tmp_path / "owned-cleanup-relocated"
+    observed_quarantine: list[Path] = []
+
+    def replace_before_delete(
+        parent_fd: int,
+        quarantine_name: str,
+        expected_identity: object,
+    ) -> None:
+        del expected_identity
+        quarantine = tmp_path / quarantine_name
+        observed_quarantine.append(quarantine)
+        os.rename(
+            quarantine_name,
+            owned_relocated.name,
+            src_dir_fd=parent_fd,
+            dst_dir_fd=parent_fd,
+        )
+        os.mkdir(quarantine_name, dir_fd=parent_fd)
+        (quarantine / "replacement.txt").write_text("keep me", encoding="utf-8")
+
+    monkeypatch.setattr(
+        dataset_io,
+        "_before_cleanup_delete_hook",
+        replace_before_delete,
+    )
+
+    retained = cleanup_private_directory(staging, expected_identity=identity)
+
+    assert retained == observed_quarantine[0]
+    assert (retained / "replacement.txt").read_text(encoding="utf-8") == "keep me"
+    assert (owned_relocated / "complete.txt").read_text(encoding="utf-8") == "owned"
+    assert not os.path.lexists(staging)

@@ -343,6 +343,15 @@ def test_silent_community_campaign_scope_is_audited_without_fabricated_message(
         "noncampaign_real_user_messages": 0,
         "real_user_messages": 0,
     }
+    observation = next(
+        item
+        for item in report["Metric Lab"]["observations"]
+        if item["observation_id"] == scope_id
+    )
+    assert observation["language"] == "no_observation"
+    assert observation["language_scope"] == "no_observation"
+    assert observation["languages"] == []
+    assert observation["language_distribution"] == {}
 
     metric_records = [
         item
@@ -548,19 +557,39 @@ def test_pipeline_concurrent_destination_creation_is_preserved_without_partial_r
 ) -> None:
     dataset_dir = _dataset(tmp_path)
     output = tmp_path / "report"
-    import community_intelligence.pipeline as pipeline
-    from community_intelligence.io import publish_directory_no_replace as real_publish
+    import community_intelligence.io as dataset_io
 
-    def create_racer(staging: Path, destination: Path) -> Path:
-        destination.mkdir()
-        (destination / "keep.txt").write_text("racer", encoding="utf-8")
-        return real_publish(staging, destination)
+    def create_racer(
+        parent_fd: int,
+        source_name: str,
+        destination_name: str,
+        expected_identity: object,
+    ) -> None:
+        del source_name, expected_identity
+        os.mkdir(destination_name, dir_fd=parent_fd)
+        destination_fd = os.open(
+            destination_name,
+            os.O_RDONLY | os.O_DIRECTORY,
+            dir_fd=parent_fd,
+        )
+        try:
+            descriptor = os.open(
+                "keep.txt",
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                0o600,
+                dir_fd=destination_fd,
+            )
+            try:
+                os.write(descriptor, b"racer")
+            finally:
+                os.close(descriptor)
+        finally:
+            os.close(destination_fd)
 
     monkeypatch.setattr(
-        pipeline,
-        "publish_directory_no_replace",
+        dataset_io,
+        "_before_publish_rename_hook",
         create_racer,
-        raising=False,
     )
 
     with pytest.raises(FileExistsError):
@@ -707,41 +736,85 @@ def test_user_question_metrics_exclude_moderator_questions_and_their_evidence(
         assert user_answer.message_id not in linked_message_ids
 
 
-def test_mixed_language_community_uses_complete_distribution_and_explicit_scope(
+def test_campaign_language_scope_ignores_languages_outside_exact_window(
     tmp_path: Path,
 ) -> None:
     source = generate_dataset(message_count=120)
-    target = next(
-        message
-        for message in source.messages
-        if message.community_id == "community_a" and message.language == "en"
+    campaign = next(
+        item for item in source.campaigns if item.campaign_id == "campaign_stake"
     )
-    messages = [
-        message.model_copy(update={"language": "zh"})
-        if message.message_id == target.message_id
-        else message
-        for message in source.messages
-    ]
+    outside = MessageRecord(
+        message_id="msg_zh_outside_stake_window",
+        community_id="community_a",
+        language="zh",
+        user_id_hash="usr_a1b2c3",
+        user_role="user",
+        timestamp=campaign.end_time,
+        text="项目路线图更新。",
+        reply_to_message_id=None,
+        campaign_id=None,
+    )
+    messages = [*source.messages, outside]
     dataset = _variant_dataset(source, tmp_path / "dataset", messages=messages)
     report, _ = _read_report(run_pipeline(dataset, tmp_path / "report"))
+    row = next(
+        item
+        for item in report["Metric Lab"]["observations"]
+        if item["observation_id"] == "campaign_stake:community_a"
+    )
+
+    expected_count = sum(
+        message.community_id == "community_a"
+        and campaign.start_time <= message.timestamp < campaign.end_time
+        for message in messages
+    )
+    assert row["languages"] == ["en"]
+    assert row["language_distribution"] == {"en": expected_count}
+    assert row["language_scope"] == "en"
+    assert row["language"] == "en"
+
+
+def test_campaign_language_scope_reports_true_mixed_language_inside_exact_window(
+    tmp_path: Path,
+) -> None:
+    source = generate_dataset(message_count=120)
+    campaign = next(
+        item for item in source.campaigns if item.campaign_id == "campaign_stake"
+    )
+    in_window = MessageRecord(
+        message_id="msg_zh_inside_stake_window",
+        community_id="community_a",
+        language="zh",
+        user_id_hash="usr_d4e5f6",
+        user_role="user",
+        timestamp=campaign.start_time,
+        text="项目路线图更新。",
+        reply_to_message_id=None,
+        campaign_id="campaign_stake",
+    )
+    messages = [*source.messages, in_window]
+    dataset = _variant_dataset(source, tmp_path / "dataset", messages=messages)
+    report, _ = _read_report(run_pipeline(dataset, tmp_path / "report"))
+    row = next(
+        item
+        for item in report["Metric Lab"]["observations"]
+        if item["observation_id"] == "campaign_stake:community_a"
+    )
     expected_distribution = {
         language: sum(
-            message.community_id == "community_a" and message.language == language
+            message.community_id == "community_a"
+            and campaign.start_time <= message.timestamp < campaign.end_time
+            and message.language == language
             for message in messages
         )
         for language in ("en", "zh")
     }
-    rows = [
-        row
-        for row in report["Metric Lab"]["observations"]
-        if row["community_id"] == "community_a"
-    ]
-    assert rows
-    assert all(row["languages"] == ["en", "zh"] for row in rows)
-    assert all(row["language_distribution"] == expected_distribution for row in rows)
-    assert all(row["language_scope"] == "multilingual:en,zh" for row in rows)
-    assert all(row["language"] == "multilingual:en,zh" for row in rows)
-    assert "community_level_mixed_language_aggregation" in report["limitations"]
+
+    assert row["languages"] == ["en", "zh"]
+    assert row["language_distribution"] == expected_distribution
+    assert row["language_scope"] == "multilingual:en,zh"
+    assert row["language"] == "multilingual:en,zh"
+    assert "campaign_scope_mixed_language_aggregation" in report["limitations"]
 
 
 def test_pipeline_rejects_contract_valid_dataset_without_campaigns_before_frame_operations(

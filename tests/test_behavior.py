@@ -237,6 +237,10 @@ def test_exact_synthetic_arabic_negative_feedback_precedes_peer_support() -> Non
     [
         "Our fraud prevention guide is clear and useful.",
         "I am not disappointed; the process is not broken.",
+        "I am no longer disappointed; the process is no longer broken.",
+        "The release is far from terrible.",
+        "This fraud prevention case study is useful.",
+        "This is not negative feedback.",
         "The feature request queue is closed.",
     ],
 )
@@ -245,7 +249,12 @@ def test_feedback_rules_reject_negated_or_non_request_false_positives(text: str)
 
     label = classify_seed_behaviors([item])[item.message_id]
 
-    assert label.behavior not in {"FUD", "complaint", "feature_request"}
+    assert label.behavior not in {
+        "FUD",
+        "complaint",
+        "feature_request",
+        "negative_feedback",
+    }
 
 
 @pytest.mark.parametrize(

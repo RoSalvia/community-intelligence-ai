@@ -33,6 +33,7 @@ from community_intelligence.io import (
     cleanup_private_directory,
     publish_directory_no_replace,
     read_dataset,
+    seal_staging_directory,
 )
 from community_intelligence.message_rules import normalize_text
 from community_intelligence.metrics import adapt_metric_source, metric_catalog, validate_metrics
@@ -605,28 +606,22 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
     episode_rows: list[dict[str, Any]] = []
     metric_wide_rows: list[dict[str, Any]] = []
     metric_long_rows: list[dict[str, Any]] = []
-    language_metadata_by_community: dict[str, dict[str, Any]] = {}
-    for community_id in sorted(dataset.manifest.community_ids):
-        distribution = Counter(
-            message.language
-            for message in dataset.messages
-            if message.community_id == community_id
-        )
-        languages = sorted(distribution)
-        language_scope = (
-            languages[0]
-            if len(languages) == 1
-            else f"multilingual:{','.join(languages)}"
-        )
-        language_metadata_by_community[community_id] = {
+    for campaign, community_id, scoped in _scope_rows(dataset):
+        observation_id = f"{campaign.campaign_id}:{community_id}"
+        language_distribution = Counter(message.language for message in scoped)
+        languages = sorted(language_distribution)
+        if not languages:
+            language_scope = "no_observation"
+        elif len(languages) == 1:
+            language_scope = languages[0]
+        else:
+            language_scope = f"multilingual:{','.join(languages)}"
+        scoped_language_metadata = {
             "language": language_scope,
             "language_scope": language_scope,
             "languages": languages,
-            "language_distribution": dict(sorted(distribution.items())),
+            "language_distribution": dict(sorted(language_distribution.items())),
         }
-
-    for campaign, community_id, scoped in _scope_rows(dataset):
-        observation_id = f"{campaign.campaign_id}:{community_id}"
         scope_evidence_id = collector.add_analysis_scope(
             campaign,
             community_id=community_id,
@@ -823,7 +818,7 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
             "observation_id": observation_id,
             "campaign_id": campaign.campaign_id,
             "community_id": community_id,
-            **language_metadata_by_community[community_id],
+            **scoped_language_metadata,
         }
         catalog = metric_catalog()
         metric_evidence: dict[str, list[str]] = {
@@ -852,7 +847,7 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
                     "observation_id": observation_id,
                     "campaign_id": campaign.campaign_id,
                     "community_id": community_id,
-                    **language_metadata_by_community[community_id],
+                    **scoped_language_metadata,
                     "metric_name": metric_name,
                     "value": value,
                     "diagnostic": diagnostic,
@@ -967,10 +962,10 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
             ),
             "association_not_causation": ASSOCIATION_LIMIT,
             "human_review": "All AI-like judgments and behavior clusters remain pending review.",
-            "community_level_mixed_language_aggregation": (
-                "Community-level metric comparisons use the complete deterministic language "
-                "distribution and a multilingual scope label; they do not isolate per-language "
-                "effects within a mixed community."
+            "campaign_scope_mixed_language_aggregation": (
+                "Each community-campaign observation uses only languages present inside its "
+                "exact campaign window, with no_observation for silent scopes; mixed windows "
+                "are not decomposed into separate per-language effects."
             ),
             "organic_project_mention": (
                 "Deterministic Unicode-aware lexicon matching for en, es, zh, and ar; "
@@ -1210,16 +1205,27 @@ def _publish(output_path: Path, report: dict[str, Any], evidence: Sequence[Evide
     if os.path.lexists(output_path):
         raise FileExistsError(f"output path already exists: {output_path}")
     staging = Path(tempfile.mkdtemp(dir=output_path.parent, prefix=f".{output_path.name}.staging-"))
-    staging_inode = staging.lstat().st_ino
+    staging_status = staging.lstat()
+    staging_identity = None
     try:
         _write_text(staging / "report.json", _json_text(report))
         _write_text(staging / "evidence.jsonl", _jsonl_text(evidence))
         json.loads((staging / "report.json").read_text(encoding="utf-8"))
         for line in (staging / "evidence.jsonl").read_text(encoding="utf-8").splitlines():
             json.loads(line)
-        return publish_directory_no_replace(staging, output_path)
+        staging_identity = seal_staging_directory(staging)
+        return publish_directory_no_replace(
+            staging,
+            output_path,
+            expected_identity=staging_identity,
+        )
     finally:
-        cleanup_private_directory(staging, expected_inode=staging_inode)
+        cleanup_private_directory(
+            staging,
+            expected_inode=staging_status.st_ino,
+            expected_device=staging_status.st_dev,
+            expected_identity=staging_identity,
+        )
 
 
 def run_pipeline(dataset_dir: str | Path, output_dir: str | Path) -> Path:
