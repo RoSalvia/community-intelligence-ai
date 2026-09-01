@@ -6,7 +6,7 @@
 
 ## Decision summary
 
-The MVP will reuse maintained Python libraries for parsing, tabular operations, clustering, graph calculations, statistics and the local dashboard. It will custom-build only the thin product-specific layer: normalized Community Intelligence contracts, evidence rules, Campaign judgments, conversation episodes, metric formulas and report orchestration.
+The MVP will reuse maintained Python libraries for parsing, tabular operations, clustering, graph calculations and statistics, plus a maintained TypeScript web stack for the local product interface. It will custom-build the thin product-specific layer: normalized Community Intelligence contracts, evidence rules, Campaign judgments, conversation episodes, metric formulas, report orchestration, API adapter and product-specific page compositions.
 
 `tg-monitor-v2`, Shield, TelegramStatisticsCollector and alternative export projects are references, not copied code. BERTopic, DeepEval, statsmodels, Plotly, rustworkx and a vector database remain outside the minimum dependency set until measured product needs justify them.
 
@@ -30,14 +30,29 @@ The MVP will reuse maintained Python libraries for parsing, tabular operations, 
 | Large-graph alternative | [`rustworkx`](https://github.com/Qiskit/rustworkx) | Apache-2.0 | Active with macOS ARM64 wheels | Medium integration due to indexed-node API | Profile before changing graph engine | `REFERENCE_ONLY` |
 | Statistical tests and association | [`SciPy`](https://github.com/scipy/scipy) | BSD-3-Clause | Mature, active scientific library | Low; assumptions and multiple testing still need product rules | Direct dependency for Spearman and uncertainty calculations | `USE_AS_DEPENDENCY` |
 | Regression / time series | [`statsmodels`](https://github.com/statsmodels/statsmodels) | BSD-3-Clause | Mature; observed v0.15.0 release in 2026 | Medium and beyond minimum validation scope | Add only for a defined regression/time-series question | `REFERENCE_ONLY` for V1 |
-| Local dashboard | [`Streamlit`](https://github.com/streamlit/streamlit) | Apache-2.0 | Mature and active; observed v1.62.0 in 2026 | Low | Direct dependency; local single-user dashboard | `USE_AS_DEPENDENCY` |
-| Advanced charts | [`Plotly.py`](https://github.com/plotly/plotly.py) | MIT | Mature and active | Low–medium; unnecessary for first dashboard | Use Streamlit built-ins first | `REFERENCE_ONLY` for V1 |
+| Local product UI | [`React`](https://github.com/facebook/react) 19.2.8 and [`React DOM`](https://github.com/facebook/react) 19.2.8 | MIT | Mature, actively maintained, pinned by the npm lock file | Medium; requires a thin local API and production asset build | Direct dependencies; presentation only, never an analytics engine | `USE_AS_DEPENDENCY` |
+| Frontend build | [`Vite`](https://github.com/vitejs/vite) 8.2.2 and [`TypeScript`](https://github.com/microsoft/TypeScript) 6.0.3 | MIT; Apache-2.0 | Mature toolchain; exact resolved versions recorded in `frontend/package-lock.json` | Low | Development/build dependencies; production output bundled into the Python package | `USE_AS_DEPENDENCY` |
+| Styling | [`Tailwind CSS`](https://github.com/tailwindlabs/tailwindcss) 4.3.3 | MIT | Mature and active; exact version locked | Low | Build-time styling dependency plus project-owned accessible CSS | `USE_AS_DEPENDENCY` |
+| Accessible UI primitives | [`Radix Primitives`](https://github.com/radix-ui/primitives) Dialog, Tabs and Tooltip packages 1.x | MIT | Mature accessible primitives with exact versions locked | Low | Use only where an overlay or composite interaction needs it | `USE_AS_DEPENDENCY` |
+| Component composition reference | [`shadcn/ui`](https://github.com/shadcn-ui/ui) | MIT | Active source-component project | Low, but copying generated source creates a notice-preservation obligation | Follow composition principles; current shell uses project-owned components and copies no shadcn source | `REFERENCE_ONLY` until a specific component is adopted |
+| Charts | [`Recharts`](https://github.com/recharts/recharts) 3.10.1 | MIT | Mature React chart library; exact version locked | Low | Use for quantitative comparison views; retain tabular/text alternatives | `USE_AS_DEPENDENCY` |
+| Icons | [`Lucide React`](https://github.com/lucide-icons/lucide) 1.38.0 | ISC | Mature icon library; exact version locked | Low | Direct dependency with accessible labels supplied by product code | `USE_AS_DEPENDENCY` |
+| Class composition | `class-variance-authority` 0.7.1, `clsx` 2.1.1 and `tailwind-merge` 3.6.0 | Apache-2.0; MIT; MIT | Widely used small utilities; exact versions locked | Low | Direct dependencies only where reusable component variants require them | `USE_AS_DEPENDENCY` |
+| Thin local API | [`FastAPI`](https://github.com/fastapi/fastapi) with [`Uvicorn`](https://github.com/encode/uvicorn) | MIT; BSD-3-Clause | Mature Python ASGI projects; exact resolved versions will be recorded by `uv.lock` in Task 5B | Low | Loopback-bound adapter around the existing Python engine; no duplicate analytics | `USE_AS_DEPENDENCY` in Task 5B |
+| Frontend unit testing | [`Vitest`](https://github.com/vitest-dev/vitest) 4.1.11 and [`React Testing Library`](https://github.com/testing-library/react-testing-library) 16.3.3 | MIT; MIT | Maintained test stack; exact versions locked | Low | Development dependencies for user-visible behavior tests | `USE_AS_DEPENDENCY` |
+| Browser acceptance testing | [`Playwright`](https://github.com/microsoft/playwright) | Apache-2.0 | Mature browser automation maintained by Microsoft | Low–medium due to browser download | Use for bounded release-path acceptance; do not ship browser binaries | `USE_AS_DEPENDENCY` for release verification |
+| UI inspiration: ReUI | [`ReUI`](https://github.com/keenthemes/reui) | MIT | Public repository and component catalog observed in 2026 | None | Visual reference only; no source copied | `REFERENCE_ONLY` |
+| UI inspiration: Cult UI | [`Cult UI`](https://github.com/nolly-studio/cult-ui) free repository; [Cult UI Pro terms](https://www.pro.cult-ui.com/terms) | MIT for free repository; proprietary Pro terms | Free and paid catalogs are legally distinct | None | No code copied; never copy Pro source into this public repository | `REFERENCE_ONLY` |
+| UI inspiration: Aceternity UI | [`Aceternity UI`](https://ui.aceternity.com/explore) | No sufficiently clear repository-wide OSS grant confirmed during this audit | Active free/pro component catalog observed in 2026 | None | Visual reference only; no source copied | `REFERENCE_ONLY` |
+| UI inspiration: UI Tripled | Name supplied in Task 5 brief; no authoritative OSS source confidently identified | Unknown | Identity and license unverified | None | Do not copy code or assets | `REFERENCE_ONLY` |
 | LLM evaluation framework | [`DeepEval`](https://github.com/confident-ai/deepeval) | Apache-2.0 | Active and fast-moving; observed v4.2.0 in 2026 | High for an offline MVP due to judge/model configuration and reproducibility controls | Build a small deterministic evaluation runner first | `BUILD_CUSTOM` for V1; re-audit when LLM/RAG evaluation is added |
 | Architecture reference | [`chu0119/tg-monitor-v2`](https://github.com/chu0119/tg-monitor-v2) | No declared OSS license observed | Active architecture reference but no license granting reuse | High; FastAPI/React/MySQL/Redis/Telethon exceeds V1 | Observe separation and operational ideas only; copy no code | `REFERENCE_ONLY` |
 
 ## Minimal dependency boundary
 
-The deterministic MVP directly needs Pydantic, pandas, NumPy, SciPy, scikit-learn, NetworkX, Streamlit, pytest and Ruff. Telegram Desktop JSON V0.1 is handled by a small project-owned standard-library adapter with golden end-to-end tests, so `tg-parser` is not installed and no parser source was copied. Sentence Transformers and the multilingual MiniLM model are a separate semantic extra; they must not be silently downloaded during tests or described as evaluated until the pinned model path, model-card license, chunking policy and golden multilingual evaluation all pass.
+The deterministic engine directly needs Pydantic, pandas, NumPy, SciPy, scikit-learn and NetworkX. The local web product uses a locked React/Vite/TypeScript/Tailwind stack with Radix where accessible composite widgets are needed, Recharts for quantitative displays and Lucide for icons. FastAPI/Uvicorn form a loopback-bound adapter around the existing Python engine; they do not reimplement analytics. Pytest, Ruff, Vitest, Testing Library, ESLint and Playwright are development or release-verification tools.
+
+Telegram Desktop JSON V0.1 is handled by a small project-owned standard-library adapter with golden end-to-end tests, so `tg-parser` is not installed and no parser source was copied. Sentence Transformers and the multilingual MiniLM model are a separate semantic extra; they must not be silently downloaded during tests or described as evaluated until the pinned model path, model-card license, chunking policy and golden multilingual evaluation all pass.
 
 ## Custom evidence rules
 
@@ -47,7 +62,7 @@ Every emitted flag must contain `rule_id`, rule version, configured threshold, r
 
 ## Build-versus-reuse conclusion
 
-Reuse mature infrastructure; custom-build the Community Intelligence contract and orchestration. The repository will not import live Telegram services or combine large reference repositories. It will preserve the raw input boundary, make transformations reproducible, keep evidence joinable, and label deterministic, semantic and LLM methods separately.
+Reuse mature infrastructure; custom-build the Community Intelligence contract, orchestration and product-specific presentation. The repository will not import live Telegram services, combine large reference repositories, or copy proprietary/free-gallery source whose license is unclear. It will preserve the raw input boundary, make transformations reproducible, keep evidence joinable, and label deterministic, semantic and LLM methods separately.
 
 ## License caveat
 
