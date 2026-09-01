@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 WIREFRAME_DIR = ROOT / "docs" / "wireframes"
 EXPECTED_PREVIEWS = {
