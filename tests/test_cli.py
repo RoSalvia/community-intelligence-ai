@@ -29,7 +29,7 @@ def test_installed_console_command_exposes_help() -> None:
     )
 
     assert completed.returncode == 0
-    assert "{generate,analyze,demo,import}" in completed.stdout
+    assert "{generate,analyze,demo,import,serve}" in completed.stdout
     assert completed.stderr == ""
 
 
@@ -100,6 +100,34 @@ def test_cli_parse_error_uses_nonzero_exit_status() -> None:
     with pytest.raises(SystemExit) as error:
         main(["analyze"])
     assert error.value.code == 2
+
+
+def test_serve_cli_binds_loopback_and_can_skip_browser(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import community_intelligence.cli as cli
+
+    calls: list[tuple[object, dict[str, object]]] = []
+
+    def capture_run(app: object, **options: object) -> None:
+        calls.append((app, options))
+
+    monkeypatch.setattr(cli.uvicorn, "run", capture_run)
+
+    result = main(["serve", "--port", "8989", "--no-open"])
+
+    assert result == 0
+    assert calls == [
+        (
+            "community_intelligence.web.app:create_app",
+            {
+                "factory": True,
+                "host": "127.0.0.1",
+                "port": 8989,
+                "log_level": "info",
+            },
+        )
+    ]
 
 
 def test_analyze_cli_rejects_existing_output(

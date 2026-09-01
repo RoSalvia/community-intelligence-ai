@@ -7,8 +7,15 @@ import json
 import os
 import sys
 import tempfile
+import threading
+import time
+import urllib.error
+import urllib.request
+import webbrowser
 from collections.abc import Sequence
 from pathlib import Path
+
+import uvicorn
 
 from community_intelligence.importers.telegram import import_telegram_export
 from community_intelligence.io import (
@@ -28,6 +35,16 @@ def _message_count(value: str) -> int:
     if message_count < MIN_MESSAGE_COUNT:
         raise argparse.ArgumentTypeError(f"must be at least {MIN_MESSAGE_COUNT}")
     return message_count
+
+
+def _port(value: str) -> int:
+    try:
+        port = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError("must be an integer") from None
+    if not 1 <= port <= 65535:
+        raise argparse.ArgumentTypeError("must be between 1 and 65535")
+    return port
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -52,6 +69,9 @@ def _parser() -> argparse.ArgumentParser:
     telegram.add_argument("--input", type=Path, required=True)
     telegram.add_argument("--output", type=Path, required=True)
     telegram.add_argument("--language", default="und")
+    serve = subparsers.add_parser("serve", help="open the local web product")
+    serve.add_argument("--port", type=_port, default=8765)
+    serve.add_argument("--no-open", action="store_true", help="do not open a browser")
     return parser
 
 
@@ -89,6 +109,32 @@ def _demo(workspace: Path, *, seed: int, messages: int) -> dict[str, object]:
         cleanup_private_directory(staging, expected_inode=staging_inode)
 
 
+def _open_when_ready(url: str) -> None:
+    health_url = f"{url}api/health"
+    for _ in range(100):
+        try:
+            with urllib.request.urlopen(health_url, timeout=0.25) as response:
+                if response.status == 200:
+                    webbrowser.open(url)
+                    return
+        except (OSError, urllib.error.URLError):
+            time.sleep(0.1)
+
+
+def _serve(*, port: int, open_browser: bool) -> None:
+    url = f"http://127.0.0.1:{port}/"
+    print(f"Community Intelligence is available at {url}")
+    if open_browser:
+        threading.Thread(target=_open_when_ready, args=(url,), daemon=True).start()
+    uvicorn.run(
+        "community_intelligence.web.app:create_app",
+        factory=True,
+        host="127.0.0.1",
+        port=port,
+        log_level="info",
+    )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
@@ -123,6 +169,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     sort_keys=True,
                 )
             )
+            return 0
+        if args.command == "serve":
+            _serve(port=args.port, open_browser=not args.no_open)
             return 0
     except (OSError, ValueError) as error:
         message = str(error).splitlines()[0]
