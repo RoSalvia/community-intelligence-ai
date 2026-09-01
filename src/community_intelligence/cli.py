@@ -10,6 +10,7 @@ import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 
+from community_intelligence.importers.telegram import import_telegram_export
 from community_intelligence.io import (
     cleanup_private_directory,
     publish_directory_no_replace,
@@ -43,6 +44,14 @@ def _parser() -> argparse.ArgumentParser:
     demo.add_argument("--workspace", type=Path, required=True)
     demo.add_argument("--seed", type=int, default=20260901)
     demo.add_argument("--messages", type=_message_count, default=1200)
+    import_command = subparsers.add_parser("import", help="import a supported community export")
+    import_formats = import_command.add_subparsers(dest="import_format", required=True)
+    telegram = import_formats.add_parser(
+        "telegram", help="import Telegram Desktop chat-history result.json"
+    )
+    telegram.add_argument("--input", type=Path, required=True)
+    telegram.add_argument("--output", type=Path, required=True)
+    telegram.add_argument("--language", default="und")
     return parser
 
 
@@ -91,6 +100,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "analyze":
             report_dir = run_pipeline(args.input, args.output)
             print(json.dumps(_summary(args.input, report_dir), sort_keys=True))
+            return 0
+        if args.command == "import" and args.import_format == "telegram":
+            dataset = import_telegram_export(args.input, language=args.language)
+            output_path = write_dataset(dataset, args.output)
+            print(
+                json.dumps(
+                    {
+                        "dataset_dir": str(output_path.resolve()),
+                        "message_count": len(dataset.messages),
+                        "source_format": dataset.manifest.source_format,
+                        "limitations": dataset.manifest.limitations,
+                    },
+                    sort_keys=True,
+                )
+            )
             return 0
         if args.command == "demo":
             print(

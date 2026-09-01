@@ -156,7 +156,7 @@ class DatasetManifest(ContractModel):
     dataset_id: str
     schema_version: str
     synthetic: bool
-    seed: int
+    seed: int | None
     message_count: int = Field(ge=0)
     community_ids: list[str]
     languages: list[str]
@@ -165,9 +165,28 @@ class DatasetManifest(ContractModel):
     generated_at: datetime
     generation_id: str
     artifact_checksums: dict[str, str]
+    source_format: str = "synthetic_generator_v1"
+    source_sha256: str | None = None
+    limitations: list[str] = Field(default_factory=list)
 
-    _nonempty = field_validator("dataset_id", "schema_version")(_require_nonempty)
+    _nonempty = field_validator("dataset_id", "schema_version", "source_format")(
+        _require_nonempty
+    )
     _generated_at_utc = field_validator("generated_at")(_require_utc)
+
+    @field_validator("source_sha256")
+    @classmethod
+    def validate_source_sha256(cls, value: str | None) -> str | None:
+        if value is not None and not _SHA256.fullmatch(value):
+            raise ValueError("source_sha256 must be a lowercase SHA-256 digest")
+        return value
+
+    @field_validator("limitations")
+    @classmethod
+    def validate_limitations(cls, value: list[str]) -> list[str]:
+        if any(not item.strip() for item in value):
+            raise ValueError("manifest limitations must not contain empty values")
+        return value
 
     @field_validator("generation_id")
     @classmethod
@@ -184,7 +203,9 @@ class DatasetManifest(ContractModel):
         return value
 
 
-class SyntheticDataset(ContractModel):
+class CommunityDataset(ContractModel):
+    """Message-first dataset with optional Campaign and Outcome capabilities."""
+
     messages: list[MessageRecord]
     campaigns: list[CampaignRecord]
     claims: list[ClaimRecord]
@@ -193,7 +214,7 @@ class SyntheticDataset(ContractModel):
     manifest: DatasetManifest
 
     @model_validator(mode="after")
-    def validate_references(self) -> SyntheticDataset:
+    def validate_references(self) -> CommunityDataset:
         message_ids = [message.message_id for message in self.messages]
         campaign_ids = [campaign.campaign_id for campaign in self.campaigns]
         claim_ids = [claim.claim_id for claim in self.claims]
@@ -214,8 +235,6 @@ class SyntheticDataset(ContractModel):
         campaign_id_set = set(campaign_ids)
         community_id_set = {message.community_id for message in self.messages}
         language_set = {message.language for message in self.messages}
-        if self.manifest.synthetic is not True:
-            raise ValueError("manifest synthetic must be true")
         if (
             len(self.manifest.community_ids) != len(set(self.manifest.community_ids))
             or set(self.manifest.community_ids) != community_id_set
@@ -231,7 +250,7 @@ class SyntheticDataset(ContractModel):
             or set(self.manifest.campaign_ids) != campaign_id_set
         ):
             raise ValueError("manifest campaign_ids do not match campaigns")
-        if set(self.manifest.scenarios) != community_id_set:
+        if self.manifest.scenarios and set(self.manifest.scenarios) != community_id_set:
             raise ValueError("manifest scenarios do not match communities")
 
         message_by_id = {message.message_id: message for message in self.messages}
@@ -268,8 +287,8 @@ class SyntheticDataset(ContractModel):
             parent = message_by_id[parent_id]
             if message_position[parent_id] >= message_position[message.message_id]:
                 raise ValueError("reply must reference an earlier message")
-            if message.timestamp <= parent.timestamp:
-                raise ValueError("reply timestamp must be after parent timestamp")
+            if message.timestamp < parent.timestamp:
+                raise ValueError("reply timestamp must not be before parent timestamp")
             if message.community_id != parent.community_id:
                 raise ValueError("replies must remain within a community")
             if (
@@ -285,20 +304,49 @@ class SyntheticDataset(ContractModel):
             raise ValueError("outcome campaign_id must reference a dataset campaign")
         if any(outcome.community_id not in community_id_set for outcome in self.outcomes):
             raise ValueError("outcome community_id must reference a dataset community")
-        if any(not outcome.synthetic for outcome in self.outcomes):
-            raise ValueError("outcome synthetic flags must match the synthetic manifest")
+        if any(outcome.synthetic != self.manifest.synthetic for outcome in self.outcomes):
+            raise ValueError("outcome synthetic flags must match the dataset manifest")
         outcome_pairs = [
             (outcome.community_id, outcome.campaign_id) for outcome in self.outcomes
         ]
         if len(outcome_pairs) != len(set(outcome_pairs)):
             raise ValueError("outcome community/campaign pairs must be unique")
-        expected_outcome_pairs = {
-            (community_id, campaign_id)
-            for community_id in community_id_set
-            for campaign_id in campaign_id_set
-        }
-        if set(outcome_pairs) != expected_outcome_pairs:
-            raise ValueError("outcomes must cover every community/campaign pair")
         if any(annotation.message_id not in message_id_set for annotation in self.annotations):
             raise ValueError("annotation message_id must reference a dataset message")
+        return self
+
+
+class SyntheticDataset(CommunityDataset):
+    """Strict synthetic demo contract layered over the production dataset."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def require_synthetic_manifest(cls, value: object) -> object:
+        if isinstance(value, dict):
+            manifest = value.get("manifest")
+            synthetic = (
+                manifest.synthetic
+                if isinstance(manifest, DatasetManifest)
+                else manifest.get("synthetic") if isinstance(manifest, dict) else None
+            )
+            if synthetic is not True:
+                raise ValueError("manifest synthetic must be true")
+        return value
+
+    @model_validator(mode="after")
+    def validate_synthetic_contract(self) -> SyntheticDataset:
+        community_ids = set(self.manifest.community_ids)
+        campaign_ids = {campaign.campaign_id for campaign in self.campaigns}
+        if set(self.manifest.scenarios) != community_ids:
+            raise ValueError("manifest scenarios do not match communities")
+        outcome_pairs = {
+            (outcome.community_id, outcome.campaign_id) for outcome in self.outcomes
+        }
+        expected_outcome_pairs = {
+            (community_id, campaign_id)
+            for community_id in community_ids
+            for campaign_id in campaign_ids
+        }
+        if outcome_pairs != expected_outcome_pairs:
+            raise ValueError("outcomes must cover every community/campaign pair")
         return self

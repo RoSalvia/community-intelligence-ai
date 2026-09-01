@@ -1,4 +1,5 @@
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -257,6 +258,8 @@ def test_tokenless_semantic_text_is_rejected_before_weighted_pooling(
 
 @pytest.fixture
 def local_semantic_model() -> Path:
+    if importlib.util.find_spec("sentence_transformers") is None:
+        pytest.skip("semantic optional dependency is not installed")
     configured = os.environ.get("COMMUNITY_INTELLIGENCE_SEMANTIC_MODEL")
     candidate = Path(configured) if configured else Path(
         "data/generated/models/paraphrase-multilingual-MiniLM-L12-v2-e8f8c211"

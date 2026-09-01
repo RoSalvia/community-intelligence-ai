@@ -11,16 +11,52 @@ import community_intelligence.io as dataset_io
 from community_intelligence.io import (
     PublicationIdentityError,
     cleanup_private_directory,
+    data_artifact_contents,
+    publication_metadata,
     publish_directory_no_replace,
     read_dataset,
     seal_staging_directory,
     write_dataset,
 )
+from community_intelligence.models import CommunityDataset
 from community_intelligence.synthetic import generate_dataset
 
 
 def _dataset(tmp_path: Path) -> Path:
     return write_dataset(generate_dataset(message_count=120), tmp_path / "dataset")
+
+
+def test_write_and_read_production_community_only_dataset(tmp_path: Path) -> None:
+    source = generate_dataset(message_count=120)
+    messages = [message.model_copy(update={"campaign_id": None}) for message in source.messages]
+    contents = data_artifact_contents(messages, [], [], [], [])
+    generation_id, checksums = publication_metadata("telegram-production", contents)
+    dataset = CommunityDataset(
+        messages=messages,
+        campaigns=[],
+        claims=[],
+        outcomes=[],
+        annotations=[],
+        manifest=source.manifest.model_copy(
+            update={
+                "dataset_id": "telegram-production",
+                "synthetic": False,
+                "seed": None,
+                "campaign_ids": [],
+                "scenarios": {},
+                "generation_id": generation_id,
+                "artifact_checksums": checksums,
+                "source_format": "telegram_desktop_json",
+                "source_sha256": "a" * 64,
+            }
+        ),
+    )
+
+    output = write_dataset(dataset, tmp_path / "production")
+    loaded = read_dataset(output)
+
+    assert type(loaded) is CommunityDataset
+    assert loaded == dataset
 
 
 @pytest.mark.parametrize("extra_kind", ["file", "directory", "nested_directory", "symlink"])

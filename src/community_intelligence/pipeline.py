@@ -40,8 +40,8 @@ from community_intelligence.metrics import adapt_metric_source, metric_catalog, 
 from community_intelligence.models import (
     CampaignRecord,
     ClaimRecord,
+    CommunityDataset,
     MessageRecord,
-    SyntheticDataset,
 )
 
 REPORT_SCHEMA_VERSION = "1.0"
@@ -283,7 +283,7 @@ class _EvidenceCollector:
 
     def add_analysis_scope(
         self,
-        campaign: CampaignRecord,
+        campaign: CampaignRecord | None,
         *,
         community_id: str,
         messages: Sequence[MessageRecord],
@@ -294,7 +294,7 @@ class _EvidenceCollector:
         denominator_facts = {
             "all_messages": len(messages),
             "campaign_linked_real_user_messages": sum(
-                message.campaign_id == campaign.campaign_id
+                campaign is not None and message.campaign_id == campaign.campaign_id
                 for message in real_user_messages
             ),
             "noncampaign_real_user_messages": sum(
@@ -304,7 +304,7 @@ class _EvidenceCollector:
         }
         identity = {
             "evidence_type": "analysis_scope",
-            "campaign_id": campaign.campaign_id,
+            "campaign_id": campaign.campaign_id if campaign is not None else None,
             "community_id": community_id,
             "message_count": len(messages),
             "denominator_facts": denominator_facts,
@@ -319,7 +319,7 @@ class _EvidenceCollector:
             message_id=None,
             claim_id=None,
             source_campaign_id=None,
-            analysis_campaign_id=campaign.campaign_id,
+            analysis_campaign_id=campaign.campaign_id if campaign is not None else None,
             community_id=community_id,
             source_text=None,
             message_count=len(messages),
@@ -443,7 +443,7 @@ def _contains_project_mention(text: str, language: str) -> bool:
 
 
 def _campaign_analysis(
-    dataset: SyntheticDataset, collector: _EvidenceCollector
+    dataset: CommunityDataset, collector: _EvidenceCollector
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[tuple[str, str], Any]]:
     claims_by_campaign: dict[str, list[ClaimRecord]] = defaultdict(list)
     for claim in dataset.claims:
@@ -498,8 +498,24 @@ def _campaign_analysis(
     return judgments_output, summaries_output, summaries_by_key
 
 
-def _scope_rows(dataset: SyntheticDataset) -> list[tuple[Any, str, list[MessageRecord]]]:
-    rows: list[tuple[Any, str, list[MessageRecord]]] = []
+def _scope_rows(
+    dataset: CommunityDataset,
+) -> list[tuple[CampaignRecord | None, str, list[MessageRecord]]]:
+    rows: list[tuple[CampaignRecord | None, str, list[MessageRecord]]] = []
+    if not dataset.campaigns:
+        for community_id in sorted(dataset.manifest.community_ids):
+            rows.append(
+                (
+                    None,
+                    community_id,
+                    [
+                        message
+                        for message in dataset.messages
+                        if message.community_id == community_id
+                    ],
+                )
+            )
+        return rows
     for campaign in sorted(dataset.campaigns, key=lambda item: item.campaign_id):
         for community_id in sorted(dataset.manifest.community_ids):
             scoped = [
@@ -589,7 +605,7 @@ def _select_cluster_count(messages: Sequence[MessageRecord]) -> int:
     return min(8, size_target, distinct_vectors)
 
 
-def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[EvidenceRecord, ...]]:
+def _build_report(dataset: CommunityDataset) -> tuple[dict[str, Any], tuple[EvidenceRecord, ...]]:
     collector = _EvidenceCollector(dataset.messages)
     message_by_id = {message.message_id: message for message in dataset.messages}
     campaign_judgments, campaign_summaries, campaign_summary_by_key = _campaign_analysis(
@@ -607,7 +623,12 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
     metric_wide_rows: list[dict[str, Any]] = []
     metric_long_rows: list[dict[str, Any]] = []
     for campaign, community_id, scoped in _scope_rows(dataset):
-        observation_id = f"{campaign.campaign_id}:{community_id}"
+        analysis_campaign_id = campaign.campaign_id if campaign is not None else None
+        observation_id = (
+            f"{analysis_campaign_id}:{community_id}"
+            if analysis_campaign_id is not None
+            else f"community:{community_id}"
+        )
         language_distribution = Counter(message.language for message in scoped)
         languages = sorted(language_distribution)
         if not languages:
@@ -636,14 +657,14 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
             hygiene_evidence_ids.extend(
                 collector.add_many(
                     evidence.supporting_message_ids,
-                    analysis_campaign_id=campaign.campaign_id,
+                    analysis_campaign_id=analysis_campaign_id,
                     community_id=community_id,
                 )
             )
         hygiene_rows.append(
             {
                 "observation_id": observation_id,
-                "campaign_id": campaign.campaign_id,
+                "campaign_id": analysis_campaign_id,
                 "community_id": community_id,
                 "duplicate_ratio": hygiene.duplicate_ratio,
                 "filler_ratio": hygiene.filler_ratio,
@@ -661,7 +682,7 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
         for evidence in activation.evidence:
             ids = collector.add_many(
                 evidence.supporting_message_ids,
-                analysis_campaign_id=campaign.campaign_id,
+                analysis_campaign_id=analysis_campaign_id,
                 community_id=community_id,
             )
             activation_evidence_ids.extend(ids)
@@ -670,7 +691,7 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
             {
                 "observation_id": observation_id,
                 **_record_dict(activation),
-                "campaign_id": campaign.campaign_id,
+                "campaign_id": analysis_campaign_id,
                 "community_id": community_id,
                 "method": "deterministic_activation_rules",
                 "review_status": REVIEW_STATUS,
@@ -682,14 +703,14 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
         for episode in episodes:
             ids = collector.add_many(
                 episode.message_ids,
-                analysis_campaign_id=campaign.campaign_id,
+                analysis_campaign_id=analysis_campaign_id,
                 community_id=community_id,
             )
             episode_evidence_ids.extend(ids)
             episode_rows.append(
                 {
                     **_record_dict(episode),
-                    "campaign_id": campaign.campaign_id,
+                    "campaign_id": analysis_campaign_id,
                     "method": "deterministic_reply_graph",
                     "review_status": REVIEW_STATUS,
                     "evidence_ids": ids,
@@ -698,16 +719,25 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
 
         users = [message for message in scoped if message.user_role == "user"]
         campaign_users = [
-            message for message in users if message.campaign_id == campaign.campaign_id
+            message
+            for message in users
+            if analysis_campaign_id is not None
+            and message.campaign_id == analysis_campaign_id
         ]
-        noncampaign_users = [message for message in users if message.campaign_id is None]
+        noncampaign_users = (
+            [message for message in users if message.campaign_id is None]
+            if analysis_campaign_id is not None
+            else users
+        )
         campaign_discussion_evidence_ids = collector.add_many(
             [message.message_id for message in campaign_users],
-            analysis_campaign_id=campaign.campaign_id,
+            analysis_campaign_id=analysis_campaign_id,
             community_id=community_id,
         )
-        campaign_discussion, campaign_discussion_reason = _metric_value(
-            len(campaign_users), len(users)
+        campaign_discussion, campaign_discussion_reason = (
+            _metric_value(len(campaign_users), len(users))
+            if analysis_campaign_id is not None
+            else (None, "not_available_without_campaign")
         )
         organic_mention_messages = [
             message
@@ -718,7 +748,7 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
         organic_rate, organic_reason = _metric_value(organic_mentions, len(noncampaign_users))
         organic_evidence_ids = collector.add_many(
             [message.message_id for message in organic_mention_messages],
-            analysis_campaign_id=campaign.campaign_id,
+            analysis_campaign_id=analysis_campaign_id,
             community_id=community_id,
         )
         peer_first, answered_questions = _peer_support_counts(episodes, message_by_id)
@@ -741,12 +771,12 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
         unanswered_rate, unanswered_reason = _metric_value(unanswered_questions, total_questions)
         peer_question_evidence_ids = collector.add_many(
             peer_question_evidence_message_ids,
-            analysis_campaign_id=campaign.campaign_id,
+            analysis_campaign_id=analysis_campaign_id,
             community_id=community_id,
         )
         unanswered_question_evidence_ids = collector.add_many(
             user_question_ids,
-            analysis_campaign_id=campaign.campaign_id,
+            analysis_campaign_id=analysis_campaign_id,
             community_id=community_id,
         )
         if episodes:
@@ -768,8 +798,6 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
         else:
             propagation_depth = None
             propagation_reason = "zero_denominator"
-        summary = campaign_summary_by_key[(campaign.campaign_id, community_id)]
-        drift_rate, drift_reason = _metric_value(summary.semantic_drift_count, summary.total_claims)
         response_latency, response_reason = _adapt_single_metric(
             "community_response_latency",
             {
@@ -777,15 +805,6 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
                 "response_latency_denominator_count": activation.metadata[
                     "response_latency_seconds"
                 ].denominator_count,
-            },
-        )
-        status_counts = dict(summary.status_counts)
-        semantic_coverage, semantic_coverage_reason = _adapt_single_metric(
-            "semantic_campaign_coverage",
-            {
-                "covered": status_counts.get("covered", 0),
-                "partially_covered": status_counts.get("partially_covered", 0),
-                "total_claims": summary.total_claims,
             },
         )
         meaningful_value, meaningful_reason = _metric_value(
@@ -797,30 +816,50 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
             activation.metadata["user_to_user_interaction_ratio"].denominator_count,
         )
         metric_values: dict[str, tuple[float | None, str]] = {
-            "campaign_discussion_share": (campaign_discussion, campaign_discussion_reason),
             "community_response_latency": (response_latency, response_reason),
             "conversation_propagation_depth": (propagation_depth, propagation_reason),
             "meaningful_interaction_ratio": (meaningful_value, meaningful_reason),
             "organic_project_mention_rate": (organic_rate, organic_reason),
             "peer_support_ratio": (peer_support, peer_reason),
-            "semantic_campaign_coverage": (
-                semantic_coverage,
-                semantic_coverage_reason,
-            ),
-            "semantic_drift_rate": (drift_rate, drift_reason),
             "unanswered_question_rate": (unanswered_rate, unanswered_reason),
             "user_to_user_interaction_ratio": (
                 user_interaction_value,
                 user_interaction_reason,
             ),
         }
+        if analysis_campaign_id is not None:
+            summary = campaign_summary_by_key[(analysis_campaign_id, community_id)]
+            drift_rate, drift_reason = _metric_value(
+                summary.semantic_drift_count, summary.total_claims
+            )
+            status_counts = dict(summary.status_counts)
+            semantic_coverage, semantic_coverage_reason = _adapt_single_metric(
+                "semantic_campaign_coverage",
+                {
+                    "covered": status_counts.get("covered", 0),
+                    "partially_covered": status_counts.get("partially_covered", 0),
+                    "total_claims": summary.total_claims,
+                },
+            )
+            metric_values.update(
+                {
+                    "campaign_discussion_share": (
+                        campaign_discussion,
+                        campaign_discussion_reason,
+                    ),
+                    "semantic_campaign_coverage": (
+                        semantic_coverage,
+                        semantic_coverage_reason,
+                    ),
+                    "semantic_drift_rate": (drift_rate, drift_reason),
+                }
+            )
         wide_row: dict[str, Any] = {
             "observation_id": observation_id,
-            "campaign_id": campaign.campaign_id,
+            "campaign_id": analysis_campaign_id,
             "community_id": community_id,
             **scoped_language_metadata,
         }
-        catalog = metric_catalog()
         metric_evidence: dict[str, list[str]] = {
             "campaign_discussion_share": campaign_discussion_evidence_ids,
             "community_response_latency": activation_evidence_by_metric["response_latency_seconds"],
@@ -830,22 +869,29 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
             ],
             "organic_project_mention_rate": organic_evidence_ids,
             "peer_support_ratio": peer_question_evidence_ids,
-            "semantic_campaign_coverage": campaign_judgment_evidence[
-                (campaign.campaign_id, community_id)
-            ],
-            "semantic_drift_rate": campaign_judgment_evidence[(campaign.campaign_id, community_id)],
             "unanswered_question_rate": unanswered_question_evidence_ids,
             "user_to_user_interaction_ratio": activation_evidence_by_metric[
                 "user_to_user_interaction_ratio"
             ],
         }
-        for metric_name in sorted(catalog):
+        if analysis_campaign_id is not None:
+            metric_evidence.update(
+                {
+                    "semantic_campaign_coverage": campaign_judgment_evidence[
+                        (analysis_campaign_id, community_id)
+                    ],
+                    "semantic_drift_rate": campaign_judgment_evidence[
+                        (analysis_campaign_id, community_id)
+                    ],
+                }
+            )
+        for metric_name in sorted(metric_values):
             value, diagnostic = metric_values[metric_name]
             wide_row[metric_name] = value
             metric_long_rows.append(
                 {
                     "observation_id": observation_id,
-                    "campaign_id": campaign.campaign_id,
+                    "campaign_id": analysis_campaign_id,
                     "community_id": community_id,
                     **scoped_language_metadata,
                     "metric_name": metric_name,
@@ -912,41 +958,79 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
         cluster_record.pop("representative_messages")
         cluster_output.append({**cluster_record, "evidence_ids": evidence_ids})
 
-    metric_frame = pd.DataFrame(metric_wide_rows)
-    outcome_frame = pd.DataFrame(
-        [outcome.model_dump(mode="python") for outcome in dataset.outcomes]
-    ).drop(columns=["synthetic"])
-    validation = validate_metrics(
-        metric_frame,
-        outcome_frame,
-        observation_key_columns=("campaign_id", "community_id"),
-        metric_columns=tuple(sorted(metric_catalog())),
-        outcome_columns=("conversion", "new_users", "participants", "referrals", "retention"),
-        minimum_sample_size=5,
-        minimum_group_size=2,
-        synthetic=True,
+    if dataset.outcomes:
+        metric_frame = pd.DataFrame(metric_wide_rows)
+        outcome_frame = pd.DataFrame(
+            [outcome.model_dump(mode="python") for outcome in dataset.outcomes]
+        ).drop(columns=["synthetic"])
+        validation = validate_metrics(
+            metric_frame,
+            outcome_frame,
+            observation_key_columns=("campaign_id", "community_id"),
+            metric_columns=tuple(sorted(metric_catalog())),
+            outcome_columns=(
+                "conversion",
+                "new_users",
+                "participants",
+                "referrals",
+                "retention",
+            ),
+            minimum_sample_size=5,
+            minimum_group_size=2,
+            synthetic=dataset.manifest.synthetic,
+        )
+    else:
+        validation = []
+
+    campaign_capability = (
+        {"status": "available"}
+        if dataset.campaigns
+        else {"status": "not_available", "reason": "No campaign data provided"}
+    )
+    outcome_capability = (
+        {"status": "available"}
+        if dataset.outcomes
+        else {"status": "not_available", "reason": "No outcome data provided"}
+    )
+    association_limit = (
+        ASSOCIATION_LIMIT
+        if dataset.manifest.synthetic
+        else (
+            "All statistical results are descriptive associations, not causal effects; "
+            "evidence requires human review and external validation."
+        )
     )
 
     role_counts = Counter(message.user_role for message in dataset.messages)
     language_counts = Counter(message.language for message in dataset.messages)
     report: dict[str, Any] = {
-        "data_status": "synthetic",
+        "data_status": "synthetic" if dataset.manifest.synthetic else "production",
         "schema_version": REPORT_SCHEMA_VERSION,
         "dataset_schema_version": dataset.manifest.schema_version,
         "generation_id": dataset.manifest.generation_id,
         "dataset_id": dataset.manifest.dataset_id,
         "analysis_methods": {
-            "campaign": "curated_alias_baseline",
+            "campaign": "curated_alias_baseline" if dataset.campaigns else "not_available",
             "behavior": ["deterministic_seed_rule", "tfidf_kmeans"],
-            "metrics": "canonical_deterministic_adapter + bounded_statistical_validation",
+            "metrics": (
+                "canonical_deterministic_adapter + bounded_statistical_validation"
+                if dataset.outcomes
+                else "canonical_deterministic_adapter"
+            ),
             "organic_project_mention": "deterministic_multilingual_lexicon_v1",
             "semantic_provider_used_by_pipeline": False,
         },
         "capabilities": {
-            "multilingual_embedding_retrieval_provider": ("Implemented and verified offline"),
-            "pipeline_semantic_retrieval_integration": "Not implemented",
-            "general_multilingual_semantic_campaign_judgment": "Not implemented",
-            "llm_behavior_interpretation": "Not implemented",
+            "community_analysis": {"status": "available"},
+            "hygiene": {"status": "available"},
+            "activation": {"status": "available"},
+            "campaign_intelligence": campaign_capability,
+            "outcome_validation": outcome_capability,
+            "pipeline_semantic_retrieval_integration": {"status": "not_implemented"},
+            "general_multilingual_semantic_campaign_judgment": {
+                "status": "not_implemented"
+            },
+            "llm_behavior_interpretation": {"status": "not_implemented"},
         },
         "limitations": {
             "pipeline_semantic_retrieval_integration": (
@@ -960,7 +1044,7 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
                 "Not implemented; Behavior uses deterministic seed rules and "
                 "review-pending TF-IDF/KMeans clusters."
             ),
-            "association_not_causation": ASSOCIATION_LIMIT,
+            "association_not_causation": association_limit,
             "human_review": "All AI-like judgments and behavior clusters remain pending review.",
             "campaign_scope_mixed_language_aggregation": (
                 "Each community-campaign observation uses only languages present inside its "
@@ -980,13 +1064,23 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
             "language_counts": dict(sorted(language_counts.items())),
             "role_counts": dict(sorted(role_counts.items())),
             "source_artifact_checksums": dataset.manifest.artifact_checksums,
+            "source": {
+                "format": dataset.manifest.source_format,
+                "sha256": dataset.manifest.source_sha256,
+                "limitations": dataset.manifest.limitations,
+            },
         },
         "Campaign": {
+            **campaign_capability,
             "judgments": campaign_judgments,
             "summaries": campaign_summaries,
-            "resource_source": "explicit synthetic constants independent of annotations",
-            "resource_patterns": _RESOURCE_PATTERNS,
-            "method": "curated_alias_baseline",
+            "resource_source": (
+                "explicit synthetic constants independent of annotations"
+                if dataset.campaigns
+                else None
+            ),
+            "resource_patterns": _RESOURCE_PATTERNS if dataset.campaigns else {},
+            "method": "curated_alias_baseline" if dataset.campaigns else None,
             "review_status": REVIEW_STATUS,
         },
         "Hygiene": hygiene_rows,
@@ -1038,6 +1132,7 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
             "review_status": REVIEW_STATUS,
         },
         "Metric Lab": {
+            "outcome_validation": outcome_capability,
             "observations": [
                 {
                     **row,
@@ -1058,7 +1153,7 @@ def _build_report(dataset: SyntheticDataset) -> tuple[dict[str, Any], tuple[Evid
             "definitions": metric_catalog(),
             "pipeline_contracts": _PIPELINE_METRIC_CONTRACTS,
             "validation": validation,
-            "association_not_causation": ASSOCIATION_LIMIT,
+            "association_not_causation": association_limit,
         },
     }
     return report, collector.records
@@ -1081,7 +1176,7 @@ def _evidence_references(value: Any) -> set[str]:
 def _validate_publication(
     report: dict[str, Any],
     evidence: Sequence[EvidenceRecord],
-    dataset: SyntheticDataset,
+    dataset: CommunityDataset,
 ) -> None:
     evidence_ids = [record.evidence_id for record in evidence]
     if len(evidence_ids) != len(set(evidence_ids)):
@@ -1136,22 +1231,29 @@ def _validate_publication(
                 or record.translation is not None
                 or record.confidence is not None
                 or record.source_campaign_id is not None
-                or record.analysis_campaign_id is None
                 or record.community_id is None
             ):
                 raise ValueError("analysis-scope evidence must not fabricate source evidence")
-            campaign = campaign_by_id[record.analysis_campaign_id]
+            campaign = (
+                campaign_by_id[record.analysis_campaign_id]
+                if record.analysis_campaign_id is not None
+                else None
+            )
             scoped = [
                 message
                 for message in dataset.messages
                 if message.community_id == record.community_id
-                and campaign.start_time <= message.timestamp < campaign.end_time
+                and (
+                    campaign is None
+                    or campaign.start_time <= message.timestamp < campaign.end_time
+                )
             ]
             users = [message for message in scoped if message.user_role == "user"]
             expected_facts = {
                 "all_messages": len(scoped),
                 "campaign_linked_real_user_messages": sum(
-                    message.campaign_id == campaign.campaign_id for message in users
+                    campaign is not None and message.campaign_id == campaign.campaign_id
+                    for message in users
                 ),
                 "noncampaign_real_user_messages": sum(
                     message.campaign_id is None for message in users
@@ -1229,7 +1331,7 @@ def _publish(output_path: Path, report: dict[str, Any], evidence: Sequence[Evide
 
 
 def run_pipeline(dataset_dir: str | Path, output_dir: str | Path) -> Path:
-    """Validate a six-artifact dataset and publish a deterministic report directory."""
+    """Validate a message-first dataset and publish a deterministic report directory."""
 
     input_lexical_path = Path(os.path.abspath(Path(dataset_dir).expanduser()))
     output_path = Path(os.path.abspath(Path(output_dir).expanduser()))
@@ -1242,10 +1344,6 @@ def run_pipeline(dataset_dir: str | Path, output_dir: str | Path) -> Path:
     if os.path.lexists(output_path):
         raise FileExistsError(f"output path already exists: {output_path}")
     dataset = read_dataset(input_path)
-    if not dataset.campaigns:
-        raise ValueError(
-            "at least one campaign required for this campaign-centric MVP"
-        )
     report, evidence = _build_report(dataset)
     _validate_publication(report, evidence, dataset)
     return _publish(output_path, report, evidence)

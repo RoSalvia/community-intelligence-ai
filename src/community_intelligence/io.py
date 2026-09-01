@@ -21,6 +21,7 @@ from community_intelligence.models import (
     AnnotationRecord,
     CampaignRecord,
     ClaimRecord,
+    CommunityDataset,
     DatasetManifest,
     MessageRecord,
     OutcomeRecord,
@@ -653,11 +654,12 @@ def cleanup_private_directory(
         os.close(parent_fd)
 
 
-def write_dataset(dataset: SyntheticDataset, output_dir: str | Path) -> Path:
+def write_dataset(dataset: CommunityDataset, output_dir: str | Path) -> Path:
     """Validate and publish all six artifacts as one directory generation."""
 
     requested_path = Path(os.path.abspath(Path(output_dir).expanduser()))
-    dataset = SyntheticDataset.model_validate(dataset.model_dump(mode="python"))
+    dataset_type = SyntheticDataset if dataset.manifest.synthetic else CommunityDataset
+    dataset = dataset_type.model_validate(dataset.model_dump(mode="python"))
     requested_path.parent.mkdir(parents=True, exist_ok=True)
     output_path = requested_path.parent.resolve(strict=True) / requested_path.name
     if os.path.lexists(output_path):
@@ -789,7 +791,7 @@ def _decode_artifact(captured: _CapturedArtifact, name: str) -> str:
         raise ValueError(f"invalid UTF-8 in {name}") from error
 
 
-def read_dataset(input_dir: str | Path) -> SyntheticDataset:
+def read_dataset(input_dir: str | Path) -> CommunityDataset:
     """Load all six artifacts and revalidate their records and references."""
 
     input_path = Path(input_dir).expanduser().resolve()
@@ -845,7 +847,8 @@ def read_dataset(input_dir: str | Path) -> SyntheticDataset:
         AnnotationRecord.model_validate(row)
         for row in _read_jsonl(text["annotations.jsonl"], "annotations.jsonl")
     ]
-    return SyntheticDataset(
+    dataset_type = SyntheticDataset if manifest.synthetic else CommunityDataset
+    return dataset_type(
         messages=messages,
         campaigns=campaigns,
         claims=claims,

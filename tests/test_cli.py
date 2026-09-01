@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -14,6 +16,21 @@ from community_intelligence.io import (
 )
 from community_intelligence.models import SyntheticDataset
 from community_intelligence.synthetic import generate_dataset
+
+
+def test_installed_console_command_exposes_help() -> None:
+    executable = Path(sys.executable).parent / "community-intelligence"
+
+    completed = subprocess.run(
+        [str(executable), "--help"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0
+    assert "{generate,analyze,demo,import}" in completed.stdout
+    assert completed.stderr == ""
 
 
 def _no_campaign_dataset(tmp_path: Path) -> Path:
@@ -161,7 +178,7 @@ def test_cli_missing_input_returns_nonzero_concise_error_without_output_mutation
     assert not os.path.lexists(output)
 
 
-def test_cli_no_campaign_dataset_returns_nonzero_before_output_creation(
+def test_cli_no_campaign_dataset_writes_community_only_report(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     dataset = _no_campaign_dataset(tmp_path)
@@ -170,12 +187,13 @@ def test_cli_no_campaign_dataset_returns_nonzero_before_output_creation(
     result = main(["analyze", "--input", str(dataset), "--output", str(output)])
 
     captured = capsys.readouterr()
-    assert result == 1
-    assert captured.out == ""
-    assert captured.err == (
-        "error: at least one campaign required for this campaign-centric MVP\n"
-    )
-    assert not os.path.lexists(output)
+    assert result == 0
+    assert captured.err == ""
+    summary = json.loads(captured.out)
+    assert summary["campaign_judgment_count"] == 0
+    assert output.is_dir()
+    report = json.loads((output / "report.json").read_text(encoding="utf-8"))
+    assert report["capabilities"]["campaign_intelligence"]["status"] == "not_available"
 
 
 def test_cli_expected_oserror_is_concise_and_has_no_traceback(

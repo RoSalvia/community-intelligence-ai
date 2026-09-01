@@ -70,7 +70,7 @@ def invalid_cases() -> list[tuple[list[MessageRecord], str]]:
         (missing_parent, "reply parent must exist"),
         (cross_community, "replies must remain within a community"),
         (cross_campaign, "replies must remain within a campaign"),
-        (reversed_timestamp, "reply timestamp must be after parent timestamp"),
+        (reversed_timestamp, "reply timestamp must not be before parent timestamp"),
         (cycle, "reply graph must be acyclic"),
     ]
 

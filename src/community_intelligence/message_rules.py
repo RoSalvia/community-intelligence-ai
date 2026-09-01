@@ -137,8 +137,8 @@ def validate_message_graph(messages: list[MessageRecord]) -> ValidatedMessageGra
         raise ValueError("reply graph must be acyclic")
 
     for child_id, parent_id in parent_by_child.items():
-        if message_by_id[child_id].timestamp <= message_by_id[parent_id].timestamp:
-            raise ValueError("reply timestamp must be after parent timestamp")
+        if message_by_id[child_id].timestamp < message_by_id[parent_id].timestamp:
+            raise ValueError("reply timestamp must not be before parent timestamp")
 
     immutable_children = {
         parent_id: tuple(

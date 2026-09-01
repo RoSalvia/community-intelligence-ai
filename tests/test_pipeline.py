@@ -17,7 +17,7 @@ from community_intelligence.io import (
     read_dataset,
     write_dataset,
 )
-from community_intelligence.models import MessageRecord, SyntheticDataset
+from community_intelligence.models import CommunityDataset, MessageRecord, SyntheticDataset
 from community_intelligence.pipeline import _select_cluster_count, run_pipeline
 from community_intelligence.synthetic import generate_dataset
 
@@ -109,6 +109,50 @@ def _silent_scope_dataset(
     return write_dataset(dataset, tmp_path / "dataset")
 
 
+def _production_dataset(
+    tmp_path: Path,
+    *,
+    include_campaigns: bool,
+    include_outcomes: bool = False,
+) -> Path:
+    source = generate_dataset(message_count=120)
+    messages = (
+        source.messages
+        if include_campaigns
+        else [message.model_copy(update={"campaign_id": None}) for message in source.messages]
+    )
+    campaigns = source.campaigns if include_campaigns else []
+    claims = source.claims if include_campaigns else []
+    outcomes = (
+        [outcome.model_copy(update={"synthetic": False}) for outcome in source.outcomes]
+        if include_outcomes
+        else []
+    )
+    contents = data_artifact_contents(messages, campaigns, claims, outcomes, [])
+    dataset_id = "production-campaign" if include_campaigns else "production-community"
+    generation_id, checksums = publication_metadata(dataset_id, contents)
+    dataset = CommunityDataset(
+        messages=messages,
+        campaigns=campaigns,
+        claims=claims,
+        outcomes=outcomes,
+        annotations=[],
+        manifest=source.manifest.model_copy(
+            update={
+                "dataset_id": dataset_id,
+                "synthetic": False,
+                "seed": None,
+                "campaign_ids": [campaign.campaign_id for campaign in campaigns],
+                "scenarios": {},
+                "generation_id": generation_id,
+                "artifact_checksums": checksums,
+                "source_format": "test_production_dataset",
+            }
+        ),
+    )
+    return write_dataset(dataset, tmp_path / "dataset")
+
+
 def _variant_dataset(
     source: SyntheticDataset,
     output: Path,
@@ -192,6 +236,62 @@ def _source_snapshot(root: Path) -> dict[str, tuple[int, str | None, str | None]
     return snapshot
 
 
+def test_community_only_pipeline_runs_existing_analysis_without_fabricated_campaign(
+    tmp_path: Path,
+) -> None:
+    dataset_dir = _production_dataset(tmp_path, include_campaigns=False)
+
+    report, evidence = _read_report(run_pipeline(dataset_dir, tmp_path / "report"))
+
+    assert report["data_status"] == "production"
+    assert report["capabilities"]["community_analysis"] == {"status": "available"}
+    assert report["capabilities"]["campaign_intelligence"] == {
+        "status": "not_available",
+        "reason": "No campaign data provided",
+    }
+    assert report["capabilities"]["outcome_validation"] == {
+        "status": "not_available",
+        "reason": "No outcome data provided",
+    }
+    assert report["Campaign"]["status"] == "not_available"
+    assert report["Campaign"]["judgments"] == []
+    assert report["Campaign"]["resource_patterns"] == {}
+    assert report["Campaign"]["method"] is None
+    assert report["analysis_methods"]["campaign"] == "not_available"
+    assert report["analysis_methods"]["metrics"] == "canonical_deterministic_adapter"
+    assert "synthetic evidence" not in report["Metric Lab"]["association_not_causation"]
+    assert len(report["Hygiene"]) == 4
+    assert len(report["Activation"]) == 4
+    assert report["Episodes/Response Patterns"]
+    assert report["Behavior"]["seed_labels"]
+    assert len(report["Metric Lab"]["observations"]) == 4
+    assert {record["metric_name"] for record in report["Metric Lab"]["metric_records"]} == {
+        "community_response_latency",
+        "conversation_propagation_depth",
+        "meaningful_interaction_ratio",
+        "organic_project_mention_rate",
+        "peer_support_ratio",
+        "unanswered_question_rate",
+        "user_to_user_interaction_ratio",
+    }
+    assert report["Metric Lab"]["validation"] == []
+    assert all(item["analysis_campaign_id"] is None for item in evidence)
+
+
+def test_campaign_aware_pipeline_without_outcomes_keeps_metrics_but_skips_association(
+    tmp_path: Path,
+) -> None:
+    dataset_dir = _production_dataset(tmp_path, include_campaigns=True)
+
+    report, _ = _read_report(run_pipeline(dataset_dir, tmp_path / "report"))
+
+    assert report["capabilities"]["campaign_intelligence"] == {"status": "available"}
+    assert report["capabilities"]["outcome_validation"]["status"] == "not_available"
+    assert len(report["Campaign"]["judgments"]) == 28
+    assert len(report["Metric Lab"]["observations"]) == 12
+    assert report["Metric Lab"]["validation"] == []
+
+
 def test_pipeline_is_deterministic_evidence_linked_and_does_not_mutate_source(
     tmp_path: Path,
 ) -> None:
@@ -208,10 +308,16 @@ def test_pipeline_is_deterministic_evidence_linked_and_does_not_mutate_source(
     report, evidence = _read_report(first)
     assert report["data_status"] == "synthetic"
     assert report["capabilities"] == {
-        "general_multilingual_semantic_campaign_judgment": "Not implemented",
-        "llm_behavior_interpretation": "Not implemented",
-        "multilingual_embedding_retrieval_provider": "Implemented and verified offline",
-        "pipeline_semantic_retrieval_integration": "Not implemented",
+        "activation": {"status": "available"},
+        "campaign_intelligence": {"status": "available"},
+        "community_analysis": {"status": "available"},
+        "general_multilingual_semantic_campaign_judgment": {
+            "status": "not_implemented"
+        },
+        "hygiene": {"status": "available"},
+        "llm_behavior_interpretation": {"status": "not_implemented"},
+        "outcome_validation": {"status": "available"},
+        "pipeline_semantic_retrieval_integration": {"status": "not_implemented"},
     }
     assert report["analysis_methods"]["campaign"] == "curated_alias_baseline"
     assert report["analysis_methods"]["semantic_provider_used_by_pipeline"] is False
@@ -817,7 +923,7 @@ def test_campaign_language_scope_reports_true_mixed_language_inside_exact_window
     assert "campaign_scope_mixed_language_aggregation" in report["limitations"]
 
 
-def test_pipeline_rejects_contract_valid_dataset_without_campaigns_before_frame_operations(
+def test_pipeline_accepts_contract_valid_dataset_without_campaigns(
     tmp_path: Path,
 ) -> None:
     source = generate_dataset(message_count=120)
@@ -834,12 +940,11 @@ def test_pipeline_rejects_contract_valid_dataset_without_campaigns_before_frame_
     )
     output = tmp_path / "report"
 
-    with pytest.raises(
-        ValueError,
-        match="at least one campaign required for this campaign-centric MVP",
-    ):
-        run_pipeline(dataset, output)
-    assert not os.path.lexists(output)
+    report, _ = _read_report(run_pipeline(dataset, output))
+
+    assert report["Campaign"]["status"] == "not_available"
+    assert report["Campaign"]["judgments"] == []
+    assert output.is_dir()
 
 
 def test_evidence_semantics_are_deduplicated_while_all_metric_records_remain_linked(

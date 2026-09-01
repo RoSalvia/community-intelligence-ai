@@ -1,9 +1,14 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from pydantic import ValidationError
 
-from community_intelligence.models import MessageRecord, SyntheticDataset
+from community_intelligence.models import (
+    CommunityDataset,
+    DatasetManifest,
+    MessageRecord,
+    SyntheticDataset,
+)
 from community_intelligence.synthetic import generate_dataset
 
 
@@ -21,6 +26,53 @@ def valid_message(**overrides: object) -> dict[str, object]:
     }
     message.update(overrides)
     return message
+
+
+def test_production_dataset_accepts_messages_without_optional_capabilities() -> None:
+    timestamp = datetime(2026, 9, 1, tzinfo=UTC)
+    messages = [
+        MessageRecord(**valid_message(timestamp=timestamp, language="und")),
+        MessageRecord(
+            **valid_message(
+                message_id="msg_002",
+                user_id_hash="usr_0b34ff",
+                timestamp=timestamp,
+                language="und",
+                text="Same-second reply",
+                reply_to_message_id="msg_001",
+            )
+        ),
+    ]
+    manifest = DatasetManifest(
+        dataset_id="telegram-example",
+        schema_version="1.1",
+        synthetic=False,
+        seed=None,
+        message_count=2,
+        community_ids=["community_a"],
+        languages=["und"],
+        campaign_ids=[],
+        scenarios={},
+        generated_at=timestamp,
+        generation_id="0" * 64,
+        artifact_checksums={"messages.jsonl": "1" * 64},
+        source_format="telegram_desktop_json",
+        source_sha256="2" * 64,
+        limitations=["Telegram export does not reliably identify moderator roles."],
+    )
+
+    dataset = CommunityDataset(
+        messages=messages,
+        campaigns=[],
+        claims=[],
+        outcomes=[],
+        annotations=[],
+        manifest=manifest,
+    )
+
+    assert dataset.manifest.synthetic is False
+    assert dataset.campaigns == []
+    assert dataset.outcomes == []
 
 
 @pytest.mark.parametrize(
@@ -168,9 +220,9 @@ def test_dataset_rejects_non_chronological_and_cross_campaign_replies() -> None:
         for message in chronological_data["messages"]
         if message["message_id"] == child["reply_to_message_id"]
     )
-    child["timestamp"] = parent["timestamp"]
+    child["timestamp"] = parent["timestamp"] - timedelta(seconds=1)
 
-    with pytest.raises(ValidationError, match="reply timestamp must be after parent"):
+    with pytest.raises(ValidationError, match="reply timestamp must not be before parent"):
         SyntheticDataset.model_validate(chronological_data)
 
     campaign_data = generate_dataset(seed=137, message_count=120).model_dump(mode="python")

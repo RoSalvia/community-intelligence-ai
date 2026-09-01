@@ -14,7 +14,7 @@ The MVP will reuse maintained Python libraries for parsing, tabular operations, 
 
 | Capability | Candidate | License | Maintenance / maturity evidence | Integration cost | Reuse strategy | Decision |
 |---|---|---|---|---|---|---|
-| Telegram export parsing | [`mdemyanov/tg-parser`](https://github.com/mdemyanov/tg-parser) / [`tg-parser` on PyPI](https://pypi.org/project/tg-parser/) | MIT | v1.2.0 dated 2026-01-20; typed Python ≥3.11 API and optional streaming, but only five repository commits and one visible PyPI maintainer | Low–medium; requires an adapter and golden Telegram-export fixtures | Pin behind an ingestion adapter; retain raw export unchanged | `USE_AS_DEPENDENCY` after local API verification |
+| Telegram export parsing | Python standard library; [`mdemyanov/tg-parser`](https://github.com/mdemyanov/tg-parser) audited as an alternative | Project-owned adapter; alternative is MIT | `tg-parser` v1.2.0 was dated 2026-01-20 but had only five repository commits and one visible PyPI maintainer | Low for the deliberately bounded Telegram Desktop `result.json` subset | Custom strict adapter with a golden fixture; no third-party parser code copied | `BUILD_CUSTOM` for V0.1; re-audit a dependency if format coverage expands |
 | Telegram collection concepts | [`ali-albdaer/TelegramStatisticsCollector`](https://github.com/ali-albdaer/TelegramStatisticsCollector) | MIT | Latest observed default-branch commit 2024-07-31; no releases; script collection requiring Telethon sessions | High and mismatched with offline V1 | Read schema/SQLite ideas only | `REFERENCE_ONLY` |
 | Telegram export edge cases | [`Retro-Zero/telegram-export-md`](https://github.com/Retro-Zero/telegram-export-md) | MIT | v0.4.1 dated 2026-08-15; fresh but beta and small history | Medium; Markdown conversion is not an analytics contract | Use as fixture/schema reference only | `REFERENCE_ONLY` |
 | Telegram schema comparison | [`StackTheFennec/telegram-export-parser`](https://github.com/StackTheFennec/telegram-export-parser) | MIT | Latest observed commit 2025-08-13; TypeScript package v0.1.0 | High for a Python-only MVP | Reference field coverage only | `REFERENCE_ONLY` |
@@ -37,7 +37,7 @@ The MVP will reuse maintained Python libraries for parsing, tabular operations, 
 
 ## Minimal dependency boundary
 
-The deterministic MVP directly needs Pydantic, pandas, NumPy, SciPy, scikit-learn, NetworkX, Streamlit, pytest and Ruff. `tg-parser` is accepted only behind an adapter after its installed API and at least one golden Telegram export fixture are verified locally. Sentence Transformers and the multilingual MiniLM model are a separate semantic extra; they must not be silently downloaded during tests or described as evaluated until the pinned model path, model-card license, chunking policy and golden multilingual evaluation all pass.
+The deterministic MVP directly needs Pydantic, pandas, NumPy, SciPy, scikit-learn, NetworkX, Streamlit, pytest and Ruff. Telegram Desktop JSON V0.1 is handled by a small project-owned standard-library adapter with golden end-to-end tests, so `tg-parser` is not installed and no parser source was copied. Sentence Transformers and the multilingual MiniLM model are a separate semantic extra; they must not be silently downloaded during tests or described as evaluated until the pinned model path, model-card license, chunking policy and golden multilingual evaluation all pass.
 
 ## Custom evidence rules
 

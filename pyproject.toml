@@ -17,6 +17,9 @@ dependencies = [
     "streamlit>=1.39",
 ]
 
+[project.scripts]
+community-intelligence = "community_intelligence.cli:main"
+
 [project.optional-dependencies]
 semantic = ["sentence-transformers>=3.2"]
 

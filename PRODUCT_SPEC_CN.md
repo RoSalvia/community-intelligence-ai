@@ -80,24 +80,26 @@ V1 需要回答七组问题。第一，Moderator 和普通用户主要在做什�
 
 ## 8. V1 产品范围与用户流程
 
-V1 使用 Telegram 导出的 JSON/CSV、Campaign Brief 和可选 Business Outcome 数据。真实历史公司聊天不进入仓库；Demo 使用由系统生成并明确标注的 synthetic multilingual dataset。V1 暂不接入实时 Telegram API。
+V1 的核心输入首先是 Community Messages。当前 Public Alpha 支持由系统生成并明确标注的 synthetic multilingual dataset，以及 Telegram Desktop chat-history 导出的 `result.json`；标准 CSV 仍是后续兼容项。真实历史公司聊天不进入仓库，V1 暂不接入实时 Telegram API。
+
+Campaign 和 Outcome 是可选能力模块，不是运行整个产品的前置条件。只有 messages 时，系统按 Community-only 模式运行现有的 Overview、Hygiene、Activation、回复图、Response Episode、Behavior、已实现的 Community Feedback seed 和不依赖 Campaign/Outcome 的候选指标；Campaign Intelligence 显示 `not_available: No campaign data provided`。提供 Campaign 与 Claims 后进入 Campaign-aware 模式；进一步提供 Outcome 后才启用 outcome association。没有 Outcome 时可以继续计算候选指标，但不得伪造 conversion、retention 或业务结果验证。
+
+报告必须严格区分三种状态：`available` 表示当前输入允许运行且能力已实现；`not_available` 表示用户没有提供该能力所需的数据；`not_implemented` 表示产品本身尚未实现对应方法。缺少 Campaign 或 Outcome 不得导致整个报告失败、被标为 invalid，也不得通过虚构 Campaign、Claims 或业务结果补齐。
 
 ```text
-导入或选择 Synthetic Community Data
-               +
-导入或选择 Campaign Brief
+导入 Telegram JSON 或选择 Synthetic Community Data
                ↓
 运行分析
                ↓
 查看 Community Intelligence Overview
                ↓
-查看 Campaign 跨语言执行
+按可用数据查看 Campaign 跨语言执行
                ↓
 查看行为与社区响应模式
                ↓
 查看 Hygiene / Activation / Feedback
                ↓
-查看 Candidate Metrics 与统计验证
+查看 Candidate Metrics；有 Outcome 时查看统计关联验证
                ↓
 点击 Evidence / 导出报告
 ```
