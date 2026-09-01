@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Community Intelligence — Task 5 Wireframe</title>
+    <style>
+      :root { font-family: Inter, system-ui, sans-serif; color: #1d2421; background: #ecece8; }
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+      button { font: inherit; }
+      .shell { min-height: 100vh; display: grid; grid-template-columns: 225px 1fr; }
+      aside { padding: 24px 14px; color: #fff; background: #28332f; }
+      .brand { margin: 0 8px 24px; font-weight: 800; line-height: 1.25; }
+      nav { display: grid; gap: 5px; }
+      nav button { padding: 10px 12px; color: #dce1de; text-align: left; background: transparent; border: 0; border-radius: 7px; cursor: pointer; }
+      nav button[aria-current="page"] { color: #fff; background: #46524d; box-shadow: inset 3px 0 #fff; }
+      main { min-width: 0; }
+      header { height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 30px; border-bottom: 1px solid #c6cac6; }
+      .source { padding: 6px 10px; font-size: 12px; background: #fff; border: 1px solid #bec3bf; border-radius: 999px; }
+      .page { display: none; max-width: 1180px; margin: 0 auto; padding: 34px 30px 60px; }
+      .page.active { display: block; }
+      .page-title { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 24px; }
+      h1 { margin: 0; font-size: 32px; }
+      h2 { margin: 0 0 12px; font-size: 15px; }
+      p { color: #5c6661; }
+      .button { padding: 9px 13px; background: #fff; border: 1px solid #939b96; border-radius: 7px; }
+      .button.primary { color: #fff; background: #28332f; }
+      .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 14px 0; }
+      .grid.four { grid-template-columns: repeat(4, 1fr); }
+      .grid.two { grid-template-columns: repeat(2, 1fr); }
+      .card, .panel { padding: 16px; background: #f8f8f5; border: 1px solid #aeb5b0; border-radius: 8px; }
+      .placeholder { min-height: 110px; display: grid; place-items: center; color: #747d78; background: repeating-linear-gradient(-45deg, #f4f4f0, #f4f4f0 8px, #ecece8 8px, #ecece8 16px); border: 1px dashed #a9afab; border-radius: 7px; }
+      .metric { display: block; margin-top: 10px; font-size: 24px; font-weight: 800; }
+      .meta { font-size: 11px; color: #67706b; }
+      table { width: 100%; border-collapse: collapse; background: #f8f8f5; }
+      th, td { padding: 11px; text-align: left; border: 1px solid #b9bfbb; }
+      th { font-size: 12px; background: #e1e3df; }
+      .pill { display: inline-block; padding: 4px 7px; font-size: 11px; border: 1px solid #89938d; border-radius: 999px; }
+      .notice { padding: 12px 14px; background: #fff; border-left: 4px solid #6c756f; }
+      .evidence { color: #263e34; text-decoration: underline; background: transparent; border: 0; cursor: pointer; }
+      .drawer { position: fixed; inset: 0 0 0 auto; z-index: 3; width: min(440px, 90vw); padding: 24px; background: #fff; border-left: 2px solid #39443f; box-shadow: -12px 0 35px rgb(0 0 0 / 18%); transform: translateX(105%); transition: 160ms; }
+      .drawer.open { transform: translateX(0); }
+      .thread { display: grid; gap: 10px; }
+      .message { max-width: 80%; padding: 10px; background: #e7e9e6; border-radius: 8px; }
+      .message.reply { margin-left: 20%; background: #d6ddd9; }
+      @media (max-width: 760px) { .shell { grid-template-columns: 1fr; } aside { position: static; } nav { grid-template-columns: repeat(2, 1fr); } .grid, .grid.two, .grid.four { grid-template-columns: 1fr; } header { padding: 0 18px; } .page { padding: 28px 18px; } }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <aside>
+        <div class="brand">COMMUNITY<br />INTELLIGENCE<br /><span class="meta">LOW-FI / TASK 5</span></div>
+        <nav aria-label="Wireframe pages">
+          <button aria-current="page">Overview</button><button>Campaigns</button><button>Communities</button><button>Behaviors</button><button>Response Patterns</button><button>Metric Lab</button><button>Evidence</button>
+        </nav>
+      </aside>
+      <main>
+        <header><span class="source">Synthetic demo · 4 communities · 4 languages</span><button class="button">Data &amp; methods</button></header>
+
+        <section class="page active" data-page="Overview">
+          <div class="page-title"><div><div class="meta">SCOPE BEFORE INTERPRETATION</div><h1>Overview</h1></div><div><button class="button">Import Telegram JSON</button> <button class="button primary">Run demo</button></div></div>
+          <div class="grid four"><div class="card">Messages<span class="metric">120</span></div><div class="card">Communities<span class="metric">4</span></div><div class="card">Languages<span class="metric">4</span></div><div class="card">Campaigns<span class="metric">3</span></div></div>
+          <div class="grid"><div class="card"><b>Community analysis</b><p>Available</p></div><div class="card"><b>Campaign-aware</b><p>Available</p></div><div class="card"><b>Outcome-aware</b><p>Available for synthetic outcomes</p></div></div>
+          <div class="grid two"><div class="panel"><h2>Signals requiring review</h2><div class="placeholder">Activation / hygiene / feedback cards</div></div><div class="panel"><h2>Languages and roles</h2><div class="placeholder">Bar chart + values</div></div></div>
+          <p class="notice"><b>Boundary:</b> Message count is context, not quality. No composite moderator score.</p>
+        </section>
+
+        <section class="page" data-page="Campaigns">
+          <div class="page-title"><div><div class="meta">CAMPAIGN-AWARE</div><h1>Campaigns</h1></div><button class="button">Campaign: Launch ▼</button></div>
+          <div class="grid two"><div class="panel"><h2>Intended claims</h2><p>Launch date · feature message · feedback request</p></div><div class="panel"><h2>Method</h2><p>Curated alias baseline · semantic AI: Not implemented</p></div></div>
+          <table><thead><tr><th>Community</th><th>Launch date</th><th>Feature</th><th>Feedback request</th></tr></thead><tbody><tr><td>Community A</td><td><button class="evidence">Covered · evidence</button></td><td>Partially covered</td><td>Not observed</td></tr><tr><td>Community B</td><td>Covered</td><td>Covered</td><td>Covered</td></tr><tr><td>Community C</td><td>Not observed</td><td>Partially covered</td><td>Not available</td></tr></tbody></table>
+        </section>
+
+        <section class="page" data-page="Communities">
+          <div class="page-title"><div><div class="meta">COMPARE, DO NOT SCORE</div><h1>Communities</h1></div><button class="button">All campaigns ▼</button></div>
+          <table><thead><tr><th>Community</th><th>Languages</th><th>Meaningful interaction</th><th>Response latency</th><th>Duplicate</th><th>Evidence</th></tr></thead><tbody><tr><td>Community A</td><td>EN / ZH</td><td>78%</td><td>4.2h</td><td>12%</td><td><button class="evidence">Inspect</button></td></tr><tr><td>Community B</td><td>ES</td><td>64%</td><td>Not available</td><td>7%</td><td><button class="evidence">Inspect</button></td></tr><tr><td>Community C</td><td>AR / EN</td><td>71%</td><td>2.8h</td><td>18%</td><td><button class="evidence">Inspect</button></td></tr></tbody></table>
+          <p class="notice">Values show separate observations with formulas and denominators. They are not combined into a quality rank.</p>
+        </section>
+
+        <section class="page" data-page="Behaviors">
+          <div class="page-title"><div><div class="meta">CANDIDATES, NOT FINAL LABELS</div><h1>Behaviors</h1></div><button class="button">Pending review ▼</button></div>
+          <div class="grid"><div class="card"><span class="pill">Pending review</span><h2>Cluster 01 · unnamed</h2><p>Top terms, language mix, role distribution</p><button class="evidence">3 representative messages</button></div><div class="card"><span class="pill">Pending review</span><h2>Cluster 02 · unnamed</h2><p>Top terms, language mix, role distribution</p><button class="evidence">3 representative messages</button></div><div class="card"><span class="pill">Deterministic</span><h2>Negative feedback</h2><p>Observed: 9 · seed rule v1</p><button class="evidence">View evidence</button></div></div>
+          <p class="notice">Human review is required before a cluster becomes a product behavior name. LLM interpretation: Not implemented.</p>
+        </section>
+
+        <section class="page" data-page="Response Patterns">
+          <div class="page-title"><div><div class="meta">REPLY-GRAPH DESCRIPTION</div><h1>Response Patterns</h1></div><button class="button">Episode 01 ▼</button></div>
+          <div class="grid four"><div class="card">Depth<span class="metric">5</span></div><div class="card">Participants<span class="metric">5</span></div><div class="card">Questions<span class="metric">1</span></div><div class="card">First response<span class="metric">4.2h</span></div></div>
+          <div class="panel"><h2>Conversation episode</h2><div class="thread"><div class="message">User message / detected question</div><div class="message reply">Moderator reply candidate</div><div class="message">Peer follow-up</div></div></div>
+          <p class="notice">Candidate answers are structural reply signals, not proof that the issue was semantically resolved.</p>
+        </section>
+
+        <section class="page" data-page="Metric Lab">
+          <div class="page-title"><div><div class="meta">DISCOVER, THEN VALIDATE</div><h1>Metric Lab</h1></div><button class="button">Metric: discussion share ▼</button></div>
+          <div class="grid two"><div class="panel"><h2>Definition</h2><p><b>Formula</b><br />campaign-related real-user messages / all real-user messages</p><p><b>Unit</b><br />community-campaign window</p><p><b>Required fields</b><br />message, timestamp, role, campaign, community</p></div><div class="panel"><h2>Validation</h2><div class="placeholder">Association estimate + uncertainty</div><p>Sample size · method · multiple-testing status</p></div></div>
+          <p class="notice"><b>Interpretation:</b> association, not causation. Synthetic validation does not establish external validity.</p>
+        </section>
+
+        <section class="page" data-page="Evidence">
+          <div class="page-title"><div><div class="meta">SOURCE-LINKED AUDIT TRAIL</div><h1>Evidence</h1></div><button class="button">Filter by method ▼</button></div>
+          <table><thead><tr><th>Evidence ID</th><th>Claim / metric</th><th>Community</th><th>Method</th><th>Review</th></tr></thead><tbody><tr><td><button class="evidence">evidence_901…</button></td><td>Campaign claim covered</td><td>A</td><td>curated_alias_baseline</td><td>Pending</td></tr><tr><td><button class="evidence">evidence_513…</button></td><td>Meaningful interaction</td><td>A</td><td>seed rule v1</td><td>Pending</td></tr><tr><td><button class="evidence">evidence_9c6…</button></td><td>Conversation episode</td><td>A</td><td>reply graph</td><td>Pending</td></tr></tbody></table>
+        </section>
+      </main>
+    </div>
+
+    <aside class="drawer" aria-label="Evidence detail"><button class="button close">Close</button><h2>Evidence detail</h2><p><b>Method</b> · version · confidence semantics · review status</p><div class="thread"><div class="message">Original source message</div><div class="message reply">Linked reply or supporting message</div></div><p class="meta">Source IDs · timestamps · thresholds · raw metric</p></aside>
+    <script>
+      const pages = [...document.querySelectorAll('.page')];
+      const navButtons = [...document.querySelectorAll('nav button')];
+      const drawer = document.querySelector('.drawer');
+      navButtons.forEach((button) => button.addEventListener('click', () => {
+        navButtons.forEach((item) => item.removeAttribute('aria-current'));
+        button.setAttribute('aria-current', 'page');
+        pages.forEach((page) => page.classList.toggle('active', page.dataset.page === button.textContent));
+      }));
+      document.querySelectorAll('.evidence').forEach((button) => button.addEventListener('click', () => drawer.classList.add('open')));
+      document.querySelector('.close').addEventListener('click', () => drawer.classList.remove('open'));
+    </script>
+  </body>
+</html>
