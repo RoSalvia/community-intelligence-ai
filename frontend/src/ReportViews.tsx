@@ -145,14 +145,38 @@ function SignalRow({ label, value }: { label: string; value: string }) {
 
 export function CampaignsView({ report, onOpenEvidence }: { report: CommunityReport; onOpenEvidence: EvidenceOpener }) {
   const judgments = report.Campaign.judgments
+  const campaignIds = [...new Set(judgments.map((item) => item.campaign_id))].sort()
+  const [campaignFilter, setCampaignFilter] = useState("all")
+  const visibleJudgments =
+    campaignFilter === "all"
+      ? judgments
+      : judgments.filter((item) => item.campaign_id === campaignFilter)
   return (
     <section className="report-page">
       <PageHeading eyebrow="Campaign-aware intelligence" title="Campaigns" description="Compare intended claims with what each community actually discussed. Deterministic coverage remains pending human review." />
       <div className="method-strip"><div><BadgeCheck size={18} /><span>Method: <strong>{report.Campaign.method}</strong></span></div><StatusBadge status={report.Campaign.review_status} /></div>
+      {campaignIds.length > 1 ? (
+        <div className="view-toolbar">
+          <label>
+            <span>Campaign</span>
+            <select
+              aria-label="Campaign filter"
+              value={campaignFilter}
+              onChange={(event) => setCampaignFilter(event.target.value)}
+            >
+              <option value="all">All campaigns</option>
+              {campaignIds.map((campaignId) => (
+                <option value={campaignId} key={campaignId}>{campaignId}</option>
+              ))}
+            </select>
+          </label>
+          <span>{visibleJudgments.length} judgments</span>
+        </div>
+      ) : null}
       {!judgments.length ? <UnavailableState title="No campaign data provided" detail="Community-only analysis remains available; import campaign records to enable this view." /> : (
         <div className="table-shell">
           <table><thead><tr><th>Campaign</th><th>Community</th><th>Claim</th><th>Coverage</th><th>Confidence</th><th>Review</th><th>Source</th></tr></thead>
-            <tbody>{judgments.map((item, index) => <tr key={`${item.campaign_id}-${item.community_id}-${item.claim_id}-${index}`}><td>{item.campaign_id}</td><td>{item.community_id}</td><td><strong>{item.claim_id}</strong></td><td><StatusBadge status={item.status} /></td><td><span className="mono-value">{item.confidence.toFixed(2)}</span><small className="cell-note">evidence strength</small></td><td>{item.review_status}</td><td><EvidenceButton evidenceIds={item.evidence_ids} onOpen={onOpenEvidence} /></td></tr>)}</tbody>
+            <tbody>{visibleJudgments.map((item, index) => <tr key={`${item.campaign_id}-${item.community_id}-${item.claim_id}-${index}`}><td>{item.campaign_id}</td><td>{item.community_id}</td><td><strong>{item.claim_id}</strong></td><td><StatusBadge status={item.status} /></td><td><span className="mono-value">{item.confidence.toFixed(2)}</span><small className="cell-note">evidence strength</small></td><td>{item.review_status}</td><td><EvidenceButton evidenceIds={item.evidence_ids} onOpen={onOpenEvidence} /></td></tr>)}</tbody>
           </table>
         </div>
       )}
