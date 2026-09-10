@@ -21,6 +21,10 @@ import uvicorn
 
 from community_intelligence.importers.telegram import import_telegram_export
 from community_intelligence.importers.telegram_html import canonicalize_telegram_html_exports
+from community_intelligence.importers.telegram_html_identity import (
+    IDENTITY_STRATEGY_VERSION,
+    derive_telegram_html_identity_projection,
+)
 from community_intelligence.io import (
     cleanup_private_directory,
     publish_directory_no_replace,
@@ -83,6 +87,16 @@ def _parser() -> argparse.ArgumentParser:
     telegram_html.add_argument("--source-timezone", required=True)
     telegram_html.add_argument("--timezone-provenance", required=True)
     telegram_html.add_argument("--identity-salt-file", type=Path, required=True)
+    derive_command = subparsers.add_parser("derive", help="derive versioned private sidecars")
+    derive_formats = derive_command.add_subparsers(dest="derive_format", required=True)
+    telegram_html_identity = derive_formats.add_parser(
+        "telegram-html-identity",
+        help="derive export-local author identity and reply-quality sidecars",
+    )
+    telegram_html_identity.add_argument("--canonical-input", type=Path, required=True)
+    telegram_html_identity.add_argument("--input", type=Path, action="append", required=True)
+    telegram_html_identity.add_argument("--output", type=Path, required=True)
+    telegram_html_identity.add_argument("--identity-salt-file", type=Path, required=True)
     serve = subparsers.add_parser("serve", help="open the local web product")
     serve.add_argument("--port", type=_port, default=8765)
     serve.add_argument("--no-open", action="store_true", help="do not open a browser")
@@ -279,6 +293,42 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "parse_quarantine_count": manifest["profile"]["parse_quarantine_count"],
                         "service_event_count": manifest["profile"]["service_event_count"],
                         "source_format": manifest["source_format"],
+                    },
+                    sort_keys=True,
+                )
+            )
+            return 0
+        if args.command == "derive" and args.derive_format == "telegram-html-identity":
+            salt_path = Path(os.path.abspath(args.identity_salt_file.expanduser()))
+            input_roots = [path.expanduser().resolve(strict=True) for path in args.input]
+            canonical_input = args.canonical_input.expanduser().resolve(strict=True)
+            if any(salt_path.is_relative_to(root) for root in (*input_roots, canonical_input)):
+                raise ValueError("identity salt must be outside raw and canonical input roots")
+            identity_salt = _load_or_create_identity_salt(salt_path)
+            output_path = derive_telegram_html_identity_projection(
+                canonical_input,
+                input_roots,
+                args.output,
+                identity_salt=identity_salt,
+            )
+            identity_manifest = json.loads(
+                (output_path / "identity_manifest.json").read_text(encoding="utf-8")
+            )
+            profile = identity_manifest["profile"]
+            print(
+                json.dumps(
+                    {
+                        "high_confidence_identity_message_count": profile[
+                            "identity_confidence_message_counts"
+                        ]["high"],
+                        "identity_projection_dir": str(output_path.resolve()),
+                        "identity_strategy_version": IDENTITY_STRATEGY_VERSION,
+                        "lower_confidence_reply_edge_count": profile["reply_graph"][
+                            "lower_confidence_identity_edge_count"
+                        ],
+                        "resolved_reply_edge_count": profile["reply_graph"][
+                            "total_resolved_edge_count"
+                        ],
                     },
                     sort_keys=True,
                 )

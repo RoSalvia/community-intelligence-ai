@@ -29,7 +29,7 @@ def test_installed_console_command_exposes_help() -> None:
     )
 
     assert completed.returncode == 0
-    assert "{generate,analyze,demo,import,serve}" in completed.stdout
+    assert "{generate,analyze,demo,import,derive,serve}" in completed.stdout
     assert completed.stderr == ""
 
 

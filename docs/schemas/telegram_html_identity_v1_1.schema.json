@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://community-intelligence.local/schemas/telegram-html-identity-v1.1.schema.json",
+  "title": "Telegram HTML additive identity-resolution sidecar v1.1",
+  "description": "Private export-local pseudonymous identity projection. Raw avatar tokens are prohibited.",
+  "$defs": {
+    "DisplayNameMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "used_for_global_merge", "value"],
+      "properties": {
+        "source": {"const": "canonical_author_identity"},
+        "used_for_global_merge": {"const": false},
+        "value": {"type": ["string", "null"]}
+      }
+    },
+    "MessageIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canonical_anonymized_author_id",
+        "display_name_metadata",
+        "identity_confidence",
+        "identity_is_stable_within_export",
+        "identity_resolution_status",
+        "identity_scope",
+        "identity_signal",
+        "identity_strategy_version",
+        "message_id",
+        "raw_avatar_token_persisted",
+        "reply_state",
+        "reply_to_message_id",
+        "resolved_identity_id",
+        "source_html_file",
+        "source_message_id",
+        "source_ordinal",
+        "token_observation"
+      ],
+      "properties": {
+        "canonical_anonymized_author_id": {"type": "string"},
+        "display_name_metadata": {"$ref": "#/$defs/DisplayNameMetadata"},
+        "identity_confidence": {"enum": ["high", "medium", "low"]},
+        "identity_is_stable_within_export": {"type": "boolean"},
+        "identity_resolution_status": {
+          "enum": ["resolved_export_local_token", "conservative_unresolved"]
+        },
+        "identity_scope": {"const": "export_local"},
+        "identity_signal": {
+          "enum": [
+            "avatar_token",
+            "joined_avatar_token",
+            "conservative_anchor",
+            "joined_conservative_anchor",
+            "deleted_account_anchor",
+            "joined_deleted_account_anchor",
+            "missing_author_anchor",
+            "joined_missing_author_anchor"
+          ]
+        },
+        "identity_strategy_version": {"const": "telegram-html-author-identity-v1.1"},
+        "message_id": {"type": "string"},
+        "raw_avatar_token_persisted": {"const": false},
+        "reply_state": {"enum": ["resolved_reply", "unresolved_reply", "non_reply"]},
+        "reply_to_message_id": {"type": ["string", "null"]},
+        "resolved_identity_id": {"type": "string", "pattern": "^tg_html_identity_"},
+        "source_html_file": {"type": "string"},
+        "source_message_id": {"type": ["string", "null"]},
+        "source_ordinal": {"type": "integer", "minimum": 1},
+        "token_observation": {"enum": ["direct", "joined_inheritance", "unavailable"]}
+      }
+    },
+    "ReplyEdge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "author_relation",
+        "child_identity_confidence",
+        "child_message_id",
+        "child_resolved_identity_id",
+        "identity_edge_confidence",
+        "identity_scope",
+        "identity_strategy_version",
+        "parent_identity_confidence",
+        "parent_message_id",
+        "parent_resolved_identity_id",
+        "reply_edge_id",
+        "response_latency_seconds"
+      ],
+      "properties": {
+        "author_relation": {"enum": ["self", "cross_author", "uncertain"]},
+        "child_identity_confidence": {"enum": ["high", "medium", "low"]},
+        "child_message_id": {"type": "string"},
+        "child_resolved_identity_id": {"type": "string"},
+        "identity_edge_confidence": {"enum": ["high", "medium", "low"]},
+        "identity_scope": {"const": "export_local"},
+        "identity_strategy_version": {"const": "telegram-html-author-identity-v1.1"},
+        "parent_identity_confidence": {"enum": ["high", "medium", "low"]},
+        "parent_message_id": {"type": "string"},
+        "parent_resolved_identity_id": {"type": "string"},
+        "reply_edge_id": {"type": "string", "pattern": "^reply_edge_"},
+        "response_latency_seconds": {"type": ["number", "null"], "minimum": 0}
+      }
+    },
+    "MetricIdentityContract": {
+      "type": "object",
+      "required": [
+        "additional_metric_dependencies",
+        "contract_version",
+        "coverage_reporting_requirements",
+        "identity_strategy_version",
+        "metric_classes",
+        "prohibited_interpretations",
+        "reply_graph_quality"
+      ],
+      "properties": {
+        "additional_metric_dependencies": {"type": "object"},
+        "contract_version": {"const": "telegram-html-identity-metric-quality-v1.0"},
+        "coverage_reporting_requirements": {"type": "object"},
+        "identity_strategy_version": {"const": "telegram-html-author-identity-v1.1"},
+        "metric_classes": {"type": "object"},
+        "prohibited_interpretations": {"type": "object"},
+        "reply_graph_quality": {"type": "object"}
+      }
+    },
+    "IdentityManifest": {
+      "type": "object",
+      "required": [
+        "artifact_sha256",
+        "canonical_artifact_sha256",
+        "canonical_contract",
+        "canonical_input_fingerprint",
+        "canonical_raw_facts_unchanged",
+        "identity_salt_fingerprint",
+        "identity_schema_version",
+        "identity_scope",
+        "identity_strategy_version",
+        "metric_identity_contract_version",
+        "output_fingerprint",
+        "privacy",
+        "profile",
+        "raw_input_fingerprint",
+        "source_timezone"
+      ],
+      "properties": {
+        "artifact_sha256": {"type": "object"},
+        "canonical_artifact_sha256": {"type": "object"},
+        "canonical_contract": {"const": "telegram-html-canonical-v1.0.0"},
+        "canonical_input_fingerprint": {"type": "string"},
+        "canonical_raw_facts_unchanged": {"const": true},
+        "identity_salt_fingerprint": {"type": "string"},
+        "identity_schema_version": {"const": "1.1.0"},
+        "identity_scope": {"const": "export_local"},
+        "identity_strategy_version": {"const": "telegram-html-author-identity-v1.1"},
+        "metric_identity_contract_version": {
+          "const": "telegram-html-identity-metric-quality-v1.0"
+        },
+        "output_fingerprint": {"type": "string"},
+        "privacy": {"type": "object"},
+        "profile": {"type": "object"},
+        "raw_input_fingerprint": {"type": "string"},
+        "source_timezone": {
+          "type": "object",
+          "required": [
+            "html_metadata_present",
+            "source_timezone",
+            "timezone_not_declared_by_source_html",
+            "timezone_provenance"
+          ]
+        }
+      }
+    }
+  }
+}
