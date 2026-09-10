@@ -1,0 +1,21 @@
+{
+  "dataset_version": "ton-docs-external-v1",
+  "repository_url": "https://github.com/ton-blockchain/docs",
+  "commit_sha": "0e5a346d1e69a5345d333be669576acf21c6b93a",
+  "selection_basis": "Stratified purposive sample selected from pinned repository paths and file sizes, before writing any evaluation query. Not a random sample of TON Docs.",
+  "selection_frozen_at": "2026-09-10T05:09:46Z",
+  "adapter": "Manual official source path: preserve MDX UTF-8 bytes as plain text; no rendering, stripping, expansion of imports, link crawling, or execution. filename omitted, not a new file importer.",
+  "temporal_assumption": "Current snapshot only. Repository retrieval time is an evaluation-only availability boundary, NOT official publication or effectivity. Source publication/effectivity times unavailable; historical truth scoring unavailable. A pre-snapshot query may test abstention, not historical correctness.",
+  "sources": [
+    {"key":"catchain", "path":"content/foundations/whitepapers/catchain.mdx", "source_type":"whitepaper", "strata":["long whitepaper-like", "formal technical", "legacy design"], "status":"historical"},
+    {"key":"connect", "path":"content/applications/ton-connect/overview.mdx", "source_type":"product_docs", "strata":["product docs", "bullets"], "status":"current"},
+    {"key":"faq", "path":"content/applications/ton-connect/faq.mdx", "source_type":"faq", "strata":["FAQ"], "status":"current"},
+    {"key":"troubleshooting", "path":"content/applications/ton-connect/troubleshooting.mdx", "source_type":"faq", "strata":["troubleshooting", "code", "neighbor context"], "status":"current"},
+    {"key":"addresses", "path":"content/foundations/addresses/formats.mdx", "source_type":"product_docs", "strata":["table-like", "neighbor context"], "status":"current"},
+    {"key":"highload3", "path":"content/contracts/standard/wallets/highload/v3/specification.mdx", "source_type":"product_docs", "strata":["nested headings", "long technical", "neighbor context"], "status":"current"},
+    {"key":"highload2", "path":"content/contracts/standard/wallets/highload/v2/specification.mdx", "source_type":"product_docs", "strata":["legacy implementation", "warning"], "status":"historical"},
+    {"key":"wallet_comparison", "path":"content/contracts/standard/wallets/comparison.mdx", "source_type":"product_docs", "strata":["comparison tables", "bullets"], "status":"current"},
+    {"key":"shards", "path":"content/foundations/shards.mdx", "source_type":"product_docs", "strata":["technical explanation", "multi-level heading"], "status":"current"},
+    {"key":"whitepaper_comments", "path":"content/foundations/whitepapers/comments.mdx", "source_type":"product_docs", "strata":["historical design caveats", "bullets"], "status":"current"}
+  ]
+}

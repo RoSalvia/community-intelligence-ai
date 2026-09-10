@@ -1,0 +1,33 @@
+{
+  "method": "Agent adjudication after the single locked holdout run. Original locked queries/gold/rubric unchanged. Strict completeness includes all listed rubric details, even ancillary explanation. Not independent human gold.",
+  "cases": {
+    "H01":{"grade":"complete","reason":"PBKDF2 → seed → keypair 的中间关系正确，gold 从邻块进入。"},
+    "H02":{"grade":"complete","reason":"390 iterations、salt、first byte 三项完整。"},
+    "H03":{"grade":"abstain","reason":"保存 mnemonic 的正确块词法第 1、语义第 81、RRF 第 7；未进 Top-5/context，拒答。并非候选生成 miss。"},
+    "H04":{"grade":"complete","reason":"初始 StateInit 而非当前状态及推导步骤均完整。"},
+    "H05":{"grade":"complete","reason":"XOR、32-bit signed 与 get_subwallet_id 语义完整。"},
+    "H06":{"grade":"complete","reason":"未认证 internal message 按 transfer 处理，未误说 revert。"},
+    "H07":{"grade":"complete","reason":"两种认证与 gasless 原因完整，跨邻块。"},
+    "H08":{"grade":"complete","reason":"+2、137、255/147 全部正确，西语跨语言成功。"},
+    "H09":{"grade":"complete","reason":"Python/C++ minor 映射与 major 固定 2 的原因完整。"},
+    "H10":{"grade":"complete","reason":"1 rps 与 API key/plan 提升路径完整。"},
+    "H11":{"grade":"complete","reason":"非索引层、ADNL、tonlib/liteserver/REST 完整。"},
+    "H12":{"grade":"complete","reason":"REST/JSON-RPC 完整；由邻块获得 gold。"},
+    "H13":{"grade":"complete","reason":"valid_until 与 exit35 完整，正确区分旧版本。"},
+    "H14":{"grade":"complete","reason":"subwallet_id 与部署状态导致不同地址均完整。"},
+    "H15":{"grade":"complete","reason":"weight 而非 count，严格 f<W/3 与 floor quorum 公式正确。"},
+    "H16":{"grade":"complete","reason":"空候选不推进状态，以及 shard/master 两个生成条件完整。"},
+    "H17":{"grade":"complete","reason":"FEC 符号数量、损失上限与 count/weight 区分完整。"},
+    "H18":{"grade":"abstain","reason":"正确 --print-env 块排名第一，模型却把询问选项扩展成索要本机实际环境值，判缺证据；answerability 过度分解，不是检索或 chunk 不足。"},
+    "H19":{"grade":"complete","reason":"两个 TTL 默认值和 -1 完整。"},
+    "H20":{"grade":"partial","reason":"不能从当前数据推出 vanity 地址及预先常量正确；严格 rubric 还列出随机 salt 搜索机制，回答未讲，原文已在 Top-5。"},
+    "H21":{"grade":"complete","reason":"半私密 client_id、读取密文/移除排队消息、不可解密边界完整。"},
+    "H22":{"grade":"partial","reason":"不要复制、各设备重连、ton_proof/token 方案正确；未明确协议不自动同步 keypair，gold29 未进入 context。按锁定 rubric 严格记 partial。"},
+    "H23":{"grade":"correct_abstain","reason":"没有精确 USDT 数值，insufficient。"},
+    "H24":{"grade":"correct_abstain","reason":"没有 SLA/退款合同，insufficient。"},
+    "H25":{"grade":"correct_abstain","reason":"不能用通用 TTL 文档证明用户实际丢数据原因，insufficient。"},
+    "H26":{"grade":"correct_abstain","reason":"没有 Titan 登陆资料，no_authoritative_source。"},
+    "H27":{"grade":"correct_abstain","reason":"没有歌剧作曲资料，no_authoritative_source。"},
+    "H28":{"grade":"correct_abstain","reason":"快照无法证明 2023 官方有效性；仅历史拒答诊断，不算历史事实准确率。"}
+  }
+}

@@ -31,6 +31,10 @@ data/cache/
 data/indexes/
 data/validation/
 local-llm-config*.json
+# Machine-generated validation outputs; keep locked inputs and review docs tracked.
+docs/validation/**/results.json
+docs/validation/**/paired_comparison.json
+docs/validation/**/post_rrf_ablation*.json
 *.sqlite3
 *.sqlite3-wal
 *.sqlite3-shm

@@ -1,0 +1,17 @@
+{
+  "dataset_version": "ton-docs-holdout-v1",
+  "repository_url": "https://github.com/ton-blockchain/docs",
+  "commit_sha": "0e5a346d1e69a5345d333be669576acf21c6b93a",
+  "selection_frozen_at": "2026-09-10T05:50:00Z",
+  "selection_method": "Document-disjoint stratified sample selected by repository path and size, before content inspection and query design. No question-driven replacement. Same pinned repository as regression, no first-round document reused.",
+  "sources": [
+    {"key": "simplex", "path": "content/foundations/whitepapers/simplex.mdx", "source_type": "whitepaper", "status": "current", "stratum": "long technical whitepaper-like document"},
+    {"key": "v5", "path": "content/contracts/standard/wallets/v5.mdx", "source_type": "product_docs", "status": "current", "stratum": "versioned wallet docs and bullets"},
+    {"key": "mnemonics", "path": "content/contracts/standard/wallets/mnemonics.mdx", "source_type": "product_docs", "status": "current", "stratum": "short concept and recovery documentation"},
+    {"key": "derive", "path": "content/foundations/addresses/derive.mdx", "source_type": "product_docs", "status": "current", "stratum": "nested technical headings, procedures"},
+    {"key": "api", "path": "content/api/v2/overview.mdx", "source_type": "product_docs", "status": "current", "stratum": "API reference and table-like content"},
+    {"key": "history", "path": "content/contracts/standard/wallets/history.mdx", "source_type": "product_docs", "status": "current", "stratum": "historical versions; current documentation about history, not fabricated temporal validity"},
+    {"key": "connect_core", "path": "content/applications/ton-connect/core-concepts.mdx", "source_type": "product_docs", "status": "current", "stratum": "multi-section concepts and neighboring semantic units"},
+    {"key": "mytonctrl", "path": "content/nodes/cpp/mytonctrl/overview.mdx", "source_type": "product_docs", "status": "current", "stratum": "operator tooling and configuration"}
+  ]
+}

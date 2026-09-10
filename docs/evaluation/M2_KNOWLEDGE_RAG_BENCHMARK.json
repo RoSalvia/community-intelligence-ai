@@ -1,0 +1,817 @@
+{
+  "dataset_version": "generic-knowledge-fixtures-v1",
+  "N": 12,
+  "language_distribution": {
+    "en": 8,
+    "zh": 1,
+    "es": 2,
+    "cross": 1
+  },
+  "document_type_distribution": {
+    "whitepaper": 1,
+    "product_docs": 1,
+    "faq": 2,
+    "announcement_or_notice": 2,
+    "official_blog": 1,
+    "release_notes": 1,
+    "manual_note": 1
+  },
+  "embedding_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "embedding_revision": "e8f8c211226b894fcb81acc59f3b34ba3efd5f42",
+  "index_version": "sqlite-fts5-rrf-v1",
+  "authority_policy_version": "authority-validity-recency-v1",
+  "results": [
+    {
+      "configuration": {
+        "chunk_strategy": "structure-v1",
+        "max_tokens": 120,
+        "overlap_tokens": 0,
+        "neighbor_count": 0
+      },
+      "retrieval": {
+        "recall_at_5": 1.0,
+        "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "cross_language_recall_at_5": 1.0
+      },
+      "answer": {
+        "answer_status_accuracy": 1.0,
+        "citation_validity": 1.0,
+        "grounded_answer_accuracy": 1.0,
+        "no_answer_abstention_accuracy": 1.0,
+        "insufficient_evidence_accuracy": 1.0,
+        "conflict_detection_accuracy": 1.0,
+        "outdated_detection_accuracy": 1.0,
+        "outdated_source_error_rate": 0.0
+      },
+      "cases": [
+        {
+          "id": "current_finality",
+          "language": "en",
+          "expected_status": "grounded",
+          "actual_status": "grounded",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03278688524590164,
+              "term_coverage": 0.6666666666666666,
+              "semantic_similarity": 0.7965048541377688
+            }
+          ],
+          "returned_source_keys": [
+            "current_docs"
+          ]
+        },
+        {
+          "id": "historical_finality",
+          "language": "en",
+          "expected_status": "grounded",
+          "actual_status": "grounded",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03225806451612903,
+              "term_coverage": 0.6666666666666666,
+              "semantic_similarity": 0.6914585577111302
+            }
+          ],
+          "returned_source_keys": [
+            "legacy_whitepaper"
+          ]
+        },
+        {
+          "id": "wallet_zh",
+          "language": "zh",
+          "expected_status": "grounded",
+          "actual_status": "grounded",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03278688524590164,
+              "term_coverage": 0.26666666666666666,
+              "semantic_similarity": 0.7559142673956416
+            }
+          ],
+          "returned_source_keys": [
+            "faq_zh"
+          ]
+        },
+        {
+          "id": "staking_es",
+          "language": "es",
+          "expected_status": "grounded",
+          "actual_status": "grounded",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03278688524590164,
+              "term_coverage": 0.5,
+              "semantic_similarity": 0.46657968041608294
+            }
+          ],
+          "returned_source_keys": [
+            "faq_es"
+          ]
+        },
+        {
+          "id": "cross_language_wallet",
+          "language": "cross",
+          "expected_status": "grounded",
+          "actual_status": "grounded",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.01639344262295082,
+              "term_coverage": 0.0,
+              "semantic_similarity": 0.6656756917690028
+            }
+          ],
+          "returned_source_keys": [
+            "faq_zh"
+          ]
+        },
+        {
+          "id": "maintenance_conflict",
+          "language": "en",
+          "expected_status": "conflict",
+          "actual_status": "conflict",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03252247488101534,
+              "term_coverage": 0.6666666666666666,
+              "semantic_similarity": 0.6408544458301864
+            },
+            {
+              "rrf": 0.03252247488101534,
+              "term_coverage": 0.6666666666666666,
+              "semantic_similarity": 0.6322310285804732
+            }
+          ],
+          "returned_source_keys": [
+            "maintenance_b",
+            "maintenance_a"
+          ]
+        },
+        {
+          "id": "legacy_batch_outdated",
+          "language": "en",
+          "expected_status": "outdated_only",
+          "actual_status": "outdated_only",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03278688524590164,
+              "term_coverage": 0.6666666666666666,
+              "semantic_similarity": 0.5990563415074556
+            }
+          ],
+          "returned_source_keys": [
+            "legacy_whitepaper"
+          ]
+        },
+        {
+          "id": "staking_rate_missing",
+          "language": "en",
+          "expected_status": "insufficient_evidence",
+          "actual_status": "insufficient_evidence",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03278688524590164,
+              "term_coverage": 0.2,
+              "semantic_similarity": 0.3488694206295486
+            }
+          ],
+          "returned_source_keys": [
+            "current_docs"
+          ]
+        },
+        {
+          "id": "no_source",
+          "language": "en",
+          "expected_status": "no_authoritative_source",
+          "actual_status": "no_authoritative_source",
+          "recall_at_5": 1,
+          "mrr": 0.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [],
+          "returned_source_keys": []
+        },
+        {
+          "id": "release_fix",
+          "language": "en",
+          "expected_status": "grounded",
+          "actual_status": "grounded",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03278688524590164,
+              "term_coverage": 0.8,
+              "semantic_similarity": 0.7608325714322076
+            }
+          ],
+          "returned_source_keys": [
+            "release_notes"
+          ]
+        },
+        {
+          "id": "governance_es",
+          "language": "es",
+          "expected_status": "grounded",
+          "actual_status": "grounded",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03278688524590164,
+              "term_coverage": 0.6,
+              "semantic_similarity": 0.6418862222766029
+            }
+          ],
+          "returned_source_keys": [
+            "blog_es"
+          ]
+        },
+        {
+          "id": "injection_is_data",
+          "language": "en",
+          "expected_status": "grounded",
+          "actual_status": "grounded",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03278688524590164,
+              "term_coverage": 1.0,
+              "semantic_similarity": 0.5558844381527928
+            }
+          ],
+          "returned_source_keys": [
+            "untrusted_note"
+          ]
+        }
+      ]
+    },
+    {
+      "configuration": {
+        "chunk_strategy": "structure-v1",
+        "max_tokens": 180,
+        "overlap_tokens": 30,
+        "neighbor_count": 1
+      },
+      "retrieval": {
+        "recall_at_5": 1.0,
+        "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "cross_language_recall_at_5": 1.0
+      },
+      "answer": {
+        "answer_status_accuracy": 1.0,
+        "citation_validity": 1.0,
+        "grounded_answer_accuracy": 1.0,
+        "no_answer_abstention_accuracy": 1.0,
+        "insufficient_evidence_accuracy": 1.0,
+        "conflict_detection_accuracy": 1.0,
+        "outdated_detection_accuracy": 1.0,
+        "outdated_source_error_rate": 0.0
+      },
+      "cases": [
+        {
+          "id": "current_finality",
+          "language": "en",
+          "expected_status": "grounded",
+          "actual_status": "grounded",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03278688524590164,
+              "term_coverage": 0.6666666666666666,
+              "semantic_similarity": 0.7965048541377688
+            }
+          ],
+          "returned_source_keys": [
+            "current_docs"
+          ]
+        },
+        {
+          "id": "historical_finality",
+          "language": "en",
+          "expected_status": "grounded",
+          "actual_status": "grounded",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03225806451612903,
+              "term_coverage": 0.6666666666666666,
+              "semantic_similarity": 0.6914585577111302
+            }
+          ],
+          "returned_source_keys": [
+            "legacy_whitepaper"
+          ]
+        },
+        {
+          "id": "wallet_zh",
+          "language": "zh",
+          "expected_status": "grounded",
+          "actual_status": "grounded",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03278688524590164,
+              "term_coverage": 0.26666666666666666,
+              "semantic_similarity": 0.7559142673956416
+            }
+          ],
+          "returned_source_keys": [
+            "faq_zh"
+          ]
+        },
+        {
+          "id": "staking_es",
+          "language": "es",
+          "expected_status": "grounded",
+          "actual_status": "grounded",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03278688524590164,
+              "term_coverage": 0.5,
+              "semantic_similarity": 0.46657968041608294
+            }
+          ],
+          "returned_source_keys": [
+            "faq_es"
+          ]
+        },
+        {
+          "id": "cross_language_wallet",
+          "language": "cross",
+          "expected_status": "grounded",
+          "actual_status": "grounded",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.01639344262295082,
+              "term_coverage": 0.0,
+              "semantic_similarity": 0.6656756917690028
+            }
+          ],
+          "returned_source_keys": [
+            "faq_zh"
+          ]
+        },
+        {
+          "id": "maintenance_conflict",
+          "language": "en",
+          "expected_status": "conflict",
+          "actual_status": "conflict",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03252247488101534,
+              "term_coverage": 0.6666666666666666,
+              "semantic_similarity": 0.6408544458301864
+            },
+            {
+              "rrf": 0.03252247488101534,
+              "term_coverage": 0.6666666666666666,
+              "semantic_similarity": 0.6322310285804732
+            }
+          ],
+          "returned_source_keys": [
+            "maintenance_b",
+            "maintenance_a"
+          ]
+        },
+        {
+          "id": "legacy_batch_outdated",
+          "language": "en",
+          "expected_status": "outdated_only",
+          "actual_status": "outdated_only",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03278688524590164,
+              "term_coverage": 0.6666666666666666,
+              "semantic_similarity": 0.5990563415074556
+            }
+          ],
+          "returned_source_keys": [
+            "legacy_whitepaper"
+          ]
+        },
+        {
+          "id": "staking_rate_missing",
+          "language": "en",
+          "expected_status": "insufficient_evidence",
+          "actual_status": "insufficient_evidence",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03278688524590164,
+              "term_coverage": 0.2,
+              "semantic_similarity": 0.3488694206295486
+            }
+          ],
+          "returned_source_keys": [
+            "current_docs"
+          ]
+        },
+        {
+          "id": "no_source",
+          "language": "en",
+          "expected_status": "no_authoritative_source",
+          "actual_status": "no_authoritative_source",
+          "recall_at_5": 1,
+          "mrr": 0.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [],
+          "returned_source_keys": []
+        },
+        {
+          "id": "release_fix",
+          "language": "en",
+          "expected_status": "grounded",
+          "actual_status": "grounded",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03278688524590164,
+              "term_coverage": 0.8,
+              "semantic_similarity": 0.7608325714322076
+            }
+          ],
+          "returned_source_keys": [
+            "release_notes"
+          ]
+        },
+        {
+          "id": "governance_es",
+          "language": "es",
+          "expected_status": "grounded",
+          "actual_status": "grounded",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03278688524590164,
+              "term_coverage": 0.6,
+              "semantic_similarity": 0.6418862222766029
+            }
+          ],
+          "returned_source_keys": [
+            "blog_es"
+          ]
+        },
+        {
+          "id": "injection_is_data",
+          "language": "en",
+          "expected_status": "grounded",
+          "actual_status": "grounded",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03278688524590164,
+              "term_coverage": 1.0,
+              "semantic_similarity": 0.5558844381527928
+            }
+          ],
+          "returned_source_keys": [
+            "untrusted_note"
+          ]
+        }
+      ]
+    },
+    {
+      "configuration": {
+        "chunk_strategy": "structure-v1",
+        "max_tokens": 260,
+        "overlap_tokens": 40,
+        "neighbor_count": 1
+      },
+      "retrieval": {
+        "recall_at_5": 1.0,
+        "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "cross_language_recall_at_5": 1.0
+      },
+      "answer": {
+        "answer_status_accuracy": 1.0,
+        "citation_validity": 1.0,
+        "grounded_answer_accuracy": 1.0,
+        "no_answer_abstention_accuracy": 1.0,
+        "insufficient_evidence_accuracy": 1.0,
+        "conflict_detection_accuracy": 1.0,
+        "outdated_detection_accuracy": 1.0,
+        "outdated_source_error_rate": 0.0
+      },
+      "cases": [
+        {
+          "id": "current_finality",
+          "language": "en",
+          "expected_status": "grounded",
+          "actual_status": "grounded",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03278688524590164,
+              "term_coverage": 0.6666666666666666,
+              "semantic_similarity": 0.7965048541377688
+            }
+          ],
+          "returned_source_keys": [
+            "current_docs"
+          ]
+        },
+        {
+          "id": "historical_finality",
+          "language": "en",
+          "expected_status": "grounded",
+          "actual_status": "grounded",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03225806451612903,
+              "term_coverage": 0.6666666666666666,
+              "semantic_similarity": 0.6914585577111302
+            }
+          ],
+          "returned_source_keys": [
+            "legacy_whitepaper"
+          ]
+        },
+        {
+          "id": "wallet_zh",
+          "language": "zh",
+          "expected_status": "grounded",
+          "actual_status": "grounded",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03278688524590164,
+              "term_coverage": 0.26666666666666666,
+              "semantic_similarity": 0.7559142673956416
+            }
+          ],
+          "returned_source_keys": [
+            "faq_zh"
+          ]
+        },
+        {
+          "id": "staking_es",
+          "language": "es",
+          "expected_status": "grounded",
+          "actual_status": "grounded",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03278688524590164,
+              "term_coverage": 0.5,
+              "semantic_similarity": 0.46657968041608294
+            }
+          ],
+          "returned_source_keys": [
+            "faq_es"
+          ]
+        },
+        {
+          "id": "cross_language_wallet",
+          "language": "cross",
+          "expected_status": "grounded",
+          "actual_status": "grounded",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.01639344262295082,
+              "term_coverage": 0.0,
+              "semantic_similarity": 0.6656756917690028
+            }
+          ],
+          "returned_source_keys": [
+            "faq_zh"
+          ]
+        },
+        {
+          "id": "maintenance_conflict",
+          "language": "en",
+          "expected_status": "conflict",
+          "actual_status": "conflict",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03252247488101534,
+              "term_coverage": 0.6666666666666666,
+              "semantic_similarity": 0.6408544458301864
+            },
+            {
+              "rrf": 0.03252247488101534,
+              "term_coverage": 0.6666666666666666,
+              "semantic_similarity": 0.6322310285804732
+            }
+          ],
+          "returned_source_keys": [
+            "maintenance_b",
+            "maintenance_a"
+          ]
+        },
+        {
+          "id": "legacy_batch_outdated",
+          "language": "en",
+          "expected_status": "outdated_only",
+          "actual_status": "outdated_only",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03278688524590164,
+              "term_coverage": 0.6666666666666666,
+              "semantic_similarity": 0.5990563415074556
+            }
+          ],
+          "returned_source_keys": [
+            "legacy_whitepaper"
+          ]
+        },
+        {
+          "id": "staking_rate_missing",
+          "language": "en",
+          "expected_status": "insufficient_evidence",
+          "actual_status": "insufficient_evidence",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03278688524590164,
+              "term_coverage": 0.2,
+              "semantic_similarity": 0.3488694206295486
+            }
+          ],
+          "returned_source_keys": [
+            "current_docs"
+          ]
+        },
+        {
+          "id": "no_source",
+          "language": "en",
+          "expected_status": "no_authoritative_source",
+          "actual_status": "no_authoritative_source",
+          "recall_at_5": 1,
+          "mrr": 0.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [],
+          "returned_source_keys": []
+        },
+        {
+          "id": "release_fix",
+          "language": "en",
+          "expected_status": "grounded",
+          "actual_status": "grounded",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03278688524590164,
+              "term_coverage": 0.8,
+              "semantic_similarity": 0.7608325714322076
+            }
+          ],
+          "returned_source_keys": [
+            "release_notes"
+          ]
+        },
+        {
+          "id": "governance_es",
+          "language": "es",
+          "expected_status": "grounded",
+          "actual_status": "grounded",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03278688524590164,
+              "term_coverage": 0.6,
+              "semantic_similarity": 0.6418862222766029
+            }
+          ],
+          "returned_source_keys": [
+            "blog_es"
+          ]
+        },
+        {
+          "id": "injection_is_data",
+          "language": "en",
+          "expected_status": "grounded",
+          "actual_status": "grounded",
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_5": 1.0,
+          "citation_valid": true,
+          "retrieval_scores": [
+            {
+              "rrf": 0.03278688524590164,
+              "term_coverage": 1.0,
+              "semantic_similarity": 0.5558844381527928
+            }
+          ],
+          "returned_source_keys": [
+            "untrusted_note"
+          ]
+        }
+      ]
+    }
+  ]
+}

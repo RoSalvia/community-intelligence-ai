@@ -1,0 +1,356 @@
+{
+  "dataset_version": "ton-docs-holdout-v1",
+  "corpus_lock_sha256": "f51e06b3d50eba07809fc7bcfb9eacd19e45ec6cb02e70d3455f70d3ec604905",
+  "designed_at": "2026-09-10 06:08:44 UTC",
+  "design": "28 newly authored queries on the 8 documents frozen before content inspection. No holdout retrieval executed before this lock. Document-disjoint, not guaranteed fact-disjoint within the same project. Agent-authored gold from source reading, not independent human adjudication; no result-driven query/gold/rubric editing.",
+  "metrics": "Same chunk-level macro Recall@5/MRR@5/binary nDCG@5 as regression, over22answerable queries. All gold chunks are relevant, not necessarily all needed. Explicit required_context is conjunctive. Grade answers against rubric independently of returned status; H28 is only a temporal abstention diagnostic.",
+  "queries": [
+    {
+      "id": "H01",
+      "language": "en",
+      "type": "direct",
+      "query": "In the documented common TON mnemonic derivation, what intermediate value is produced before the key pair, and by which algorithm?",
+      "gold": [
+        "mnemonics:4"
+      ],
+      "expected_status": "grounded",
+      "rubric": "PBKDF2 derives a seed; the key pair is then derived from that seed."
+    },
+    {
+      "id": "H02",
+      "language": "en",
+      "type": "paraphrased",
+      "query": "For a TON mnemonic with no password, what iteration count, salt and first seed byte make it valid?",
+      "gold": [
+        "mnemonics:14"
+      ],
+      "expected_status": "grounded",
+      "rubric": "c=floor(100000/256)=390; salt TON seed version; first byte equals 1."
+    },
+    {
+      "id": "H03",
+      "language": "en",
+      "type": "colloquial_noisy",
+      "query": "I keep rerunning my little wallet dev script and get a fresh account every time lol. What should I save and reuse so the key pair stays the same?",
+      "gold": [
+        "mnemonics:13"
+      ],
+      "expected_status": "grounded",
+      "rubric": "Save and reuse the exact generated mnemonic phrase; do not generate a fresh one each run."
+    },
+    {
+      "id": "H04",
+      "language": "zh",
+      "type": "cross_language",
+      "query": "推导一个已经部署的 TON 合约地址时，是对现在的数据状态做哈希吗？应该怎样得到地址？",
+      "gold": [
+        "derive:1",
+        "derive:2"
+      ],
+      "expected_status": "grounded",
+      "rubric": "Use initial StateInit, not current mutable state; compose it, hash it, build desired address format.",
+      "required_context": [
+        "derive:1",
+        "derive:2"
+      ]
+    },
+    {
+      "id": "H05",
+      "language": "en",
+      "type": "direct",
+      "query": "In Wallet V5, how is wallet_id calculated, and does get_subwallet_id return a plain subwallet number?",
+      "gold": [
+        "v5:8",
+        "v5:9",
+        "v5:12"
+      ],
+      "expected_status": "grounded",
+      "rubric": "32-bit signed wallet_id=network_global_id XOR context_id; get_subwallet_id returns derived wallet_id, not plain subwallet_id."
+    },
+    {
+      "id": "H06",
+      "language": "en",
+      "type": "direct",
+      "query": "What happens to a Wallet V5 internal message that fails authentication?",
+      "gold": [
+        "v5:19"
+      ],
+      "expected_status": "grounded",
+      "rubric": "Considered a transfer; do not assert rejected/reverted or authenticated action."
+    },
+    {
+      "id": "H07",
+      "language": "en",
+      "type": "neighbor_context",
+      "query": "What are the two internal-message authentication methods in Wallet V5, and why does the added method enable gasless services?",
+      "gold": [
+        "v5:17",
+        "v5:18"
+      ],
+      "expected_status": "grounded",
+      "rubric": "Registered extension authentication or stored public-key/signature authentication. The latter permits external services/contracts outside the extension infrastructure; this enables gasless transactions.",
+      "required_context": [
+        "v5:17",
+        "v5:18"
+      ]
+    },
+    {
+      "id": "H08",
+      "language": "es",
+      "type": "cross_language",
+      "query": "En Wallet V5, ¿qué bit de send_mode es obligatorio para mensajes externos y qué códigos se usan si falta ese bit o se superan 255 acciones?",
+      "gold": [
+        "v5:24",
+        "v5:25",
+        "v5:26"
+      ],
+      "expected_status": "grounded",
+      "rubric": "Mandatory +2 ignore-errors; missing bit exit137; exceeding 255/actions invalid C5 exit147. All three facts required."
+    },
+    {
+      "id": "H09",
+      "language": "en",
+      "type": "direct",
+      "query": "How do TON Center API v2 version numbers distinguish the Python and C++ implementations, and why does the major stay at 2?",
+      "gold": [
+        "api:7"
+      ],
+      "expected_status": "grounded",
+      "rubric": "Minor0=Python,1=C++; major fixed2 to avoid confusing API v2 v3.x.x."
+    },
+    {
+      "id": "H10",
+      "language": "zh",
+      "type": "cross_language",
+      "query": "不带 API key 访问 TON Center API v2，默认每秒能请求几次？想提高限制该怎么办？",
+      "gold": [
+        "api:14"
+      ],
+      "expected_status": "grounded",
+      "rubric": "1 request/second; generate API key and choose plan for increased limits/private liteservers."
+    },
+    {
+      "id": "H11",
+      "language": "en",
+      "type": "neighbor_context",
+      "query": "Is TON Center API v2 an indexed data layer, and how does it bridge the node's binary protocol to web access?",
+      "gold": [
+        "api:2",
+        "api:3"
+      ],
+      "expected_status": "grounded",
+      "rubric": "Non-indexed; nodes use ADNL; tonlib queries liteservers and exposes REST.",
+      "required_context": [
+        "api:2",
+        "api:3"
+      ]
+    },
+    {
+      "id": "H12",
+      "language": "en",
+      "type": "direct",
+      "query": "Which two interface styles does the TON Center API v2 overview say applications can use?",
+      "gold": [
+        "api:1"
+      ],
+      "expected_status": "grounded",
+      "rubric": "REST and JSON-RPC; not SSE/WebSocket from a different streaming product."
+    },
+    {
+      "id": "H13",
+      "language": "en",
+      "type": "neighbor_context",
+      "query": "Compared with Wallet V1, what delayed-confirmation safeguard was added in V2 and which exit code indicates its failure?",
+      "gold": [
+        "history:28",
+        "history:29"
+      ],
+      "expected_status": "grounded",
+      "rubric": "valid_until sets transaction expiry/time limit; failure exit35.",
+      "required_context": [
+        "history:28",
+        "history:29"
+      ]
+    },
+    {
+      "id": "H14",
+      "language": "zh",
+      "type": "cross_language",
+      "query": "Wallet V3 怎么让同一个公钥对应多个钱包？为什么改那个参数会改变地址？",
+      "gold": [
+        "history:32",
+        "history:36"
+      ],
+      "expected_status": "grounded",
+      "rubric": "subwallet_id enables multiple wallets with one key/seed; included in deployment state, so different ID changes state/code-derived address."
+    },
+    {
+      "id": "H15",
+      "language": "en",
+      "type": "direct",
+      "query": "In the Simplex system model, is Byzantine tolerance defined by validator count or weight, and what are the exact f and quorum q bounds?",
+      "gold": [
+        "simplex:12"
+      ],
+      "expected_status": "grounded",
+      "rubric": "Total positive integer weight W, Byzantine weight f<W/3, q=floor(2W/3)+1; not count or non-strict threshold."
+    },
+    {
+      "id": "H16",
+      "language": "es",
+      "type": "cross_language_neighbor",
+      "query": "En Simplex, ¿un candidato vacío avanza el estado visible? ¿Cuándo lo genera el líder de shardchain y cuándo el de masterchain?",
+      "gold": [
+        "simplex:182",
+        "simplex:184",
+        "simplex:185"
+      ],
+      "expected_status": "grounded",
+      "rubric": "No visible-state advance despite normal consensus. Shard: last finalized masterchain seqno more than8blocks behind tip. Master: next block more than1seqno ahead of last consensus-finalized block.",
+      "required_context": [
+        "simplex:182",
+        "simplex:184",
+        "simplex:185"
+      ]
+    },
+    {
+      "id": "H17",
+      "language": "en",
+      "type": "direct",
+      "query": "For Simplex's two-step FEC encoding, how many symbols are needed to reconstruct a candidate, how many losses are tolerated, and is that a weight threshold?",
+      "gold": [
+        "simplex:180"
+      ],
+      "expected_status": "grounded",
+      "rubric": "k approximately2n/3 of n symbols; tolerate n-k approximately n/3 losses; count not weight."
+    },
+    {
+      "id": "H18",
+      "language": "en",
+      "type": "colloquial_noisy",
+      "query": "I want to see the MyTonCtrl install command and env it would use, but don't actually install anything yet. Which option is the dry run?",
+      "gold": [
+        "mytonctrl:7"
+      ],
+      "expected_status": "grounded",
+      "rubric": "--print-env prints resolved command/env and exits; answer only, do not execute installer."
+    },
+    {
+      "id": "H19",
+      "language": "zh",
+      "type": "cross_language",
+      "query": "MyTonCtrl 的 ARCHIVE_TTL 默认值在 liteserver 模式和其他模式分别是多少？要长期保留怎么设置？",
+      "gold": [
+        "mytonctrl:10"
+      ],
+      "expected_status": "grounded",
+      "rubric": "2592000 seconds liteserver,86400 otherwise; -1 effectively permanent."
+    },
+    {
+      "id": "H20",
+      "language": "es",
+      "type": "cross_language",
+      "query": "Si tengo los datos actuales de un contrato vanity de TON, ¿puedo deducir su dirección o debo usar algo obtenido previamente?",
+      "gold": [
+        "derive:20",
+        "derive:21",
+        "derive:50"
+      ],
+      "expected_status": "grounded",
+      "rubric": "Cannot derive just from current data; use constant predetermined actual address; salt search determines vanity address."
+    },
+    {
+      "id": "H21",
+      "language": "en",
+      "type": "direct",
+      "query": "Is a TON Connect client_id safe to treat as a completely public identifier? What can somebody who knows it do to queued bridge messages?",
+      "gold": [
+        "connect_core:25"
+      ],
+      "expected_status": "grounded",
+      "rubric": "Semi-private, treat stored session data as secret; holder can fetch ciphertext or remove queued bridge messages; not decrypt with client_id alone."
+    },
+    {
+      "id": "H22",
+      "language": "es",
+      "type": "cross_language",
+      "query": "¿Puedo copiar el estado de una sesión TON Connect a otro dispositivo para continuar conectado? ¿Cuál es la forma indicada de conectar varios dispositivos?",
+      "gold": [
+        "connect_core:29",
+        "connect_core:30",
+        "connect_core:31"
+      ],
+      "expected_status": "grounded",
+      "rubric": "Do not copy secret session state; distinct device fresh connect/distinct sessions, protocol does not sync keys. ton_proof/server-issued token can give app continuity."
+    },
+    {
+      "id": "H23",
+      "language": "en",
+      "type": "insufficient",
+      "query": "Exactly how many USDT does the Wallet V5 gasless service charge per transfer?",
+      "gold": [],
+      "expected_status": "insufficient_evidence",
+      "rubric": "Only small amount/service fee is described; no exact numeric amount in frozen corpus.",
+      "related": [
+        "v5:29",
+        "v5:34"
+      ]
+    },
+    {
+      "id": "H24",
+      "language": "en",
+      "type": "insufficient",
+      "query": "What contractual uptime percentage and cash refund does TON Center API v2 guarantee?",
+      "gold": [],
+      "expected_status": "insufficient_evidence",
+      "rubric": "Hosted access and limits are documented, but no SLA uptime percentage/refund terms.",
+      "related": [
+        "api:13",
+        "api:14"
+      ]
+    },
+    {
+      "id": "H25",
+      "language": "zh",
+      "type": "insufficient",
+      "query": "我的 MyTonCtrl 节点昨天丢了归档数据。这些文档能证明就是 STATE_TTL 配置导致的吗？",
+      "gold": [],
+      "expected_status": "insufficient_evidence",
+      "rubric": "Generic TTL effects cannot prove cause on this particular node; no node settings/logs.",
+      "related": [
+        "mytonctrl:10"
+      ]
+    },
+    {
+      "id": "H26",
+      "language": "en",
+      "type": "no_answer",
+      "query": "Which spacecraft first landed on Titan?",
+      "gold": [],
+      "expected_status": "no_authoritative_source",
+      "rubric": "No spacecraft/Titan landing evidence; must not answer from model's prior knowledge."
+    },
+    {
+      "id": "H27",
+      "language": "es",
+      "type": "no_answer",
+      "query": "¿Quién compuso la ópera Turandot?",
+      "gold": [],
+      "expected_status": "no_authoritative_source",
+      "rubric": "No opera/composer evidence; abstain rather than use prior knowledge."
+    },
+    {
+      "id": "H28",
+      "language": "en",
+      "type": "historical_diagnostic",
+      "query": "As of June 1, 2023, did official TON documentation already promise 255 outgoing messages for Wallet V5?",
+      "gold": [],
+      "expected_status": "no_authoritative_source",
+      "rubric": "This snapshot cannot establish official2023validity. Not outdated_only; excluded from historical-truth accuracy.",
+      "related": [
+        "v5:2"
+      ],
+      "as_of_time": "2023-06-01T12:00:00Z"
+    }
+  ]
+}
