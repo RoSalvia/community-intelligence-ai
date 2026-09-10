@@ -1,0 +1,214 @@
+{
+  "version": "blum-knowledge-pack-v1",
+  "manifest_schema_version": "1.0.0",
+  "generated_at": "2026-09-10T17:43:10.040315Z",
+  "frozen_m2_baseline_commit": "3858dbf4236a8b148997dede40b609f057d3b23e",
+  "scope": [
+    "https://help.blum.io",
+    "https://blum.io/blog"
+  ],
+  "summary": {
+    "discovered_url_count": 259,
+    "fetched_source_count": 3,
+    "domain_counts": {
+      "blum.io": 3,
+      "help.blum.io": 0
+    },
+    "source_channel_counts": {
+      "website": 3
+    },
+    "source_type_counts": {
+      "product_docs": 3
+    },
+    "language_counts": {
+      "en": 3
+    },
+    "published_at_count": 3,
+    "published_at_ratio": 1.0,
+    "updated_at_count": 0,
+    "updated_at_ratio": 0.0,
+    "content_hash_duplicate_count": 0,
+    "url_duplicate_count": 14,
+    "unknown_source_type_count": 0,
+    "fetch_failure_count": 147,
+    "official_blog_post_candidate_count": 77,
+    "official_blog_post_recovered_count": 3,
+    "official_source_unavailable_count": 74,
+    "archive_fallback_hint_count": 74,
+    "help_official_url_candidate_count": 72,
+    "help_official_url_recovered_count": 0,
+    "help_official_url_unavailable_count": 72,
+    "decision_counts": {
+      "excluded": 109,
+      "failed": 147,
+      "included": 3
+    },
+    "exclusion_reason_counts": {
+      "archive_fallback_hint": 74,
+      "asset": 1,
+      "external_origin": 7,
+      "legal_page": 2,
+      "metadata_or_feed": 15,
+      "navigation_fetch_failed": 1,
+      "navigation_or_marketing": 8,
+      "official_source_unavailable": 72,
+      "official_source_unavailable_archive_fallback_candidate": 74,
+      "truncated_url": 2
+    },
+    "historical_coverage_counts": {
+      "partial": 3
+    },
+    "metadata_provenance_counts": {
+      "human-confirmed": 9,
+      "source-provided": 6,
+      "system-derived": 3
+    }
+  },
+  "discovery_inventory": [],
+  "sources": [
+    {
+      "artifact_id": "2ff0f9ee7702f9db2c5b3a75",
+      "title": "Blum Memepad: Create and Launch Your Memecoins on TON",
+      "canonical_url": "https://blum.io/post/blum-memepad",
+      "source_type": "product_docs",
+      "source_channel": "website",
+      "language": "en",
+      "published_at": "2025-07-28",
+      "published_precision": "date",
+      "updated_at": null,
+      "updated_precision": null,
+      "observed_at": "2026-09-10T17:45:06.088676Z",
+      "effective_from": null,
+      "effective_precision": null,
+      "author": null,
+      "official_status": "verified_official",
+      "content_hash": "07b4b14bf8e7bde93c7baad1b697c21ac0068c9058889391b3524da4dc481acd",
+      "raw_hash": "d40d1722698313b996f521875bbd87092b4c657294b32a1b05591847794a25af",
+      "historical_coverage": "partial",
+      "metadata_provenance": {
+        "authority_level": "human-confirmed",
+        "language": "source-provided",
+        "official_status": "human-confirmed",
+        "published_at": "source-provided",
+        "source_channel": "human-confirmed",
+        "source_type": "system-derived"
+      },
+      "fetch_metadata": {
+        "http_status": 200,
+        "content_type": "text/html",
+        "etag": "W/\"4cf51d6dcbaaa6d7f01c1867b86dd0b9\"",
+        "last_modified": null
+      }
+    },
+    {
+      "artifact_id": "d29af1bef9ade9ea9346a3ed",
+      "title": "$BLUM Token - Tokenomics: Built for Utility, Aligned for the Long Term",
+      "canonical_url": "https://blum.io/post/blum-tokenomics",
+      "source_type": "product_docs",
+      "source_channel": "website",
+      "language": "en",
+      "published_at": "2025-06-13",
+      "published_precision": "date",
+      "updated_at": null,
+      "updated_precision": null,
+      "observed_at": "2026-09-10T17:45:08.443434Z",
+      "effective_from": null,
+      "effective_precision": null,
+      "author": null,
+      "official_status": "verified_official",
+      "content_hash": "546c6c5e558617c691963c88f21eb3c0eb7a79604d1aafdbf5c5a3abd4c8781f",
+      "raw_hash": "ea0b1b4c4efb156db30260bdea5a60a8e37fb49345d5c9f41500624a94d03bff",
+      "historical_coverage": "partial",
+      "metadata_provenance": {
+        "authority_level": "human-confirmed",
+        "language": "source-provided",
+        "official_status": "human-confirmed",
+        "published_at": "source-provided",
+        "source_channel": "human-confirmed",
+        "source_type": "system-derived"
+      },
+      "fetch_metadata": {
+        "http_status": 200,
+        "content_type": "text/html",
+        "etag": "W/\"85d9d4e03bc21da0b4cb4fd34b5a4272\"",
+        "last_modified": null
+      }
+    },
+    {
+      "artifact_id": "fbdff35855ef13093988e936",
+      "title": "Blum Trading Bot: Multichain Trading in Telegram for TON, Solana, and BNB Chain",
+      "canonical_url": "https://blum.io/post/blum-trading-bot",
+      "source_type": "product_docs",
+      "source_channel": "website",
+      "language": "en",
+      "published_at": "2025-07-25",
+      "published_precision": "date",
+      "updated_at": null,
+      "updated_precision": null,
+      "observed_at": "2026-09-10T17:45:10.830196Z",
+      "effective_from": null,
+      "effective_precision": null,
+      "author": null,
+      "official_status": "verified_official",
+      "content_hash": "16223afa94ac8c630a632de08fa866b6c24eb39516143df5f98da4f7a22bbcaa",
+      "raw_hash": "847f1fe604eba1609541088a2cdae4c7b74c7a52a5e0f0e4629c05e57936f817",
+      "historical_coverage": "partial",
+      "metadata_provenance": {
+        "authority_level": "human-confirmed",
+        "language": "source-provided",
+        "official_status": "human-confirmed",
+        "published_at": "source-provided",
+        "source_channel": "human-confirmed",
+        "source_type": "system-derived"
+      },
+      "fetch_metadata": {
+        "http_status": 200,
+        "content_type": "text/html",
+        "etag": "W/\"59f2e4a25bc02f93c3a7e9c901b602b6\"",
+        "last_modified": null
+      }
+    }
+  ],
+  "acquisition": {
+    "user_agent": "CommunityIntelligenceKnowledgeAcquisition/1.0",
+    "minimum_request_delay_seconds": 1.0,
+    "diagnostics": {
+      "discovery_inventory_storage": "ignored local data/private manifest",
+      "blum.io": {
+        "robots_status": 200,
+        "sitemap_status": 200,
+        "navigation_status": 200,
+        "robots_sha256": "576939b0e25f5991d3964565c1efc3cd8f2c80effd3ad5d29bb3338a41c32a9e",
+        "blog_index_audit": {
+          "listed_article_count": 77,
+          "listed_publication_date_count": 77,
+          "listed_2024_article_count": 18,
+          "same_origin_article_link_count": 3,
+          "external_archive_article_link_count": 74
+        }
+      },
+      "help.blum.io": {
+        "robots_status": 200,
+        "sitemap_status": 403,
+        "navigation_status": 403,
+        "robots_sha256": "b77b59e59d3cd01bc48e81ba1524a02223511db4b6b25dd4a6430547856ddd2c",
+        "content_signals": [
+          "search=yes,ai-train=no,use=reference"
+        ],
+        "discovery_hint_audit": {
+          "method": "archive URL inventory used only as discovery hints; all content fetches retried against official help.blum.io URLs",
+          "inventory_url_count": 91,
+          "candidate_knowledge_url_count": 72,
+          "excluded_non_content_url_count": 19,
+          "candidate_language_path_counts": {
+            "en": 32,
+            "ru": 20,
+            "tr": 20
+          },
+          "official_fetch_http_403_count": 72,
+          "archive_content_imported_count": 0
+        }
+      }
+    }
+  }
+}

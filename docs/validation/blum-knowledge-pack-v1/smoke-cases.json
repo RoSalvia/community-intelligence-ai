@@ -1,0 +1,64 @@
+{
+  "version": "blum-rag-smoke-draft-v1",
+  "knowledge_pack_version": "blum-knowledge-pack-v1",
+  "execution_status": "provisional_draft_not_executed",
+  "blocker": "Acquisition coverage review found only 3 of 77 Blog candidates, 0 of 18 dated 2024, and 0 of 72 Help candidates; the 3 acquired sources also lack Frozen M2-compatible time validity metadata.",
+  "cases": [
+    {
+      "id": "B01",
+      "slice": "product_usage_faq",
+      "query": "How can I launch a memecoin with Blum Memepad?",
+      "expected_source_url": "https://blum.io/post/blum-memepad",
+      "status": "not_run"
+    },
+    {
+      "id": "B02",
+      "slice": "troubleshooting",
+      "query": "What should I try if a Blum Memepad transaction is stuck?",
+      "expected_source_url": "https://blum.io/post/blum-memepad",
+      "status": "not_run"
+    },
+    {
+      "id": "B03",
+      "slice": "campaign_rule_interpretation",
+      "query": "What buy-in threshold does the acquired Memepad guide state for DEX listing?",
+      "expected_source_url": "https://blum.io/post/blum-memepad",
+      "status": "not_run"
+    },
+    {
+      "id": "B04",
+      "slice": "product_feature",
+      "query": "Which networks does the acquired Blum Trading Bot guide say it supports?",
+      "expected_source_url": "https://blum.io/post/blum-trading-bot",
+      "status": "not_run"
+    },
+    {
+      "id": "B05",
+      "slice": "historical_blog_fact",
+      "query": "What total supply did Blum's June 2025 tokenomics article state?",
+      "expected_source_url": "https://blum.io/post/blum-tokenomics",
+      "status": "not_run"
+    },
+    {
+      "id": "B06",
+      "slice": "current_vs_historical_boundary",
+      "query": "As of 2024-06-01, did the acquired official sources establish multichain Trading Bot support?",
+      "as_of_time": "2024-06-01T00:00:00Z",
+      "expected_status": "no_authoritative_source",
+      "status": "not_run"
+    },
+    {
+      "id": "B07",
+      "slice": "no_authoritative_source",
+      "query": "What are the current eligibility rules for a 2026 Blum campaign?",
+      "expected_status": "no_authoritative_source",
+      "status": "not_run"
+    },
+    {
+      "id": "B08",
+      "slice": "source_conflict_or_outdated",
+      "status": "unavailable",
+      "reason": "The acquired same-origin corpus contains no proven revision pair, replacement, conflict, or expired source."
+    }
+  ]
+}

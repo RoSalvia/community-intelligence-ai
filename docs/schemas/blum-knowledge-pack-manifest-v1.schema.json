@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://community-intelligence.local/schemas/blum-knowledge-pack-manifest-v1.schema.json",
+  "title": "Blum Knowledge Pack Manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "manifest_schema_version",
+    "generated_at",
+    "frozen_m2_baseline_commit",
+    "scope",
+    "summary",
+    "discovery_inventory",
+    "sources",
+    "acquisition"
+  ],
+  "properties": {
+    "version": {"const": "blum-knowledge-pack-v1"},
+    "manifest_schema_version": {"const": "1.0.0"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "frozen_m2_baseline_commit": {
+      "const": "3858dbf4236a8b148997dede40b609f057d3b23e"
+    },
+    "scope": {
+      "type": "array",
+      "items": {"type": "string", "format": "uri"},
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "summary": {"type": "object"},
+    "discovery_inventory": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/discoveryRecord"}
+    },
+    "sources": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/sourceRecord"}
+    },
+    "acquisition": {
+      "type": "object",
+      "required": ["user_agent", "minimum_request_delay_seconds", "diagnostics"],
+      "properties": {
+        "user_agent": {"type": "string"},
+        "minimum_request_delay_seconds": {"type": "number", "minimum": 1},
+        "diagnostics": {"type": "object"}
+      }
+    }
+  },
+  "$defs": {
+    "discoveryRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canonical_url",
+        "domain",
+        "title",
+        "discovered_from",
+        "source_channel",
+        "candidate_source_type",
+        "language",
+        "fetch_status",
+        "http_status",
+        "discovered_at",
+        "decision",
+        "exclusion_reason"
+      ],
+      "properties": {
+        "canonical_url": {"type": "string", "format": "uri"},
+        "domain": {"type": "string"},
+        "title": {"type": ["string", "null"]},
+        "discovered_from": {"type": "string"},
+        "source_channel": {"enum": ["website", "docs"]},
+        "candidate_source_type": {
+          "enum": [
+            "faq",
+            "product_docs",
+            "campaign_rules",
+            "community_rules",
+            "maintenance_notice",
+            "official_blog",
+            "official_announcement",
+            "release_notes",
+            "unknown"
+          ]
+        },
+        "language": {"type": ["string", "null"]},
+        "fetch_status": {"enum": ["not_fetched", "succeeded", "failed"]},
+        "http_status": {"type": ["integer", "null"]},
+        "discovered_at": {"type": "string", "format": "date-time"},
+        "decision": {"enum": ["included", "excluded", "failed"]},
+        "exclusion_reason": {"type": ["string", "null"]}
+      }
+    },
+    "sourceRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_id",
+        "title",
+        "canonical_url",
+        "source_type",
+        "source_channel",
+        "language",
+        "published_at",
+        "published_precision",
+        "updated_at",
+        "updated_precision",
+        "observed_at",
+        "effective_from",
+        "effective_precision",
+        "author",
+        "official_status",
+        "content_hash",
+        "raw_hash",
+        "historical_coverage",
+        "metadata_provenance",
+        "fetch_metadata"
+      ],
+      "properties": {
+        "artifact_id": {"type": "string", "pattern": "^[0-9a-f]{24}$"},
+        "title": {"type": "string", "minLength": 1},
+        "canonical_url": {"type": "string", "format": "uri"},
+        "source_type": {
+          "enum": [
+            "faq",
+            "product_docs",
+            "campaign_rules",
+            "community_rules",
+            "maintenance_notice",
+            "official_blog",
+            "official_announcement",
+            "release_notes"
+          ]
+        },
+        "source_channel": {"enum": ["website", "docs"]},
+        "language": {"type": "string"},
+        "published_at": {"type": ["string", "null"]},
+        "published_precision": {"enum": ["date", "datetime", null]},
+        "updated_at": {"type": ["string", "null"]},
+        "updated_precision": {"enum": ["date", "datetime", null]},
+        "observed_at": {"type": "string", "format": "date-time"},
+        "effective_from": {"type": ["string", "null"]},
+        "effective_precision": {"enum": ["date", "datetime", null]},
+        "author": {"type": ["string", "null"]},
+        "official_status": {"const": "verified_official"},
+        "content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "raw_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "historical_coverage": {"enum": ["unavailable", "partial", "complete"]},
+        "metadata_provenance": {
+          "type": "object",
+          "additionalProperties": {
+            "enum": ["source-provided", "human-confirmed", "system-derived", "ai-inferred"]
+          }
+        },
+        "fetch_metadata": {"type": "object"}
+      }
+    }
+  }
+}
