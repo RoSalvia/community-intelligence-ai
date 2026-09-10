@@ -2,7 +2,7 @@
   "version": "blum-rag-smoke-draft-v1",
   "knowledge_pack_version": "blum-knowledge-pack-v1",
   "execution_status": "provisional_draft_not_executed",
-  "blocker": "Acquisition coverage review found only 3 of 77 Blog candidates, 0 of 18 dated 2024, and 0 of 72 Help candidates; the 3 acquired sources also lack Frozen M2-compatible time validity metadata.",
+  "blocker": "All 74 official-index-linked archive articles were acquired, but all 77 Blog catalog sources have date-only publication metadata and no confirmed effective_from required by Frozen M2; Help remains unavailable.",
   "cases": [
     {
       "id": "B01",

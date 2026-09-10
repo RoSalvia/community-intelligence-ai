@@ -74,3 +74,25 @@ grounding behavior.
   unavailable.
 - Stop before final Frozen M2 smoke unless the coverage review establishes a
   representative corpus. A three-source pack is not representative coverage.
+
+## Historical Blog archive phase
+
+1. Freeze the current official Blog catalog as a separate provenance artifact.
+   Parse every card's title, category, date precision, Read Article URL,
+   original Blum URL, target kind, catalog observation time, and catalog hash.
+2. Select the actual 2024 cards overlapping the CN Chat window
+   `2024-03-19..2024-08-18` as the controlled set, capped at ten. Fetch archive
+   content only when the current official catalog links that exact snapshot.
+3. Add a Wayback-aware parser and historical-source contract. Exclude replay
+   chrome/error shells, validate title/original URL/body, separate publication,
+   snapshot, and observation times, and store full bodies only under ignored
+   private data.
+4. Gate expansion on controlled validation. If the controlled set is clean or
+   failures are acquisition-only rather than parser/provenance failures, acquire
+   all official-index-linked archive cards and build aggregate coverage metrics.
+5. Run a Frozen M2 compatibility probe without changing any contract. Record
+   date-only metadata blocks separately from acquisition/parser failures.
+6. Update the aggregate manifest, schema, validation report, and a future-only
+   Telegram Official Announcement acquisition plan. Verify deterministic reruns,
+   private-data boundaries, focused tests, full regression, and frozen constants;
+   commit locally without merge or push, then stop at the review gate.

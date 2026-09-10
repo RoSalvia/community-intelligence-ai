@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://community-intelligence.local/schemas/blum-historical-blog-pack-v1.schema.json",
+  "title": "Blum Historical Blog Pack v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "manifest_schema_version",
+    "generated_at",
+    "frozen_m2_baseline_commit",
+    "catalog",
+    "controlled_validation",
+    "bulk_validation",
+    "provenance_contract",
+    "time_contract",
+    "cn_chat_coverage",
+    "help_center",
+    "frozen_m2_compatibility",
+    "source_hash_ledger"
+  ],
+  "properties": {
+    "version": {"const": "blum-historical-blog-pack-v1"},
+    "manifest_schema_version": {"const": "1.0.0"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "frozen_m2_baseline_commit": {
+      "const": "3858dbf4236a8b148997dede40b609f057d3b23e"
+    },
+    "catalog": {
+      "type": "object",
+      "required": [
+        "url",
+        "observed_at",
+        "raw_hash",
+        "total_article_count",
+        "current_live_article_count",
+        "official_index_linked_archive_article_count",
+        "publication_date_coverage_count",
+        "article_2024_count",
+        "cn_chat_overlap_article_count"
+      ]
+    },
+    "controlled_validation": {
+      "type": "object",
+      "required": [
+        "status",
+        "selected_count",
+        "passed_count",
+        "failed_count",
+        "raw_capture_mode",
+        "rerun_stable_raw_hash_count",
+        "rerun_stable_content_hash_count"
+      ]
+    },
+    "bulk_validation": {
+      "type": "object",
+      "required": [
+        "successfully_acquired_archive_snapshots",
+        "failed_snapshots",
+        "parser_failure_count",
+        "provenance_incomplete_cases",
+        "archive_chrome_contamination_count",
+        "language_distribution",
+        "category_distribution"
+      ]
+    },
+    "provenance_contract": {
+      "type": "object",
+      "required": [
+        "content_origin",
+        "official_identity_basis",
+        "chain",
+        "unverified_search_discovered_archive_imported_count"
+      ]
+    },
+    "time_contract": {
+      "type": "object",
+      "required": [
+        "publication_time_basis",
+        "snapshot_time_basis",
+        "observed_time_basis",
+        "snapshot_time_used_as_publication_count",
+        "observed_time_used_as_effective_from_count"
+      ]
+    },
+    "cn_chat_coverage": {
+      "type": "object",
+      "required": ["window_start", "window_end", "article_count", "events"]
+    },
+    "help_center": {
+      "type": "object",
+      "required": [
+        "candidate_page_count",
+        "acquired_page_count",
+        "status",
+        "observed_error",
+        "retry_policy"
+      ]
+    },
+    "frozen_m2_compatibility": {
+      "type": "object",
+      "required": [
+        "combined_source_count",
+        "honestly_importable_count",
+        "metadata_blocked_count",
+        "genuine_retrieval_issue_evaluated"
+      ]
+    },
+    "source_hash_ledger": {
+      "type": "array",
+      "minItems": 74,
+      "maxItems": 74,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["artifact_id", "content_hash", "raw_snapshot_hash"],
+        "properties": {
+          "artifact_id": {"type": "string", "pattern": "^[0-9a-f]{24}$"},
+          "content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "raw_snapshot_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    }
+  }
+}

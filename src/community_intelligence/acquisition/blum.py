@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import difflib
 import hashlib
 import json
 import re
 import time
+import unicodedata
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -77,6 +79,51 @@ class DiscoveryRecord(BaseModel):
     exclusion_reason: str | None = None
 
 
+class BlogCatalogCard(BaseModel):
+    catalog_url: str
+    article_title: str
+    category: str
+    publication_date: str
+    publication_date_precision: str
+    read_article_url: str
+    original_canonical_url: str
+    target_kind: str
+    catalog_observed_at: str
+    catalog_raw_hash: str
+    discovery_evidence: dict[str, Any]
+
+
+class HistoricalBlogSource(BaseModel):
+    artifact_id: str
+    original_canonical_url: str
+    archive_snapshot_url: str
+    archive_snapshot_at: str | None
+    archive_replay_mode: str
+    official_catalog_url: str
+    official_catalog_link_observed_at: str
+    official_catalog_title: str
+    official_catalog_category: str
+    official_catalog_publication_date: str
+    publication_date_precision: str
+    normalized_title: str
+    language: str
+    html_language: str
+    language_basis: str
+    language_mismatch: bool
+    source_type: str
+    source_channel: str
+    content_origin: str
+    official_identity_basis: str
+    content: str
+    content_hash: str
+    raw_snapshot_hash: str
+    acquisition_observed_at: str
+    parser_version: str
+    provenance_relationship: dict[str, str]
+    validation_status: str
+    validation_failures: list[str]
+
+
 @dataclass(frozen=True)
 class AcquiredPage:
     requested_url: str
@@ -91,6 +138,7 @@ class AcquiredPage:
 
 USER_AGENT = "CommunityIntelligenceKnowledgeAcquisition/1.0"
 BASELINE_COMMIT = "3858dbf4236a8b148997dede40b609f057d3b23e"
+ARCHIVE_PARSER_VERSION = "wayback-webflow-richtext-v1"
 
 
 @dataclass(frozen=True)
@@ -329,6 +377,404 @@ def archive_hint_to_official_url(url: str) -> str | None:
         return None
     official_path = match.group(0).split("blum.io", 1)[1]
     return canonicalize_url("https://blum.io" + official_path)
+
+
+def canonicalize_original_blum_url(url: str) -> str:
+    parsed = urlsplit(url.strip())
+    host = (parsed.hostname or "").casefold()
+    if host == "www.blum.io":
+        host = "blum.io"
+    if host != "blum.io":
+        raise ValueError("archive original URL is not a Blum origin")
+    return canonicalize_url(urlunsplit(("https", host, parsed.path, parsed.query, "")))
+
+
+def parse_wayback_snapshot_url(url: str) -> tuple[str, str]:
+    match = re.match(
+        r"https?://web\.archive\.org/web/(\d{14})(?:[a-z]+_)?/(https?:/{1,2}.+)$",
+        url.strip(),
+        flags=re.I,
+    )
+    if not match:
+        raise ValueError("invalid Wayback snapshot URL")
+    snapshot = datetime.strptime(match.group(1), "%Y%m%d%H%M%S").replace(tzinfo=UTC)
+    original = re.sub(r"^(https?):/([^/])", r"\1://\2", match.group(2), flags=re.I)
+    return _iso_timestamp(snapshot), canonicalize_original_blum_url(original)
+
+
+def wayback_raw_capture_url(url: str) -> str:
+    if not re.match(r"https?://web\.archive\.org/web/\d{14}/https?:/{1,2}", url, flags=re.I):
+        raise ValueError("catalog target is not a standard Wayback snapshot URL")
+    return re.sub(r"(/web/\d{14})/", r"\1id_/", url, count=1, flags=re.I)
+
+
+def _unwrap_wayback_resource_url(url: str) -> str:
+    match = re.match(
+        r"https?://web\.archive\.org/web/\d{14}(?:[a-z]+_)?/(https?:/{1,2}.+)$",
+        url.strip(),
+        flags=re.I,
+    )
+    if not match:
+        return canonicalize_url(url)
+    original = re.sub(r"^(https?):/([^/])", r"\1://\2", match.group(1), flags=re.I)
+    parsed = urlsplit(original)
+    if parsed.hostname in {"blum.io", "www.blum.io"}:
+        return canonicalize_original_blum_url(original)
+    return canonicalize_url(original)
+
+
+class _BlogCatalogParser(HTMLParser):
+    def __init__(self, base_url: str) -> None:
+        super().__init__(convert_charrefs=True)
+        self.base_url = base_url
+        self.cards: list[dict[str, str]] = []
+        self._card: dict[str, str] | None = None
+        self._article_depth = 0
+        self._capture: str | None = None
+        self._parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        tag = tag.casefold()
+        values = {key.casefold(): value or "" for key, value in attrs}
+        classes = set(values.get("class", "").split())
+        if tag == "article" and "blog-card" in classes and self._card is None:
+            self._card = {"category": values.get("data-category", "").strip()}
+            self._article_depth = 1
+            return
+        if self._card is None:
+            return
+        if tag == "article":
+            self._article_depth += 1
+        if tag == "a" and "read_article_url" not in self._card and values.get("href"):
+            self._card["read_article_url"] = urljoin(self.base_url, values["href"])
+        if tag == "time":
+            self._capture = "publication_date"
+            self._parts = []
+        elif tag == "h2":
+            self._capture = "article_title"
+            self._parts = []
+
+    def handle_data(self, data: str) -> None:
+        if self._capture and self._card is not None:
+            value = " ".join(data.split())
+            if value:
+                self._parts.append(value)
+
+    def handle_endtag(self, tag: str) -> None:
+        tag = tag.casefold()
+        if self._card is None:
+            return
+        if self._capture and tag in {"time", "h2"}:
+            self._card[self._capture] = " ".join(self._parts).strip()
+            self._capture = None
+            self._parts = []
+        if tag == "article":
+            self._article_depth -= 1
+            if self._article_depth == 0:
+                self.cards.append(self._card)
+                self._card = None
+
+
+def parse_blog_catalog(
+    body: bytes,
+    *,
+    catalog_url: str,
+    observed_at: datetime,
+) -> list[BlogCatalogCard]:
+    parser = _BlogCatalogParser(catalog_url)
+    parser.feed(body.decode("utf-8", errors="replace"))
+    catalog_hash = hashlib.sha256(body).hexdigest()
+    result: list[BlogCatalogCard] = []
+    for index, card in enumerate(parser.cards):
+        missing = {
+            key
+            for key in ("article_title", "publication_date", "read_article_url")
+            if not card.get(key)
+        }
+        if missing:
+            raise ValueError(f"Blog catalog card {index} missing {sorted(missing)}")
+        published, precision = _normalize_time(card["publication_date"])
+        if not published or precision != "date":
+            raise ValueError(f"Blog catalog card {index} has invalid publication date")
+        read_url = card["read_article_url"]
+        original = archive_hint_to_official_url(read_url)
+        if original:
+            target_kind = "official_index_linked_archive"
+        else:
+            try:
+                original = canonicalize_original_blum_url(read_url)
+            except ValueError as error:
+                raise ValueError(f"Blog catalog card {index} has unsupported target") from error
+            if not urlsplit(original).path.startswith("/post/"):
+                raise ValueError(f"Blog catalog card {index} target is not an article")
+            target_kind = "current_official"
+        result.append(
+            BlogCatalogCard(
+                catalog_url=canonicalize_url(catalog_url),
+                article_title=card["article_title"],
+                category=card.get("category") or "unknown",
+                publication_date=published,
+                publication_date_precision=precision,
+                read_article_url=read_url,
+                original_canonical_url=original,
+                target_kind=target_kind,
+                catalog_observed_at=_iso_timestamp(observed_at),
+                catalog_raw_hash=catalog_hash,
+                discovery_evidence={
+                    "relationship": "official_catalog_article_card",
+                    "catalog_url": canonicalize_url(catalog_url),
+                    "card_index": index,
+                },
+            )
+        )
+    return result
+
+
+def select_controlled_archive_cards(
+    cards: Sequence[BlogCatalogCard],
+    *,
+    limit: int = 10,
+) -> list[BlogCatalogCard]:
+    overlap_start = "2024-03-19"
+    overlap_end = "2024-08-18"
+    selected = [
+        card
+        for card in cards
+        if card.target_kind == "official_index_linked_archive"
+        and overlap_start <= card.publication_date <= overlap_end
+    ]
+    return sorted(selected, key=lambda card: card.publication_date)[:limit]
+
+
+class _ArchiveArticleParser(HTMLParser):
+    _BLOCKS = {"p", "li", "blockquote", "pre", "h1", "h2", "h3", "h4", "h5", "h6"}
+    _SKIP = {"script", "style", "svg", "noscript", "template", "nav", "footer", "aside"}
+
+    def __init__(self, base_url: str) -> None:
+        super().__init__(convert_charrefs=True)
+        self.base_url = base_url
+        self.language = "unknown"
+        self.title_parts: list[str] = []
+        self._title_depth = 0
+        self._content_depth = 0
+        self._skip_depth = 0
+        self._block_tag: str | None = None
+        self._block_parts: list[str] = []
+        self._link_href: str | None = None
+        self._link_parts: list[str] = []
+        self.blocks: list[tuple[str, str]] = []
+        self.content_container_found = False
+
+    @staticmethod
+    def _attrs(attrs: list[tuple[str, str | None]]) -> dict[str, str]:
+        return {key.casefold(): value or "" for key, value in attrs}
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        tag = tag.casefold()
+        values = self._attrs(attrs)
+        classes = set(values.get("class", "").split())
+        if tag == "html" and values.get("lang"):
+            self.language = values["lang"].casefold().split("-", 1)[0]
+        if tag == "h1" and "heading-large" in classes and not self._content_depth:
+            self._title_depth = 1
+        elif self._title_depth:
+            self._title_depth += 1
+        if tag in self._SKIP:
+            self._skip_depth += 1
+        if tag == "div" and "w-richtext" in classes and not self.content_container_found:
+            self.content_container_found = True
+            self._content_depth = 1
+            return
+        if self._content_depth:
+            if tag == "div":
+                self._content_depth += 1
+            if not self._skip_depth and tag in self._BLOCKS:
+                self._flush_block()
+                self._block_tag = tag
+            if not self._skip_depth and tag == "a" and values.get("href"):
+                self._link_href = urljoin(self.base_url, values["href"])
+                self._link_parts = []
+
+    def handle_data(self, data: str) -> None:
+        value = " ".join(data.split())
+        if not value:
+            return
+        if self._title_depth:
+            self.title_parts.append(value)
+        if not self._content_depth or self._skip_depth:
+            return
+        if self._block_tag is None:
+            self._block_tag = "p"
+        if self._link_href:
+            self._link_parts.append(value)
+        else:
+            self._block_parts.append(value)
+
+    def handle_endtag(self, tag: str) -> None:
+        tag = tag.casefold()
+        if self._link_href and tag == "a":
+            label = " ".join(self._link_parts).strip()
+            target = _unwrap_wayback_resource_url(self._link_href)
+            self._block_parts.append(f"[{label}]({target})" if label else target)
+            self._link_href = None
+            self._link_parts = []
+        if self._content_depth and tag in self._BLOCKS and self._block_tag == tag:
+            self._flush_block()
+        if self._title_depth:
+            self._title_depth -= 1
+        if tag in self._SKIP:
+            self._skip_depth = max(0, self._skip_depth - 1)
+        if self._content_depth and tag == "div":
+            self._content_depth -= 1
+            if self._content_depth == 0:
+                self._flush_block()
+
+    def _flush_block(self) -> None:
+        text = " ".join(self._block_parts).strip()
+        if text and self._block_tag:
+            self.blocks.append((self._block_tag, text))
+        self._block_parts = []
+        self._block_tag = None
+
+
+def _title_similarity(left: str, right: str) -> float:
+    def normalized(value: str) -> str:
+        return re.sub(r"[^\w]+", " ", value.casefold()).strip()
+
+    return difflib.SequenceMatcher(None, normalized(left), normalized(right)).ratio()
+
+
+def _audit_content_language(content: str, declared: str) -> tuple[str, str, bool]:
+    letters = [character for character in content if character.isalpha()]
+    if len(letters) < 40:
+        return declared, "source-provided-html-lang", False
+    cyrillic = sum("\u0400" <= character <= "\u04ff" for character in letters)
+    latin = sum("LATIN" in unicodedata.name(character, "") for character in letters)
+    if cyrillic / len(letters) >= 0.25:
+        audited = "ru"
+    elif latin / len(letters) >= 0.75:
+        audited = "en"
+    else:
+        audited = declared
+    mismatch = declared not in {"", "unknown"} and audited != declared
+    basis = "system-derived-script-audit" if mismatch or declared == "unknown" else (
+        "source-provided-html-lang"
+    )
+    return audited, basis, mismatch
+
+
+def normalize_historical_archive(
+    page: AcquiredPage,
+    card: BlogCatalogCard,
+) -> HistoricalBlogSource:
+    failures: list[str] = []
+    try:
+        snapshot_at, original_url = parse_wayback_snapshot_url(page.final_url)
+    except ValueError:
+        snapshot_at = None
+        original_url = card.original_canonical_url
+        failures.append("invalid_archive_snapshot_url")
+    if original_url != card.original_canonical_url:
+        failures.append("original_url_mismatch")
+    if page.status_code != 200:
+        failures.append("archive_http_failure")
+    if page.content_type != "text/html":
+        failures.append("archive_non_html")
+
+    parser = _ArchiveArticleParser(page.final_url)
+    parser.feed(page.body.decode("utf-8", errors="replace"))
+    parser._flush_block()
+    title = " ".join(parser.title_parts).strip()
+    content = _markdown_blocks(parser.blocks, title or card.article_title)
+    if not parser.content_container_found:
+        failures.append("article_body_not_found")
+    if not title or _title_similarity(title, card.article_title) < 0.85:
+        failures.append("title_mismatch")
+    if len(content) < 100:
+        failures.append("thin_snapshot")
+    lowered = content.casefold()
+    if any(
+        marker in lowered
+        for marker in (
+            "wayback machine does not have",
+            "this site has been blocked",
+            "page cannot be crawled",
+            "dns points to prohibited ip",
+        )
+    ):
+        failures.append("archive_error_shell")
+    if any(marker in lowered for marker in ("save page now", "wm-ipp", "capture controls")):
+        failures.append("archive_chrome_contamination")
+    failures = list(dict.fromkeys(failures))
+    language, language_basis, language_mismatch = _audit_content_language(
+        content, parser.language
+    )
+    return HistoricalBlogSource(
+        artifact_id=hashlib.sha256(card.original_canonical_url.encode()).hexdigest()[:24],
+        original_canonical_url=card.original_canonical_url,
+        archive_snapshot_url=page.final_url,
+        archive_snapshot_at=snapshot_at,
+        archive_replay_mode="raw_capture_id",
+        official_catalog_url=card.catalog_url,
+        official_catalog_link_observed_at=card.catalog_observed_at,
+        official_catalog_title=card.article_title,
+        official_catalog_category=card.category,
+        official_catalog_publication_date=card.publication_date,
+        publication_date_precision=card.publication_date_precision,
+        normalized_title=title or card.article_title,
+        language=language,
+        html_language=parser.language,
+        language_basis=language_basis,
+        language_mismatch=language_mismatch,
+        source_type="official_blog",
+        source_channel="website",
+        content_origin="historical_archive_snapshot",
+        official_identity_basis="current_official_blog_index_link",
+        content=content,
+        content_hash=hashlib.sha256(content.encode()).hexdigest(),
+        raw_snapshot_hash=hashlib.sha256(page.body).hexdigest(),
+        acquisition_observed_at=_iso_timestamp(page.fetched_at),
+        parser_version=ARCHIVE_PARSER_VERSION,
+        provenance_relationship={
+            "identity_evidence": "current_official_blog_index_article_card",
+            "content_evidence": "official_index_linked_wayback_raw_capture",
+            "original_identity": "original_blum_post_url",
+            "publication_date_evidence": "current_official_blog_index",
+            "snapshot_time_evidence": "wayback_snapshot_url",
+        },
+        validation_status="failed" if failures else "passed",
+        validation_failures=failures,
+    )
+
+
+def assess_historical_frozen_m2_compatibility(
+    sources: Sequence[HistoricalBlogSource],
+) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    blocker_counts: Counter[str] = Counter()
+    for source in sources:
+        blockers: list[str] = []
+        if source.validation_status != "passed":
+            blockers.append("acquisition_or_parser_validation_failed")
+        if source.publication_date_precision != "datetime":
+            blockers.append("date_only_publication_vs_precise_datetime")
+        blockers.append("missing_confirmed_effective_from")
+        blocker_counts.update(blockers)
+        rows.append(
+            {
+                "artifact_id": source.artifact_id,
+                "original_canonical_url": source.original_canonical_url,
+                "honestly_importable": not blockers,
+                "blockers": blockers,
+            }
+        )
+    return {
+        "source_count": len(sources),
+        "honestly_importable_count": sum(row["honestly_importable"] for row in rows),
+        "metadata_blocked_count": sum(not row["honestly_importable"] for row in rows),
+        "blocker_counts": dict(sorted(blocker_counts.items())),
+        "sources": rows,
+    }
 
 
 def unavailable_reason(
@@ -824,6 +1270,23 @@ class PoliteFetcher:
         )
 
 
+def fetch_with_transient_retry(
+    fetcher: PoliteFetcher | Any,
+    url: str,
+    *,
+    max_attempts: int = 2,
+) -> AcquiredPage:
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be positive")
+    for attempt in range(max_attempts):
+        try:
+            return fetcher.fetch(url)
+        except httpx.TransportError:
+            if attempt + 1 == max_attempts:
+                raise
+    raise RuntimeError("unreachable retry state")
+
+
 def _candidate_decision(url: str, target: AcquisitionTarget) -> tuple[bool, str | None]:
     allowed, reason = screen_url(url, target.domain)
     if not allowed:
@@ -918,6 +1381,217 @@ def load_private_sources(root: str | Path) -> list[NormalizedSource]:
             raise ValueError(f"artifact id mismatch: {artifact_id}")
         sources.append(source)
     return sources
+
+
+def _write_historical_source(
+    root: Path,
+    page: AcquiredPage,
+    source: HistoricalBlogSource,
+) -> None:
+    raw_path = root / "raw" / f"{source.artifact_id}.html"
+    normalized_path = root / "normalized" / f"{source.artifact_id}.json"
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    normalized_path.parent.mkdir(parents=True, exist_ok=True)
+    raw_path.write_bytes(page.body)
+    normalized_path.write_text(source.model_dump_json(indent=2), encoding="utf-8")
+
+
+def _historical_summary(
+    cards: Sequence[BlogCatalogCard],
+    selected: Sequence[BlogCatalogCard],
+    sources: Sequence[HistoricalBlogSource],
+    attempts: Sequence[dict[str, Any]],
+) -> dict[str, Any]:
+    archive_cards = [
+        card for card in cards if card.target_kind == "official_index_linked_archive"
+    ]
+    live_cards = [card for card in cards if card.target_kind == "current_official"]
+    overlap_cards = select_controlled_archive_cards(cards, limit=len(cards))
+    passed = [source for source in sources if source.validation_status == "passed"]
+    hashes = Counter(source.content_hash for source in passed)
+    provenance_required = {
+        "identity_evidence",
+        "content_evidence",
+        "original_identity",
+        "publication_date_evidence",
+        "snapshot_time_evidence",
+    }
+    return {
+        "total_blog_catalog_articles": len(cards),
+        "current_live_articles": len(live_cards),
+        "official_index_linked_archive_articles": len(archive_cards),
+        "blog_2024_articles": sum(card.publication_date.startswith("2024-") for card in cards),
+        "cn_chat_overlap_articles": len(overlap_cards),
+        "selected_archive_articles": len(selected),
+        "successfully_acquired_archive_snapshots": len(passed),
+        "failed_snapshots": len(selected) - len(passed),
+        "language_distribution": dict(sorted(Counter(s.language for s in passed).items())),
+        "html_language_distribution": dict(
+            sorted(Counter(s.html_language for s in passed).items())
+        ),
+        "language_mismatch_count": sum(source.language_mismatch for source in passed),
+        "category_distribution": dict(
+            sorted(Counter(s.official_catalog_category for s in passed).items())
+        ),
+        "content_hash_duplicates": sum(value - 1 for value in hashes.values()),
+        "publication_date_coverage_count": sum(bool(card.publication_date) for card in cards),
+        "archive_snapshot_time_coverage_count": sum(
+            source.archive_snapshot_at is not None for source in passed
+        ),
+        "original_canonical_url_coverage_count": sum(
+            bool(card.original_canonical_url) for card in cards
+        ),
+        "parser_failure_count": sum(
+            source.validation_status == "failed" for source in sources
+        ),
+        "provenance_incomplete_cases": sum(
+            not provenance_required.issubset(source.provenance_relationship)
+            or not source.archive_snapshot_at
+            or not source.original_canonical_url
+            for source in sources
+        ),
+        "failure_reason_counts": dict(
+            sorted(
+                Counter(
+                    reason
+                    for attempt in attempts
+                    for reason in attempt.get("validation_failures", [])
+                ).items()
+            )
+        ),
+    }
+
+
+def run_historical_blog_acquisition(
+    output_root: str | Path,
+    *,
+    phase: str,
+    min_delay_seconds: float = 1.0,
+    fetcher: PoliteFetcher | Any | None = None,
+    generated_at: datetime | None = None,
+) -> dict[str, Any]:
+    if phase not in {"controlled", "all"}:
+        raise ValueError("historical Blog phase must be controlled or all")
+    root = Path(output_root).expanduser().resolve() / "historical-blog"
+    root.mkdir(parents=True, exist_ok=True)
+    now = generated_at or datetime.now(tz=UTC)
+    owned_fetcher = fetcher is None
+    client = fetcher or PoliteFetcher(min_delay_seconds=min_delay_seconds)
+    try:
+        catalog_page = client.fetch("https://blum.io/blog/")
+        if catalog_page.status_code != 200 or catalog_page.content_type != "text/html":
+            raise RuntimeError("official Blum Blog catalog is unavailable")
+        cards = parse_blog_catalog(
+            catalog_page.body,
+            catalog_url="https://blum.io/blog/",
+            observed_at=catalog_page.fetched_at,
+        )
+        catalog_hash = hashlib.sha256(catalog_page.body).hexdigest()
+        catalog_raw_path = root / "catalog" / f"blum-blog-{catalog_hash}.html"
+        catalog_raw_path.parent.mkdir(parents=True, exist_ok=True)
+        catalog_raw_path.write_bytes(catalog_page.body)
+        (root / "catalog.json").write_text(
+            json.dumps(
+                {
+                    "version": "blum-blog-catalog-v1",
+                    "catalog_url": "https://blum.io/blog",
+                    "catalog_observed_at": _iso_timestamp(catalog_page.fetched_at),
+                    "catalog_raw_hash": catalog_hash,
+                    "articles": [card.model_dump(mode="json") for card in cards],
+                },
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        gate_path = root / "controlled-gate.json"
+        if phase == "all":
+            if not gate_path.exists():
+                raise RuntimeError("controlled archive validation gate has not passed")
+            gate = json.loads(gate_path.read_text(encoding="utf-8"))
+            if gate.get("status") != "passed" or gate.get("catalog_raw_hash") != catalog_hash:
+                raise RuntimeError("controlled archive gate is stale or failed")
+            selected = [
+                card
+                for card in cards
+                if card.target_kind == "official_index_linked_archive"
+            ]
+        else:
+            selected = select_controlled_archive_cards(cards)
+
+        sources: list[HistoricalBlogSource] = []
+        attempts: list[dict[str, Any]] = []
+        for card in selected:
+            archive_request_url = wayback_raw_capture_url(card.read_article_url)
+            try:
+                page = fetch_with_transient_retry(client, archive_request_url)
+            except httpx.HTTPError as error:
+                attempts.append(
+                    {
+                        "original_canonical_url": card.original_canonical_url,
+                        "catalog_read_article_url": card.read_article_url,
+                        "archive_request_url": archive_request_url,
+                        "fetch_status": "failed",
+                        "validation_failures": [type(error).__name__],
+                    }
+                )
+                continue
+            source = normalize_historical_archive(page, card)
+            _write_historical_source(root, page, source)
+            sources.append(source)
+            attempts.append(
+                {
+                    "artifact_id": source.artifact_id,
+                    "original_canonical_url": card.original_canonical_url,
+                    "catalog_read_article_url": card.read_article_url,
+                    "archive_request_url": archive_request_url,
+                    "archive_snapshot_url": source.archive_snapshot_url,
+                    "http_status": page.status_code,
+                    "fetch_status": "succeeded",
+                    "validation_status": source.validation_status,
+                    "validation_failures": source.validation_failures,
+                }
+            )
+    finally:
+        if owned_fetcher:
+            client.close()
+
+    summary = _historical_summary(cards, selected, sources, attempts)
+    all_passed = bool(selected) and summary["failed_snapshots"] == 0
+    controlled_gate = {
+        "status": "passed" if phase == "controlled" and all_passed else "not_applicable",
+        "catalog_raw_hash": catalog_hash,
+        "selected_count": len(selected),
+        "passed_count": summary["successfully_acquired_archive_snapshots"],
+    }
+    manifest = {
+        "version": "blum-historical-blog-pack-v1",
+        "phase": phase,
+        "generated_at": _iso_timestamp(now),
+        "frozen_m2_baseline_commit": BASELINE_COMMIT,
+        "catalog": {
+            "url": "https://blum.io/blog",
+            "observed_at": _iso_timestamp(catalog_page.fetched_at),
+            "raw_hash": catalog_hash,
+        },
+        "summary": summary,
+        "controlled_gate": controlled_gate,
+        "attempts": attempts,
+        "sources": [source.model_dump(exclude={"content"}, mode="json") for source in sources],
+    }
+    manifest_path = root / f"manifest-{phase}.json"
+    manifest_path.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    if phase == "controlled":
+        gate_path.write_text(
+            json.dumps(controlled_gate, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    return manifest
 
 
 def run_acquisition(
@@ -1151,6 +1825,12 @@ def _cli_parser() -> argparse.ArgumentParser:
     acquire.add_argument("--output-root", required=True)
     acquire.add_argument("--min-delay-seconds", type=float, default=1.0)
     acquire.add_argument("--discovery-hints-file")
+    historical = commands.add_parser(
+        "historical-blog", help="acquire official-index-linked Blog archive snapshots"
+    )
+    historical.add_argument("--output-root", required=True)
+    historical.add_argument("--phase", choices=("controlled", "all"), required=True)
+    historical.add_argument("--min-delay-seconds", type=float, default=1.0)
     import_command = commands.add_parser("import", help="import compatible sources into Frozen M2")
     import_command.add_argument("--private-root", required=True)
     import_command.add_argument("--database", required=True)
@@ -1169,6 +1849,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 if arguments.discovery_hints_file
                 else ()
             ),
+        )
+        print(json.dumps(result["summary"], ensure_ascii=False, indent=2, sort_keys=True))
+        return 0
+    if arguments.command == "historical-blog":
+        result = run_historical_blog_acquisition(
+            arguments.output_root,
+            phase=arguments.phase,
+            min_delay_seconds=arguments.min_delay_seconds,
         )
         print(json.dumps(result["summary"], ensure_ascii=False, indent=2, sort_keys=True))
         return 0

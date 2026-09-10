@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+import httpx
 import pytest
 
+import community_intelligence.acquisition.blum as blum
 from community_intelligence.acquisition.blum import (
     AcquiredPage,
     DiscoveryRecord,
@@ -25,6 +28,371 @@ from community_intelligence.acquisition.blum import (
 )
 
 OBSERVED = datetime(2026, 9, 11, 10, tzinfo=UTC)
+
+
+def test_blog_catalog_parser_freezes_card_level_provenance() -> None:
+    body = b"""<html><main><div class="blog-grid">
+      <article class="blog-card" data-category="New Features">
+        <a href="https://web.archive.org/web/20260830134805/https://blum.io/post/mini-app">
+          <div class="article-meta"><span>New Features</span><time>April 19, 2024</time></div>
+          <h2>Blum's Telegram Mini App is Out</h2><span>Read article</span>
+        </a>
+      </article>
+      <article class="blog-card" data-category="Product">
+        <a href="/post/current"><div class="article-meta"><span>Product</span>
+          <time>July 28, 2025</time></div><h2>Current Product</h2>
+        </a>
+      </article>
+    </div></main></html>"""
+
+    cards = blum.parse_blog_catalog(
+        body,
+        catalog_url="https://blum.io/blog/",
+        observed_at=OBSERVED,
+    )
+
+    assert len(cards) == 2
+    archived, current = cards
+    assert archived.article_title == "Blum's Telegram Mini App is Out"
+    assert archived.category == "New Features"
+    assert archived.publication_date == "2024-04-19"
+    assert archived.publication_date_precision == "date"
+    assert archived.target_kind == "official_index_linked_archive"
+    assert archived.original_canonical_url == "https://blum.io/post/mini-app"
+    assert archived.catalog_raw_hash == hashlib.sha256(body).hexdigest()
+    assert archived.discovery_evidence["relationship"] == "official_catalog_article_card"
+    assert current.target_kind == "current_official"
+    assert current.original_canonical_url == "https://blum.io/post/current"
+
+
+def test_blog_catalog_parser_keeps_missing_category_as_unknown() -> None:
+    body = b"""<article class="blog-card" data-category="">
+      <a href="https://web.archive.org/web/20260830134805/https://blum.io/post/terms">
+        <div class="article-meta"><span></span><time>May 27, 2025</time></div>
+        <h2>Blum Trading Bot - Terms of Use</h2>
+      </a></article>"""
+
+    cards = blum.parse_blog_catalog(
+        body,
+        catalog_url="https://blum.io/blog/",
+        observed_at=OBSERVED,
+    )
+
+    assert cards[0].category == "unknown"
+
+
+def test_wayback_parser_recovers_article_and_excludes_archive_chrome() -> None:
+    card = blum.BlogCatalogCard(
+        catalog_url="https://blum.io/blog",
+        article_title="Blum's Telegram Mini App is Out",
+        category="New Features",
+        publication_date="2024-04-19",
+        publication_date_precision="date",
+        read_article_url=(
+            "https://web.archive.org/web/20260830134805/"
+            "https://blum.io/post/blums-telegram-mini-app-is-out"
+        ),
+        original_canonical_url=(
+            "https://blum.io/post/blums-telegram-mini-app-is-out"
+        ),
+        target_kind="official_index_linked_archive",
+        catalog_observed_at="2026-09-11T10:00:00Z",
+        catalog_raw_hash="a" * 64,
+        discovery_evidence={"relationship": "official_catalog_article_card"},
+    )
+    body = b"""<html lang="en"><head><title>Blum Blog | Mini App</title></head><body>
+      <div id="wm-ipp-base">Wayback Machine Save Page Now</div>
+      <nav>Archive navigation</nav>
+      <h1 class="heading-large">Blum's Telegram Mini App is Out</h1>
+      <div class="rich-text-block-3 w-richtext">
+        <p>Blum is available as a Telegram mini app with points farming.</p>
+        <h2>How to begin</h2><ul><li>Open the bot.</li><li>Tap Farm.</li></ul>
+        <p>See the <a href="https://web.archive.org/web/20260513185554/https://blum.io/">
+        official home</a>.</p>
+      </div><footer>Replay metadata text</footer>
+    </body></html>"""
+    page = AcquiredPage(
+        requested_url=card.read_article_url,
+        final_url=(
+            "https://web.archive.org/web/20260513185554/"
+            "https://www.blum.io/post/blums-telegram-mini-app-is-out"
+        ),
+        status_code=200,
+        content_type="text/html",
+        body=body,
+        fetched_at=OBSERVED,
+        etag=None,
+        last_modified=None,
+    )
+
+    source = blum.normalize_historical_archive(page, card)
+
+    assert source.normalized_title == card.article_title
+    assert source.original_canonical_url == card.original_canonical_url
+    assert source.archive_snapshot_at == "2026-05-13T18:55:54Z"
+    assert source.official_catalog_publication_date == "2024-04-19"
+    assert source.content_origin == "historical_archive_snapshot"
+    assert source.official_identity_basis == "current_official_blog_index_link"
+    assert source.source_type == "official_blog"
+    assert "## How to begin" in source.content
+    assert "- Open the bot." in source.content
+    assert "[official home](https://blum.io/)" in source.content
+    assert "Wayback Machine" not in source.content
+    assert "Replay metadata" not in source.content
+    assert source.validation_status == "passed"
+
+
+def test_wayback_raw_capture_url_preserves_catalog_target_identity() -> None:
+    assert blum.wayback_raw_capture_url(
+        "https://web.archive.org/web/20260830134805/https://blum.io/post/mini-app"
+    ) == (
+        "https://web.archive.org/web/20260830134805id_/https://blum.io/post/mini-app"
+    )
+
+
+def test_archive_fetch_retries_one_transient_timeout() -> None:
+    calls = 0
+    expected = AcquiredPage(
+        requested_url="https://web.archive.org/web/20260101000000id_/https://blum.io/post/a",
+        final_url="https://web.archive.org/web/20260101000000id_/https://blum.io/post/a",
+        status_code=200,
+        content_type="text/html",
+        body=b"ok",
+        fetched_at=OBSERVED,
+        etag=None,
+        last_modified=None,
+    )
+
+    class TransientFetcher:
+        def fetch(self, url: str) -> AcquiredPage:
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise httpx.ReadTimeout("temporary")
+            return expected
+
+    assert blum.fetch_with_transient_retry(TransientFetcher(), expected.requested_url) == expected
+    assert calls == 2
+
+
+def test_wayback_parser_rejects_error_shell_and_title_mismatch() -> None:
+    card = blum.BlogCatalogCard(
+        catalog_url="https://blum.io/blog",
+        article_title="Expected Blum Article",
+        category="Company News",
+        publication_date="2024-05-03",
+        publication_date_precision="date",
+        read_article_url=(
+            "https://web.archive.org/web/20260830134805/https://blum.io/post/expected"
+        ),
+        original_canonical_url="https://blum.io/post/expected",
+        target_kind="official_index_linked_archive",
+        catalog_observed_at="2026-09-11T10:00:00Z",
+        catalog_raw_hash="a" * 64,
+        discovery_evidence={"relationship": "official_catalog_article_card"},
+    )
+    page = AcquiredPage(
+        requested_url=card.read_article_url,
+        final_url=(
+            "https://web.archive.org/web/20260513185554/https://blum.io/post/other"
+        ),
+        status_code=200,
+        content_type="text/html",
+        body=(
+            b'<html><h1>Other Page</h1><div class="rich-text-block-3 w-richtext">'
+            b'<p>Wayback Machine does not have this URL archived.</p></div></html>'
+        ),
+        fetched_at=OBSERVED,
+        etag=None,
+        last_modified=None,
+    )
+
+    source = blum.normalize_historical_archive(page, card)
+
+    assert source.validation_status == "failed"
+    assert set(source.validation_failures) >= {
+        "original_url_mismatch",
+        "title_mismatch",
+        "archive_error_shell",
+    }
+
+
+def test_archive_language_audit_keeps_declared_language_mismatch() -> None:
+    card = blum.BlogCatalogCard(
+        catalog_url="https://blum.io/blog",
+        article_title="English Campaign",
+        category="Campaigns",
+        publication_date="2025-05-19",
+        publication_date_precision="date",
+        read_article_url=(
+            "https://web.archive.org/web/20260830134805/https://blum.io/post/campaign"
+        ),
+        original_canonical_url="https://blum.io/post/campaign",
+        target_kind="official_index_linked_archive",
+        catalog_observed_at="2026-09-11T10:00:00Z",
+        catalog_raw_hash="a" * 64,
+        discovery_evidence={"relationship": "official_catalog_article_card"},
+    )
+    page = AcquiredPage(
+        requested_url=card.read_article_url,
+        final_url=(
+            "https://web.archive.org/web/20260116182721/https://www.blum.io/post/campaign"
+        ),
+        status_code=200,
+        content_type="text/html",
+        body=b"""<html lang="ru"><h1 class="heading-large">English Campaign</h1>
+        <div class="rich-text-block-3 w-richtext"><p>This campaign rewards users who
+        trade eligible tokens through the Blum Trading Bot during the stated period.</p>
+        <p>Participants can review the official rules and prize allocation in this
+        announcement before joining the campaign.</p></div></html>""",
+        fetched_at=OBSERVED,
+        etag=None,
+        last_modified=None,
+    )
+
+    source = blum.normalize_historical_archive(page, card)
+
+    assert source.html_language == "ru"
+    assert source.language == "en"
+    assert source.language_basis == "system-derived-script-audit"
+    assert source.language_mismatch is True
+
+
+def test_historical_archive_compatibility_probe_reports_all_time_blockers() -> None:
+    card = blum.BlogCatalogCard(
+        catalog_url="https://blum.io/blog",
+        article_title="Historical Article",
+        category="Company News",
+        publication_date="2024-05-03",
+        publication_date_precision="date",
+        read_article_url=(
+            "https://web.archive.org/web/20260830134805/https://blum.io/post/historical"
+        ),
+        original_canonical_url="https://blum.io/post/historical",
+        target_kind="official_index_linked_archive",
+        catalog_observed_at="2026-09-11T10:00:00Z",
+        catalog_raw_hash="a" * 64,
+        discovery_evidence={"relationship": "official_catalog_article_card"},
+    )
+    page = AcquiredPage(
+        requested_url=blum.wayback_raw_capture_url(card.read_article_url),
+        final_url=(
+            "https://web.archive.org/web/20260214064512id_/"
+            "https://www.blum.io/post/historical"
+        ),
+        status_code=200,
+        content_type="text/html",
+        body=b"""<html lang="en"><h1 class="heading-large">Historical Article</h1>
+        <div class="rich-text-block-3 w-richtext"><p>This is a sufficiently detailed
+        historical Blum article body retained from the official-index-linked snapshot.</p>
+        <p>It describes a product event but provides no precise publication time or
+        independently confirmed effective validity interval.</p></div></html>""",
+        fetched_at=OBSERVED,
+        etag=None,
+        last_modified=None,
+    )
+    source = blum.normalize_historical_archive(page, card)
+
+    report = blum.assess_historical_frozen_m2_compatibility([source])
+
+    assert report["source_count"] == 1
+    assert report["honestly_importable_count"] == 0
+    assert report["metadata_blocked_count"] == 1
+    assert report["blocker_counts"] == {
+        "date_only_publication_vs_precise_datetime": 1,
+        "missing_confirmed_effective_from": 1,
+    }
+
+
+def test_controlled_set_is_limited_to_cn_chat_overlap() -> None:
+    cards = [
+        blum.BlogCatalogCard(
+            catalog_url="https://blum.io/blog",
+            article_title=f"Article {day}",
+            category="Product",
+            publication_date=day,
+            publication_date_precision="date",
+            read_article_url=(
+                f"https://web.archive.org/web/20260830134805/https://blum.io/post/{day}"
+            ),
+            original_canonical_url=f"https://blum.io/post/{day}",
+            target_kind="official_index_linked_archive",
+            catalog_observed_at="2026-09-11T10:00:00Z",
+            catalog_raw_hash="a" * 64,
+            discovery_evidence={"relationship": "official_catalog_article_card"},
+        )
+        for day in ("2024-03-15", "2024-03-29", "2024-08-18", "2024-08-19")
+    ]
+
+    selected = blum.select_controlled_archive_cards(cards, limit=10)
+
+    assert [card.publication_date for card in selected] == ["2024-03-29", "2024-08-18"]
+
+
+def test_historical_blog_runner_writes_private_artifacts_and_gate(tmp_path: Path) -> None:
+    catalog_body = b"""<article class="blog-card" data-category="New Features">
+      <a href="https://web.archive.org/web/20260830134805/https://blum.io/post/mini-app">
+        <time>April 19, 2024</time><h2>Mini App Launch</h2>
+      </a></article>"""
+    archive_body = b"""<html lang="en"><h1 class="heading-large">Mini App Launch</h1>
+      <div class="rich-text-block-3 w-richtext"><p>Blum launched its Telegram mini app
+      so community members could access product features and begin using Blum Points.</p>
+      <h2>Launch details</h2><p>The official article explains the initial product flow
+      and the steps available to early users of the Telegram application.</p></div></html>"""
+
+    requested_urls: list[str] = []
+
+    class FakeFetcher:
+        def fetch(self, url: str) -> AcquiredPage:
+            requested_urls.append(url)
+            if url == "https://blum.io/blog/":
+                return AcquiredPage(
+                    requested_url=url,
+                    final_url=url,
+                    status_code=200,
+                    content_type="text/html",
+                    body=catalog_body,
+                    fetched_at=OBSERVED,
+                    etag='"catalog"',
+                    last_modified=None,
+                )
+            return AcquiredPage(
+                requested_url=url,
+                final_url=(
+                    "https://web.archive.org/web/20260513185554id_/"
+                    "https://www.blum.io/post/mini-app"
+                ),
+                status_code=200,
+                content_type="text/html",
+                body=archive_body,
+                fetched_at=OBSERVED,
+                etag=None,
+                last_modified=None,
+            )
+
+    manifest = blum.run_historical_blog_acquisition(
+        tmp_path,
+        phase="controlled",
+        fetcher=FakeFetcher(),
+        generated_at=OBSERVED,
+    )
+
+    assert manifest["summary"]["total_blog_catalog_articles"] == 1
+    assert manifest["summary"]["official_index_linked_archive_articles"] == 1
+    assert manifest["summary"]["cn_chat_overlap_articles"] == 1
+    assert manifest["summary"]["successfully_acquired_archive_snapshots"] == 1
+    assert manifest["summary"]["provenance_incomplete_cases"] == 0
+    assert manifest["controlled_gate"]["status"] == "passed"
+    assert requested_urls[1] == (
+        "https://web.archive.org/web/20260830134805id_/https://blum.io/post/mini-app"
+    )
+    assert "content" not in manifest["sources"][0]
+    assert (tmp_path / "historical-blog" / "catalog.json").exists()
+    assert (tmp_path / "historical-blog" / "controlled-gate.json").exists()
+    normalized = json.loads(
+        next((tmp_path / "historical-blog" / "normalized").glob("*.json")).read_text()
+    )
+    assert "Telegram mini app" in normalized["content"]
 
 
 def test_sitemap_parser_handles_urlset_and_index_without_guessing_types() -> None:
