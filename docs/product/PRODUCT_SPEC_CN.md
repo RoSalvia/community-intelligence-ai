@@ -1,5 +1,9 @@
 # Community Intelligence AI 产品需求文档（PRD）
 
+> **Legacy v0.1 reference（已被替代）：** 本文保留用于历史与资产追踪。当前唯一产品依据是 [`COMMUNITY_INTELLIGENCE_AI_PRD_V2_1.md`](COMMUNITY_INTELLIGENCE_AI_PRD_V2_1.md)，不得用本文覆盖 v2.1 方向。
+
+> Legacy notice：本文件是 v0.1 历史产品文档，仅用于理解已有实现与迁移资产。当前唯一产品依据为 [`COMMUNITY_INTELLIGENCE_AI_PRD_V2_1.md`](COMMUNITY_INTELLIGENCE_AI_PRD_V2_1.md)，冲突时以 v2.1 为准。
+
 > 本文同时记录长期产品方向与 V0.1 范围。当前可运行能力、验证证据和明确未实现项分别以仓库根目录 `README.md` 与 `docs/EVALUATION.md` 为准；愿景描述不代表相关 AI 方法已经实现。
 
 ## 1. 文档信息

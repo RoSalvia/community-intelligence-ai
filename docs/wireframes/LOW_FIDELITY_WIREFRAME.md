@@ -1,5 +1,9 @@
 # Community Intelligence Web Product — Low-Fidelity Wireframe
 
+> **Legacy v0.1 reference（已被替代）：** 当前 low-fi IA 见 [`../01_LOW_FI_IA_AND_CORE_FLOWS.md`](../01_LOW_FI_IA_AND_CORE_FLOWS.md)。本文及其 SVG/HTML 资产原地保留用于回归和 future internal views。
+
+> Legacy notice：这是 v0.1 七页面信息架构，原地保留作迁移参考；新版 low-fi 以 [`../01_LOW_FI_IA_AND_CORE_FLOWS.md`](../01_LOW_FI_IA_AND_CORE_FLOWS.md) 为准。
+
 ## Purpose and fixed product rules
 
 This wireframe translates the V0.1 product brief into a seven-view local web application. It deliberately describes information architecture before decorative styling. Message count is context, not quality. A page may show volume to explain the analysis scope, but it may not turn activity volume into an overall Moderator Score or imply that more messages mean healthier operations.

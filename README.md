@@ -1,5 +1,23 @@
 # Community Intelligence AI
 
+这是 Community Intelligence AI 的新版开发工作区。产品唯一依据是 [`docs/product/COMMUNITY_INTELLIGENCE_AI_PRD_V2_1.md`](docs/product/COMMUNITY_INTELLIGENCE_AI_PRD_V2_1.md)。
+
+当前目录是后续唯一 active development workspace，并已继承 v0.1 的完整 Git history（基线 `b5d5d02` / `v0.1.0-alpha`）。现有 `src/`、`frontend/`、`tests/` 和旧文档均作为 legacy assets 原地保留；新版在同一仓库内按能力渐进迁移/重构，不清空重建。原目录 `/Users/enm1cuarto/Documents/Codex/community-intelligence-ai` 保持不变，只作只读备份。
+
+评审入口：
+
+1. [`docs/00_TAKEOVER_AND_CAPABILITY_MATRIX.md`](docs/00_TAKEOVER_AND_CAPABILITY_MATRIX.md)
+2. [`docs/01_LOW_FI_IA_AND_CORE_FLOWS.md`](docs/01_LOW_FI_IA_AND_CORE_FLOWS.md)
+3. [`docs/02_TECHNICAL_DESIGN.md`](docs/02_TECHNICAL_DESIGN.md)
+4. [`docs/03_DEVELOPMENT_TASKS.md`](docs/03_DEVELOPMENT_TASKS.md)
+5. [`docs/04_PRODUCT_OWNER_DECISIONS.md`](docs/04_PRODUCT_OWNER_DECISIONS.md)
+
+状态词统一使用：`Implemented`、`Verified`、`Experimental`、`Planned`、`Unavailable`、`Not implemented`。规划文档不得被当作已实现能力。
+
+## Legacy v0.1 baseline（原地保留）
+
+以下内容保留 v0.1 的运行方式与能力边界；开发 v2.1 时继续把它作为回归基线。
+
 > **v0.1.0-alpha** · Local-first public alpha · Synthetic-first and evidence-linked
 
 Community Intelligence AI helps people understand how multilingual communities respond—not merely how much they talk. It turns a Telegram Desktop export or a reproducible synthetic dataset into seven connected views covering campaigns, communities, behaviors, response patterns, candidate metrics, and source evidence.
