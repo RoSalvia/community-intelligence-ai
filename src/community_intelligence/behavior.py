@@ -55,9 +55,7 @@ USER_SEED_TAXONOMY = (
 _URL_PATTERN = re.compile(r"https?://\S+", re.IGNORECASE)
 _LATIN_LETTER = re.compile(r"[a-z]")
 DUPLICATE_WINDOW_SECONDS = 3_600
-CONFIDENCE_SEMANTICS = (
-    "deterministic heuristic evidence strength; not a calibrated probability"
-)
+CONFIDENCE_SEMANTICS = "deterministic heuristic evidence strength; not a calibrated probability"
 LEXICAL_EVIDENCE_STRENGTH = 0.65
 RELATIONAL_EVIDENCE_STRENGTH = 0.8
 DUPLICATE_EVIDENCE_STRENGTH = 0.85
@@ -101,9 +99,7 @@ def _contains_any(text: str, terms: tuple[str, ...]) -> bool:
     for term in terms:
         normalized_term = normalize_text(term)
         if _LATIN_LETTER.search(normalized_term):
-            if re.search(
-                rf"(?<!\w){re.escape(normalized_term)}(?!\w)", text, flags=re.UNICODE
-            ):
+            if re.search(rf"(?<!\w){re.escape(normalized_term)}(?!\w)", text, flags=re.UNICODE):
                 return True
         elif normalized_term in text:
             return True
@@ -138,9 +134,7 @@ def _label(
     return SeedBehaviorLabel(
         message_id=message.message_id,
         behavior=behavior,
-        confidence=(
-            0.0 if behavior == "unclassified" else LEXICAL_EVIDENCE_STRENGTH
-        )
+        confidence=(0.0 if behavior == "unclassified" else LEXICAL_EVIDENCE_STRENGTH)
         if confidence is None
         else confidence,
         evidence_message_ids=tuple(item.message_id for item in source),
@@ -195,9 +189,7 @@ def _moderator_label(
         ("correction", "corrected", "actually", "not 50", "更正", "纠正", "تصحيح"),
     ):
         return _label(message, "misinformation_correction", "correction_phrase_v1")
-    if _contains_any(
-        normalized, ("translation:", "translated:", "翻译：", "翻译:", "الترجمة:")
-    ):
+    if _contains_any(normalized, ("translation:", "translated:", "翻译：", "翻译:", "الترجمة:")):
         return _label(message, "translation", "translation_marker_v1")
     if _contains_any(
         normalized,
@@ -270,13 +262,17 @@ def _user_label(
         or _contains_any(normalized, ("campaign", "deadline", "reward", "活动", "截止", "奖励"))
     ):
         return _label(message, "campaign_question", "campaign_question_phrase_v1")
-    if _contains_unnegated_english_term(
-        normalized,
-        ("scam", "rug pull", "dead project"),
-    ) or _contains_any(normalized, ("骗局", "跑路")) or re.search(
-        r"(?<!\w)(?:this|it|the project)\s+(?:is|looks like)\s+(?:a\s+)?fraud(?!\w)",
-        normalized,
-        flags=re.UNICODE,
+    if (
+        _contains_unnegated_english_term(
+            normalized,
+            ("scam", "rug pull", "dead project"),
+        )
+        or _contains_any(normalized, ("骗局", "跑路"))
+        or re.search(
+            r"(?<!\w)(?:this|it|the project)\s+(?:is|looks like)\s+(?:a\s+)?fraud(?!\w)",
+            normalized,
+            flags=re.UNICODE,
+        )
     ):
         return _label(message, "FUD", "fud_phrase_v1")
     if re.search(r"(?<!\w)feature request\s*:", normalized) or _contains_any(
@@ -357,9 +353,7 @@ def _user_label(
     if _URL_PATTERN.search(message.text) or _contains_any(
         normalized, ("external article", "external source", "外部文章", "新闻链接")
     ):
-        return _label(
-            message, "external_information_sharing", "external_source_or_url_v1"
-        )
+        return _label(message, "external_information_sharing", "external_source_or_url_v1")
     if _contains_any(
         normalized,
         (
@@ -395,9 +389,9 @@ def classify_seed_behaviors(
     """Assign one conservative, deterministic primary seed label per message."""
 
     validated = validate_message_graph(messages)
-    duplicate_groups: dict[
-        tuple[str, str, str | None, str], list[MessageRecord]
-    ] = defaultdict(list)
+    duplicate_groups: dict[tuple[str, str, str | None, str], list[MessageRecord]] = defaultdict(
+        list
+    )
     for message in validated.messages:
         if message.user_role == "moderator":
             duplicate_groups[
@@ -470,9 +464,7 @@ def discover_clusters(
         raise ValueError("input contains a zero TF-IDF vector")
     distinct_vector_count = len(np.unique(dense_matrix, axis=0))
     if cluster_count > distinct_vector_count:
-        raise ValueError(
-            "cluster_count cannot exceed the number of distinct TF-IDF vectors"
-        )
+        raise ValueError("cluster_count cannot exceed the number of distinct TF-IDF vectors")
     estimator = KMeans(n_clusters=cluster_count, random_state=random_state, n_init=10)
     raw_labels = estimator.fit_predict(matrix)
     terms = vectorizer.get_feature_names_out()
@@ -502,13 +494,9 @@ def discover_clusters(
         top_terms = tuple(terms[index] for index, weight in weighted_terms if weight > 0)[:8]
         centroid_norm = float(np.linalg.norm(centroid))
         similarities = (
-            member_vectors @ centroid / centroid_norm
-            if centroid_norm
-            else np.zeros(len(members))
+            member_vectors @ centroid / centroid_norm if centroid_norm else np.zeros(len(members))
         )
-        representative_ids = tuple(
-            members[index].message_id for index in representative_indices
-        )
+        representative_ids = tuple(members[index].message_id for index in representative_indices)
         clusters.append(
             BehaviorCluster(
                 cluster_id=f"cluster_{stable_index:02d}",
@@ -516,18 +504,11 @@ def discover_clusters(
                 top_terms=top_terms,
                 representative_message_ids=representative_ids,
                 representative_messages=tuple(
-                    validated.message_by_id[message_id].text
-                    for message_id in representative_ids
+                    validated.message_by_id[message_id].text for message_id in representative_ids
                 ),
-                included_community_ids=tuple(
-                    sorted({message.community_id for message in members})
-                ),
-                community_distribution=_distribution(
-                    [message.community_id for message in members]
-                ),
-                language_distribution=_distribution(
-                    [message.language for message in members]
-                ),
+                included_community_ids=tuple(sorted({message.community_id for message in members})),
+                community_distribution=_distribution([message.community_id for message in members]),
+                language_distribution=_distribution([message.language for message in members]),
                 role_distribution=_distribution([message.user_role for message in members]),
                 message_count=len(members),
                 proposed_behavior_name=None,

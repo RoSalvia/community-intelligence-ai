@@ -288,9 +288,7 @@ class _EvidenceCollector:
         community_id: str,
         messages: Sequence[MessageRecord],
     ) -> str:
-        real_user_messages = [
-            message for message in messages if message.user_role == "user"
-        ]
+        real_user_messages = [message for message in messages if message.user_role == "user"]
         denominator_facts = {
             "all_messages": len(messages),
             "campaign_linked_real_user_messages": sum(
@@ -721,8 +719,7 @@ def _build_report(dataset: CommunityDataset) -> tuple[dict[str, Any], tuple[Evid
         campaign_users = [
             message
             for message in users
-            if analysis_campaign_id is not None
-            and message.campaign_id == analysis_campaign_id
+            if analysis_campaign_id is not None and message.campaign_id == analysis_campaign_id
         ]
         noncampaign_users = (
             [message for message in users if message.campaign_id is None]
@@ -901,9 +898,7 @@ def _build_report(dataset: CommunityDataset) -> tuple[dict[str, Any], tuple[Evid
                     "denominator": _PIPELINE_METRIC_CONTRACTS[metric_name]["denominator"],
                     "method": "canonical_deterministic_adapter",
                     "review_status": REVIEW_STATUS,
-                    "evidence_ids": sorted(
-                        {scope_evidence_id, *metric_evidence[metric_name]}
-                    ),
+                    "evidence_ids": sorted({scope_evidence_id, *metric_evidence[metric_name]}),
                 }
             )
         metric_wide_rows.append(wide_row)
@@ -924,17 +919,11 @@ def _build_report(dataset: CommunityDataset) -> tuple[dict[str, Any], tuple[Evid
     for behavior in _FEEDBACK_SEED_BEHAVIORS:
         matching = [item for item in seed_output if item["behavior"] == behavior]
         evidence_ids = sorted(
-            {
-                evidence_id
-                for item in matching
-                for evidence_id in item["evidence_ids"]
-            }
+            {evidence_id for item in matching for evidence_id in item["evidence_ids"]}
         )
         feedback_seed_counts[behavior] = {
             "method_status": "Implemented",
-            "observation_status": (
-                "Observed" if matching else "Not observed in this dataset"
-            ),
+            "observation_status": ("Observed" if matching else "Not observed in this dataset"),
             "evidence_available": bool(evidence_ids),
             "count": len(matching),
             "evidence_ids": evidence_ids,
@@ -1027,9 +1016,7 @@ def _build_report(dataset: CommunityDataset) -> tuple[dict[str, Any], tuple[Evid
             "campaign_intelligence": campaign_capability,
             "outcome_validation": outcome_capability,
             "pipeline_semantic_retrieval_integration": {"status": "not_implemented"},
-            "general_multilingual_semantic_campaign_judgment": {
-                "status": "not_implemented"
-            },
+            "general_multilingual_semantic_campaign_judgment": {"status": "not_implemented"},
             "llm_behavior_interpretation": {"status": "not_implemented"},
         },
         "limitations": {
@@ -1096,10 +1083,7 @@ def _build_report(dataset: CommunityDataset) -> tuple[dict[str, Any], tuple[Evid
         "Community Feedback": {
             "seed_counts": feedback_seed_counts,
             "seed_capabilities": {
-                **{
-                    behavior: "Implemented"
-                    for behavior in _FEEDBACK_SEED_BEHAVIORS
-                },
+                **{behavior: "Implemented" for behavior in _FEEDBACK_SEED_BEHAVIORS},
                 "confusion": "Not implemented",
             },
             "capabilities": {
@@ -1198,9 +1182,7 @@ def _validate_publication(
 
     message_by_id = {message.message_id: message for message in dataset.messages}
     claim_by_id = {claim.claim_id: claim for claim in dataset.claims}
-    campaign_by_id = {
-        campaign.campaign_id: campaign for campaign in dataset.campaigns
-    }
+    campaign_by_id = {campaign.campaign_id: campaign for campaign in dataset.campaigns}
     campaign_ids = set(campaign_by_id)
     community_ids = set(dataset.manifest.community_ids)
     for record in evidence:
@@ -1210,10 +1192,7 @@ def _validate_publication(
             "analysis_scope",
         }:
             raise ValueError("unsupported evidence type")
-        if (
-            record.source_campaign_id is not None
-            and record.source_campaign_id not in campaign_ids
-        ):
+        if record.source_campaign_id is not None and record.source_campaign_id not in campaign_ids:
             raise ValueError("evidence source campaign reference is invalid")
         if (
             record.analysis_campaign_id is not None
@@ -1244,8 +1223,7 @@ def _validate_publication(
                 for message in dataset.messages
                 if message.community_id == record.community_id
                 and (
-                    campaign is None
-                    or campaign.start_time <= message.timestamp < campaign.end_time
+                    campaign is None or campaign.start_time <= message.timestamp < campaign.end_time
                 )
             ]
             users = [message for message in scoped if message.user_role == "user"]
@@ -1260,10 +1238,7 @@ def _validate_publication(
                 ),
                 "real_user_messages": len(users),
             }
-            if (
-                record.message_count != len(scoped)
-                or record.denominator_facts != expected_facts
-            ):
+            if record.message_count != len(scoped) or record.denominator_facts != expected_facts:
                 raise ValueError("analysis-scope evidence facts are invalid")
             continue
 

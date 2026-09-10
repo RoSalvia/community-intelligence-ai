@@ -238,9 +238,7 @@ def test_publish_directory_pins_marker_inode_and_complete_content_identity(
 
     assert identity.marker_name.startswith(".community-intelligence-owner-")
     assert len(identity.marker_token) >= 32
-    assert (staging / identity.marker_name).read_text(encoding="utf-8") == (
-        identity.marker_token
-    )
+    assert (staging / identity.marker_name).read_text(encoding="utf-8") == (identity.marker_token)
     assert identity.device == staging.lstat().st_dev
     assert identity.inode == staging.lstat().st_ino
     assert ("complete.txt", "file") in identity.entries
@@ -313,9 +311,7 @@ def test_publish_quarantines_replaced_staging_without_deleting_attacker_content(
 
     assert not os.path.lexists(tmp_path / "published")
     assert caught.value.quarantine_path is not None
-    assert (caught.value.quarantine_path / "attacker.txt").read_bytes() == (
-        b"attacker survives"
-    )
+    assert (caught.value.quarantine_path / "attacker.txt").read_bytes() == (b"attacker survives")
     assert (owned_relocated / "complete.txt").read_text(encoding="utf-8") == "owned"
 
 

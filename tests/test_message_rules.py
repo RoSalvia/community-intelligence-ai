@@ -142,9 +142,7 @@ def test_language_equivalent_acknowledgements_are_consistently_filler(
         ("zh", "我可以帮助完成注册。"),
     ],
 )
-def test_language_rules_retain_long_non_filler_interactions(
-    language: str, text: str
-) -> None:
+def test_language_rules_retain_long_non_filler_interactions(language: str, text: str) -> None:
     classification = classify_meaningful_text(text, language)
 
     assert classification.is_filler is False
@@ -167,16 +165,12 @@ def test_generated_1200_message_analyzer_integration_preserves_evidence_and_sour
     assert len(partitioned_ids) == 1200
     assert len(set(partitioned_ids)) == 1200
     assert set(partitioned_ids) == valid_ids
-    assert all(
-        set(item.supporting_message_ids) <= valid_ids for item in hygiene.evidence
-    )
+    assert all(set(item.supporting_message_ids) <= valid_ids for item in hygiene.evidence)
     assert all(
         {item.question_id, item.candidate_answer_id} <= valid_ids
         for episode in episodes
         for item in episode.candidate_answer_evidence
     )
-    assert all(
-        set(item.supporting_message_ids) <= valid_ids for item in activation.evidence
-    )
+    assert all(set(item.supporting_message_ids) <= valid_ids for item in activation.evidence)
     assert activation.included_community_ids == tuple(dataset.manifest.community_ids)
     assert tuple(message.model_dump_json() for message in dataset.messages) == before

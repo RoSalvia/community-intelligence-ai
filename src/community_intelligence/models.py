@@ -169,9 +169,7 @@ class DatasetManifest(ContractModel):
     source_sha256: str | None = None
     limitations: list[str] = Field(default_factory=list)
 
-    _nonempty = field_validator("dataset_id", "schema_version", "source_format")(
-        _require_nonempty
-    )
+    _nonempty = field_validator("dataset_id", "schema_version", "source_format")(_require_nonempty)
     _generated_at_utc = field_validator("generated_at")(_require_utc)
 
     @field_validator("source_sha256")
@@ -306,9 +304,7 @@ class CommunityDataset(ContractModel):
             raise ValueError("outcome community_id must reference a dataset community")
         if any(outcome.synthetic != self.manifest.synthetic for outcome in self.outcomes):
             raise ValueError("outcome synthetic flags must match the dataset manifest")
-        outcome_pairs = [
-            (outcome.community_id, outcome.campaign_id) for outcome in self.outcomes
-        ]
+        outcome_pairs = [(outcome.community_id, outcome.campaign_id) for outcome in self.outcomes]
         if len(outcome_pairs) != len(set(outcome_pairs)):
             raise ValueError("outcome community/campaign pairs must be unique")
         if any(annotation.message_id not in message_id_set for annotation in self.annotations):
@@ -327,7 +323,9 @@ class SyntheticDataset(CommunityDataset):
             synthetic = (
                 manifest.synthetic
                 if isinstance(manifest, DatasetManifest)
-                else manifest.get("synthetic") if isinstance(manifest, dict) else None
+                else manifest.get("synthetic")
+                if isinstance(manifest, dict)
+                else None
             )
             if synthetic is not True:
                 raise ValueError("manifest synthetic must be true")
@@ -339,9 +337,7 @@ class SyntheticDataset(CommunityDataset):
         campaign_ids = {campaign.campaign_id for campaign in self.campaigns}
         if set(self.manifest.scenarios) != community_ids:
             raise ValueError("manifest scenarios do not match communities")
-        outcome_pairs = {
-            (outcome.community_id, outcome.campaign_id) for outcome in self.outcomes
-        }
+        outcome_pairs = {(outcome.community_id, outcome.campaign_id) for outcome in self.outcomes}
         expected_outcome_pairs = {
             (community_id, campaign_id)
             for community_id in community_ids

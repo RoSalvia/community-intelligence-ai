@@ -161,9 +161,7 @@ def test_seed_taxonomy_exposes_every_required_candidate() -> None:
 def test_seed_taxonomy_has_conservative_lexical_trigger_boundaries(
     behavior: str, text: str, role: str, campaign_id: str | None
 ) -> None:
-    item = message(
-        "m1", text, seconds=0, user_role=role, campaign_id=campaign_id
-    )
+    item = message("m1", text, seconds=0, user_role=role, campaign_id=campaign_id)
 
     label = classify_seed_behaviors([item])["m1"]
 
@@ -216,10 +214,7 @@ def test_exact_synthetic_arabic_negative_feedback_precedes_peer_support() -> Non
         message
         for message in dataset.messages
         if message.language == "ar"
-        and (
-            "لم نحصل على إجابة واضحة" in message.text
-            or "التواصل غير واضح" in message.text
-        )
+        and ("لم نحصل على إجابة واضحة" in message.text or "التواصل غير واضح" in message.text)
     ]
     assert targets
 
@@ -305,9 +300,7 @@ def test_purchase_or_usage_intent_is_the_canonical_output() -> None:
 
 
 def test_latin_terms_require_unicode_word_boundaries_but_cjk_and_arabic_phrases_match() -> None:
-    scampi = message(
-        "scampi", "I cooked scampi for dinner.", seconds=0, campaign_id=None
-    )
+    scampi = message("scampi", "I cooked scampi for dinner.", seconds=0, campaign_id=None)
     chinese = message("zh", "这看起来像骗局。", seconds=1, language="zh", campaign_id=None)
     arabic = message(
         "ar", "ملاحظاتي أن الدليل غير واضح", seconds=2, language="ar", campaign_id=None
@@ -414,9 +407,7 @@ def test_duplicate_promotion_is_scoped_by_campaign_community_actor_and_window() 
         campaign_id="campaign_a",
     )
 
-    labels = classify_seed_behaviors(
-        [out_of_window, other_community, other_campaign, later, base]
-    )
+    labels = classify_seed_behaviors([out_of_window, other_community, other_campaign, later, base])
 
     assert labels["base"].behavior == "campaign_propagation"
     assert labels["later"].behavior == "duplicate_promotion"
@@ -465,8 +456,7 @@ def test_unsupervised_clusters_return_complete_review_contract_and_source_text()
         assert cluster.top_terms
         assert cluster.representative_message_ids
         assert cluster.representative_messages == tuple(
-            source_by_id[message_id]
-            for message_id in cluster.representative_message_ids
+            source_by_id[message_id] for message_id in cluster.representative_message_ids
         )
         assert cluster.message_count == len(cluster.message_ids)
         assert cluster.proposed_behavior_name is None
@@ -479,9 +469,9 @@ def test_unsupervised_clusters_return_complete_review_contract_and_source_text()
         assert sum(count for _, count in cluster.community_distribution) == cluster.message_count
         assert sum(count for _, count in cluster.language_distribution) == cluster.message_count
         assert sum(count for _, count in cluster.role_distribution) == cluster.message_count
-    assert {
-        message_id for cluster in clusters for message_id in cluster.message_ids
-    } == set(source_by_id)
+    assert {message_id for cluster in clusters for message_id in cluster.message_ids} == set(
+        source_by_id
+    )
 
 
 def test_cluster_ids_members_and_representative_text_are_stable_across_input_order() -> None:

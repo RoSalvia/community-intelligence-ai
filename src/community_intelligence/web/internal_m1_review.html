@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Internal M1 Review Harness</title>
+  <style>
+    :root { color-scheme: light; font-family: ui-sans-serif, system-ui, sans-serif; }
+    body { margin: 0 auto; max-width: 820px; padding: 24px 16px 64px; color: #18202b; }
+    h1 { margin-bottom: 4px; font-size: 1.6rem; }
+    .note, small { color: #5d6878; }
+    section { border: 1px solid #d8dee8; border-radius: 8px; margin-top: 16px; padding: 16px; }
+    h2 { font-size: 1.05rem; margin: 0 0 12px; }
+    label { display: block; margin: 10px 0 4px; }
+    input, select, button { box-sizing: border-box; font: inherit; padding: 8px; }
+    input[type="text"], input[type="datetime-local"], select { width: 100%; }
+    button { cursor: pointer; margin-top: 10px; }
+    button:disabled { cursor: default; opacity: .5; }
+    .result { background: #f5f7fa; border-radius: 6px; margin: 12px 0 0; padding: 10px; white-space: pre-wrap; }
+    .actors label { align-items: start; display: flex; gap: 8px; }
+    .error { color: #a21b1b; }
+    .success { color: #176b3a; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <h1>Internal M1 Review Harness</h1>
+  <p class="note">Development-only Product Review tooling. It calls the existing <code>/api/v1/*</code> contracts and keeps review data local.</p>
+
+  <section>
+    <h2>1. Workspace</h2>
+    <label for="project-name">Project name</label>
+    <input id="project-name" type="text" value="Wallet Operations Review">
+    <button id="create-workspace">Create workspace</button>
+    <div id="workspace-result" class="result">Not created</div>
+  </section>
+
+  <section>
+    <h2>2. EN / CN / ES Communities</h2>
+    <p class="note">Creates three Telegram communities using their local operating timezones.</p>
+    <button id="create-communities" disabled>Create all three communities</button>
+    <div id="communities-result" class="result">Waiting for workspace</div>
+  </section>
+
+  <section>
+    <h2>3. Telegram JSON Upload</h2>
+    <label for="telegram-file">Upload the supplied synthetic CN Telegram export</label>
+    <input id="telegram-file" type="file" accept="application/json,.json">
+    <button id="upload-telegram" disabled>Upload to CN community</button>
+    <div id="upload-result" class="result">Waiting for communities and file</div>
+  </section>
+
+  <section>
+    <h2>4. Actor List → Mark Moderator</h2>
+    <p class="note">Choose by local-only <code>operator_label</code>. The stable hash is used internally and is not shown as the identity.</p>
+    <button id="load-actors" disabled>Load actors</button>
+    <div id="actor-list" class="actors result">Waiting for import</div>
+    <button id="mark-moderator" disabled>Mark selected actor as Moderator</button>
+    <div id="role-result" class="result">No Moderator selected</div>
+  </section>
+
+  <section>
+    <h2>5. Freshness</h2>
+    <button id="load-freshness" disabled>Refresh freshness</button>
+    <div id="freshness-result" class="result">Waiting for workspace</div>
+  </section>
+
+  <section>
+    <h2>6. Analysis Window → Run / Poll Analysis</h2>
+    <label for="window-kind">Window</label>
+    <select id="window-kind">
+      <option value="custom" selected>Custom</option>
+      <option value="since_last_check">Since last check</option>
+      <option value="24h">Last 24 hours</option>
+      <option value="7d">Last 7 days</option>
+      <option value="30d">Last 30 days</option>
+    </select>
+    <div id="custom-window">
+      <label for="window-start">Start (your local time)</label>
+      <input id="window-start" type="datetime-local" value="2026-09-10T00:00">
+      <label for="window-end">End (your local time)</label>
+      <input id="window-end" type="datetime-local" value="2026-09-11T00:00">
+    </div>
+    <button id="run-analysis" disabled>Run analysis and auto-poll</button>
+    <button id="poll-analysis" disabled>Poll latest run now</button>
+    <div id="analysis-result" class="result">Waiting for workspace</div>
+  </section>
+
+  <p id="page-error" class="error" role="alert"></p>
+
+  <script>
+    const state = { workspaceId: null, communities: {}, actorHash: null, runId: null };
+    const byId = (id) => document.getElementById(id);
+    const languageLabel = (language) => language === "zh" ? "CN" : language.toUpperCase();
+
+    async function api(path, options = {}) {
+      const response = await fetch(path, options);
+      let body;
+      try { body = await response.json(); } catch { body = { detail: response.statusText }; }
+      if (!response.ok) throw new Error(body.detail || `Request failed (${response.status})`);
+      return body;
+    }
+
+    function show(id, value, success = false) {
+      const node = byId(id);
+      node.textContent = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+      node.classList.toggle("success", success);
+    }
+
+    async function act(button, work) {
+      byId("page-error").textContent = "";
+      button.disabled = true;
+      try { await work(); } catch (error) { byId("page-error").textContent = error.message; }
+      finally { button.disabled = false; }
+    }
+
+    byId("create-workspace").addEventListener("click", (event) => act(event.currentTarget, async () => {
+      const workspace = await api("/api/v1/workspaces", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project_name: byId("project-name").value })
+      });
+      state.workspaceId = workspace.workspace_id;
+      show("workspace-result", `Created: ${workspace.project_name}`, true);
+      byId("create-communities").disabled = false;
+      byId("load-freshness").disabled = false;
+      byId("run-analysis").disabled = false;
+    }));
+
+    byId("create-communities").addEventListener("click", (event) => act(event.currentTarget, async () => {
+      const definitions = [
+        { language: "en", name: "English Community", timezone: "UTC", platform: "telegram" },
+        { language: "zh", name: "中文社区", timezone: "Asia/Shanghai", platform: "telegram" },
+        { language: "es", name: "Comunidad Español", timezone: "Europe/Madrid", platform: "telegram" }
+      ];
+      const created = [];
+      for (const definition of definitions) {
+        const community = await api(`/api/v1/workspaces/${state.workspaceId}/communities`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(definition)
+        });
+        state.communities[definition.language] = community;
+        created.push(`${languageLabel(definition.language)}: ${community.name}`);
+      }
+      show("communities-result", created.join("\n"), true);
+      byId("upload-telegram").disabled = !byId("telegram-file").files.length;
+    }));
+
+    byId("telegram-file").addEventListener("change", () => {
+      byId("upload-telegram").disabled = !(state.communities.zh && byId("telegram-file").files.length);
+    });
+
+    byId("upload-telegram").addEventListener("click", (event) => act(event.currentTarget, async () => {
+      const form = new FormData();
+      form.append("file", byId("telegram-file").files[0]);
+      const imported = await api(`/api/v1/communities/${state.communities.zh.community_id}/imports/telegram`, {
+        method: "POST",
+        body: form
+      });
+      show("upload-result", `${imported.message_count} messages imported${imported.duplicate ? " (existing batch reused)" : ""}`, true);
+      byId("load-actors").disabled = false;
+    }));
+
+    function renderActors(actors) {
+      const container = byId("actor-list");
+      container.replaceChildren();
+      for (const actor of actors) {
+        const label = document.createElement("label");
+        const input = document.createElement("input");
+        const text = document.createElement("span");
+        input.type = "radio";
+        input.name = "moderator-actor";
+        input.value = actor.user_id_hash;
+        input.addEventListener("change", () => {
+          state.actorHash = actor.user_id_hash;
+          byId("mark-moderator").disabled = false;
+        });
+        text.textContent = `${actor.operator_label} — ${actor.message_count} message(s), ${actor.identity_scope}`;
+        label.append(input, text);
+        container.append(label);
+      }
+      if (!actors.length) container.textContent = "No actors found";
+    }
+
+    byId("load-actors").addEventListener("click", (event) => act(event.currentTarget, async () => {
+      const actors = await api(`/api/v1/workspaces/${state.workspaceId}/actors`);
+      renderActors(actors.items);
+    }));
+
+    byId("mark-moderator").addEventListener("click", (event) => act(event.currentTarget, async () => {
+      const role = await api(`/api/v1/workspaces/${state.workspaceId}/role-assignments`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id_hash: state.actorHash,
+          role: "moderator",
+          valid_from: "2000-01-01T00:00:00Z",
+          valid_to: null
+        })
+      });
+      show("role-result", `Moderator saved (version ${role.version}; applies to imported history)`, true);
+    }));
+
+    byId("load-freshness").addEventListener("click", (event) => act(event.currentTarget, async () => {
+      const freshness = await api(`/api/v1/workspaces/${state.workspaceId}/freshness`);
+      const lines = freshness.items.map((item) =>
+        `${languageLabel(item.language)}: ${item.status}; latest message ${item.latest_message_at || "none"}`
+      );
+      show("freshness-result", lines.join("\n"), true);
+    }));
+
+    byId("window-kind").addEventListener("change", (event) => {
+      byId("custom-window").hidden = event.currentTarget.value !== "custom";
+    });
+
+    async function pollRun() {
+      if (!state.runId) throw new Error("Run an analysis first");
+      const run = await api(`/api/v1/analysis-runs/${state.runId}`);
+      show("analysis-result", {
+        status: run.status,
+        progress: run.progress,
+        activity_status: run.activity_status,
+        window_start: run.window_start,
+        window_end: run.window_end,
+        reused: run.reused,
+        report_path: run.report_path,
+        error: run.error
+      }, run.status === "succeeded");
+      return run;
+    }
+
+    byId("run-analysis").addEventListener("click", (event) => act(event.currentTarget, async () => {
+      const windowKind = byId("window-kind").value;
+      const payload = { window: windowKind };
+      if (windowKind === "custom") {
+        payload.start = new Date(byId("window-start").value).toISOString();
+        payload.end = new Date(byId("window-end").value).toISOString();
+      }
+      const run = await api(`/api/v1/workspaces/${state.workspaceId}/analysis-runs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      state.runId = run.analysis_run_id;
+      byId("poll-analysis").disabled = false;
+      show("analysis-result", `Queued: ${state.runId}`);
+      for (let attempt = 0; attempt < 120; attempt += 1) {
+        const current = await pollRun();
+        if (["succeeded", "failed"].includes(current.status)) return;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+      throw new Error("Analysis is still running; use Poll latest run now");
+    }));
+
+    byId("poll-analysis").addEventListener("click", (event) => act(event.currentTarget, pollRun));
+  </script>
+</body>
+</html>

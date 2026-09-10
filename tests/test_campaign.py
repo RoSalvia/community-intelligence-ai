@@ -106,9 +106,7 @@ def all_claims() -> list[ClaimRecord]:
 
 
 def selected_resources(*claim_ids: str) -> CampaignResource:
-    selected = tuple(
-        item for item in resources().claims if item.claim_id in set(claim_ids)
-    )
+    selected = tuple(item for item in resources().claims if item.claim_id in set(claim_ids))
     return CampaignResource(campaign_id="campaign_stake", claims=selected)
 
 
@@ -138,9 +136,7 @@ def status_messages(community_id: str = "community_a") -> list[MessageRecord]:
 
 
 def test_public_contract_emits_all_required_statuses_and_fields() -> None:
-    judgments = analyze_campaign(
-        campaign(), all_claims(), status_messages(), resources()
-    )
+    judgments = analyze_campaign(campaign(), all_claims(), status_messages(), resources())
     by_claim = {judgment.claim_id: judgment for judgment in judgments}
 
     assert set(get_args(CampaignJudgmentStatus)) == REQUIRED_STATUSES
@@ -166,12 +162,8 @@ def test_public_contract_emits_all_required_statuses_and_fields() -> None:
 
 def test_campaign_judgments_are_isolated_per_claim_and_community() -> None:
     target_claim = claim("c_incorrect")
-    community_a = message(
-        "a_correct", "奖励是 100 个代币。", community_id="community_a", seconds=1
-    )
-    community_b = message(
-        "b_wrong", "奖励是 50 个代币。", community_id="community_b", seconds=2
-    )
+    community_a = message("a_correct", "奖励是 100 个代币。", community_id="community_a", seconds=1)
+    community_b = message("b_wrong", "奖励是 50 个代币。", community_id="community_b", seconds=2)
     community_c_context = message(
         "c_context", "普通讨论，没有活动事实。", community_id="community_c", seconds=3
     )
@@ -196,9 +188,7 @@ def test_campaign_judgments_are_isolated_per_claim_and_community() -> None:
 
 
 def test_campaign_summary_has_explicit_formulas_and_denominators() -> None:
-    judgments = analyze_campaign(
-        campaign(), all_claims(), status_messages(), resources()
-    )
+    judgments = analyze_campaign(campaign(), all_claims(), status_messages(), resources())
 
     summary = summarize_campaign(
         judgments, expected_claim_ids=tuple(item.claim_id for item in all_claims())
@@ -324,9 +314,7 @@ def test_campaign_requires_exact_claim_resource_universe() -> None:
 
 def test_summary_rejects_partial_claim_universe_instead_of_false_one() -> None:
     expected_claim_ids = tuple(item.claim_id for item in all_claims())
-    complete = analyze_campaign(
-        campaign(), all_claims(), status_messages(), resources()
-    )
+    complete = analyze_campaign(campaign(), all_claims(), status_messages(), resources())
     partial = tuple(item for item in complete if item.claim_id == "c_covered")
 
     with pytest.raises(ValueError, match="complete expected claim universe"):
@@ -335,9 +323,7 @@ def test_summary_rejects_partial_claim_universe_instead_of_false_one() -> None:
 
 def test_campaign_result_containers_are_immutable() -> None:
     expected_claim_ids = tuple(item.claim_id for item in all_claims())
-    judgments = analyze_campaign(
-        campaign(), all_claims(), status_messages(), resources()
-    )
+    judgments = analyze_campaign(campaign(), all_claims(), status_messages(), resources())
     summaries = summarize_campaign(judgments, expected_claim_ids=expected_claim_ids)
 
     assert isinstance(judgments, tuple)

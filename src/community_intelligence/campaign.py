@@ -18,18 +18,14 @@ CampaignJudgmentStatus = Literal[
     "uncertain",
 ]
 
-SEMANTIC_COVERAGE_FORMULA = (
-    "(covered + 0.5 * partially_covered) / total_claims"
-)
+SEMANTIC_COVERAGE_FORMULA = "(covered + 0.5 * partially_covered) / total_claims"
 CLAIM_COMPLETENESS_FORMULA = "covered / total_claims"
 CAMPAIGN_SUMMARY_DENOMINATOR = "all atomic claims for the campaign in this community"
 BASELINE_LIMITATION = (
     "Deterministic curated phrase baseline; literal matching is not full semantic AI and "
     "requires human review."
 )
-CONFIDENCE_SEMANTICS = (
-    "deterministic curated evidence strength; not a correctness probability"
-)
+CONFIDENCE_SEMANTICS = "deterministic curated evidence strength; not a correctness probability"
 
 
 @dataclass(frozen=True)
@@ -149,9 +145,7 @@ def _claim_matches(
             _Match(
                 message=message,
                 status=status,
-                strength={"partially_covered": 0.6, "uncertain": 0.5}.get(
-                    status, 1.0
-                ),
+                strength={"partially_covered": 0.6, "uncertain": 0.5}.get(status, 1.0),
             )
             for status, length in matched_lengths.items()
             if length == longest_match and length > 0
@@ -225,9 +219,7 @@ def analyze_campaign(
 
     validated = validate_message_graph(messages)
     requested_communities = (
-        tuple(validated.community_ids)
-        if community_ids is None
-        else tuple(sorted(community_ids))
+        tuple(validated.community_ids) if community_ids is None else tuple(sorted(community_ids))
     )
     if len(requested_communities) != len(set(requested_communities)) or any(
         not community_id.strip() for community_id in requested_communities
@@ -254,9 +246,7 @@ def analyze_campaign(
                     campaign.campaign_id,
                     claim.claim_id,
                     community_id,
-                    _claim_matches(
-                        community_messages, resource_by_claim[claim.claim_id]
-                    ),
+                    _claim_matches(community_messages, resource_by_claim[claim.claim_id]),
                 )
             )
     return tuple(judgments)
@@ -270,8 +260,10 @@ def summarize_campaign(
     """Aggregate claim judgments using explicit formulas and denominators."""
 
     expected = tuple(expected_claim_ids)
-    if not expected or len(expected) != len(set(expected)) or any(
-        not claim_id.strip() for claim_id in expected
+    if (
+        not expected
+        or len(expected) != len(set(expected))
+        or any(not claim_id.strip() for claim_id in expected)
     ):
         raise ValueError("expected_claim_ids must be unique non-empty values")
     expected_set = set(expected)
@@ -296,14 +288,11 @@ def summarize_campaign(
                 campaign_id=campaign_id,
                 community_id=community_id,
                 total_claims=total_claims,
-                semantic_coverage=(
-                    counts["covered"] + 0.5 * counts["partially_covered"]
-                )
+                semantic_coverage=(counts["covered"] + 0.5 * counts["partially_covered"])
                 / total_claims,
                 claim_completeness=counts["covered"] / total_claims,
                 accuracy_warning_count=sum(
-                    counts[status]
-                    for status in ("contradicted", "incorrect", "uncertain")
+                    counts[status] for status in ("contradicted", "incorrect", "uncertain")
                 ),
                 semantic_drift_count=counts["contradicted"] + counts["incorrect"],
                 status_counts=tuple(sorted(counts.items())),

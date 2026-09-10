@@ -71,16 +71,11 @@ def _silent_scope_dataset(
     messages = [
         message
         for message in source.messages
-        if not (
-            message.campaign_id == campaign_id
-            and message.community_id == community_id
-        )
+        if not (message.campaign_id == campaign_id and message.community_id == community_id)
     ]
     message_ids = {message.message_id for message in messages}
     annotations = [
-        annotation
-        for annotation in source.annotations
-        if annotation.message_id in message_ids
+        annotation for annotation in source.annotations if annotation.message_id in message_ids
     ]
     generation_id, checksums = publication_metadata(
         source.manifest.dataset_id,
@@ -188,9 +183,7 @@ def _variant_dataset(
                 "message_count": len(selected_messages),
                 "community_ids": community_ids,
                 "languages": sorted({message.language for message in selected_messages}),
-                "campaign_ids": sorted(
-                    campaign.campaign_id for campaign in selected_campaigns
-                ),
+                "campaign_ids": sorted(campaign.campaign_id for campaign in selected_campaigns),
                 "scenarios": {
                     community_id: source.manifest.scenarios[community_id]
                     for community_id in community_ids
@@ -311,9 +304,7 @@ def test_pipeline_is_deterministic_evidence_linked_and_does_not_mutate_source(
         "activation": {"status": "available"},
         "campaign_intelligence": {"status": "available"},
         "community_analysis": {"status": "available"},
-        "general_multilingual_semantic_campaign_judgment": {
-            "status": "not_implemented"
-        },
+        "general_multilingual_semantic_campaign_judgment": {"status": "not_implemented"},
         "hygiene": {"status": "available"},
         "llm_behavior_interpretation": {"status": "not_implemented"},
         "outcome_validation": {"status": "available"},
@@ -365,9 +356,7 @@ def test_every_metric_record_has_auditable_evidence_with_specialized_routing(
     assert all(record["evidence_ids"] for record in records)
     for record in records:
         linked = [evidence_by_id[evidence_id] for evidence_id in record["evidence_ids"]]
-        assert all(
-            item["analysis_campaign_id"] == record["campaign_id"] for item in linked
-        )
+        assert all(item["analysis_campaign_id"] == record["campaign_id"] for item in linked)
         assert all(item["community_id"] == record["community_id"] for item in linked)
         assert sum(item["evidence_type"] == "analysis_scope" for item in linked) == 1
 
@@ -375,10 +364,7 @@ def test_every_metric_record_has_auditable_evidence_with_specialized_routing(
         record for record in records if record["metric_name"] == "campaign_discussion_share"
     ]
     for record in campaign_records:
-        methods = {
-            evidence_by_id[evidence_id]["method"]
-            for evidence_id in record["evidence_ids"]
-        }
+        methods = {evidence_by_id[evidence_id]["method"] for evidence_id in record["evidence_ids"]}
         assert methods == {
             "analysis_scope_v1",
             "source_message",
@@ -414,14 +400,8 @@ def test_every_metric_record_has_auditable_evidence_with_specialized_routing(
     for item in evidence:
         assert item["message_id"] is None or item["message_id"] in message_ids
         assert item["claim_id"] is None or item["claim_id"] in claim_ids
-        assert (
-            item["source_campaign_id"] is None
-            or item["source_campaign_id"] in campaign_ids
-        )
-        assert (
-            item["analysis_campaign_id"] is None
-            or item["analysis_campaign_id"] in campaign_ids
-        )
+        assert item["source_campaign_id"] is None or item["source_campaign_id"] in campaign_ids
+        assert item["analysis_campaign_id"] is None or item["analysis_campaign_id"] in campaign_ids
         assert item["community_id"] is None or item["community_id"] in community_ids
 
 
@@ -450,9 +430,7 @@ def test_silent_community_campaign_scope_is_audited_without_fabricated_message(
         "real_user_messages": 0,
     }
     observation = next(
-        item
-        for item in report["Metric Lab"]["observations"]
-        if item["observation_id"] == scope_id
+        item for item in report["Metric Lab"]["observations"] if item["observation_id"] == scope_id
     )
     assert observation["language"] == "no_observation"
     assert observation["language_scope"] == "no_observation"
@@ -487,9 +465,7 @@ def test_silent_community_campaign_scope_is_audited_without_fabricated_message(
 def test_uncertain_judgments_with_messages_do_not_create_false_no_message_evidence(
     tmp_path: Path,
 ) -> None:
-    report, evidence = _read_report(
-        run_pipeline(_dataset(tmp_path), tmp_path / "report")
-    )
+    report, evidence = _read_report(run_pipeline(_dataset(tmp_path), tmp_path / "report"))
     evidence_by_id = {item["evidence_id"]: item for item in evidence}
     uncertain = [
         judgment
@@ -502,8 +478,7 @@ def test_uncertain_judgments_with_messages_do_not_create_false_no_message_eviden
         assert len(linked) >= 2
         assert all(item["message_id"] is not None for item in linked)
         assert all(
-            item["method"] != "curated_alias_baseline:no_message_judgment"
-            for item in linked
+            item["method"] != "curated_alias_baseline:no_message_judgment" for item in linked
         )
 
 
@@ -520,10 +495,7 @@ def test_report_exposes_feedback_seed_evidence_without_faking_missing_capabiliti
         "FUD",
     }
     assert set(feedback["seed_counts"]) == available
-    assert all(
-        item["method_status"] == "Implemented"
-        for item in feedback["seed_counts"].values()
-    )
+    assert all(item["method_status"] == "Implemented" for item in feedback["seed_counts"].values())
     for item in feedback["seed_counts"].values():
         expected_status = "Observed" if item["count"] > 0 else "Not observed in this dataset"
         assert item["observation_status"] == expected_status
@@ -535,10 +507,7 @@ def test_report_exposes_feedback_seed_evidence_without_faking_missing_capabiliti
     }
     assert referenced <= {item["evidence_id"] for item in evidence}
     assert feedback["seed_capabilities"]["confusion"] == "Not implemented"
-    assert all(
-        feedback["seed_capabilities"][behavior] == "Implemented"
-        for behavior in available
-    )
+    assert all(feedback["seed_capabilities"][behavior] == "Implemented" for behavior in available)
     assert feedback["capabilities"] == {
         "concern_clustering": "Not implemented",
         "general_multilingual_sentiment": "Not implemented",
@@ -566,10 +535,7 @@ def test_synthetic_arabic_negative_feedback_is_observed_with_exact_source_eviden
     evidence_by_id = {record["evidence_id"]: record for record in evidence}
     linked = [evidence_by_id[evidence_id] for evidence_id in item["evidence_ids"]]
     assert all(record["message_id"] in messages for record in linked)
-    assert all(
-        record["source_text"] == messages[record["message_id"]].text
-        for record in linked
-    )
+    assert all(record["source_text"] == messages[record["message_id"]].text for record in linked)
     assert all(messages[record["message_id"]].language == "ar" for record in linked)
 
 
@@ -721,9 +687,7 @@ def test_pipeline_preserves_undefined_metric_rows(tmp_path: Path) -> None:
 def test_campaign_resource_rejects_changed_canonical_claim_content(tmp_path: Path) -> None:
     source = generate_dataset(message_count=120)
     claims = [
-        claim.model_copy(
-            update={"claim_text": "The reward is 200 synthetic tokens."}
-        )
+        claim.model_copy(update={"claim_text": "The reward is 200 synthetic tokens."})
         if claim.claim_id == "stake_reward"
         else claim
         for claim in source.claims
@@ -771,9 +735,7 @@ def test_organic_project_mention_uses_multilingual_rule_and_preserves_campaign_p
         for item in evidence
         if item["evidence_id"] in record["evidence_ids"]
     }
-    source_record = next(
-        item for item in linked.values() if item["message_id"] == "msg_organic_zh"
-    )
+    source_record = next(item for item in linked.values() if item["message_id"] == "msg_organic_zh")
     assert source_record["source_text"] == organic.text
     assert source_record["source_campaign_id"] is None
     assert source_record["analysis_campaign_id"] == "campaign_stake"
@@ -846,9 +808,7 @@ def test_campaign_language_scope_ignores_languages_outside_exact_window(
     tmp_path: Path,
 ) -> None:
     source = generate_dataset(message_count=120)
-    campaign = next(
-        item for item in source.campaigns if item.campaign_id == "campaign_stake"
-    )
+    campaign = next(item for item in source.campaigns if item.campaign_id == "campaign_stake")
     outside = MessageRecord(
         message_id="msg_zh_outside_stake_window",
         community_id="community_a",
@@ -884,9 +844,7 @@ def test_campaign_language_scope_reports_true_mixed_language_inside_exact_window
     tmp_path: Path,
 ) -> None:
     source = generate_dataset(message_count=120)
-    campaign = next(
-        item for item in source.campaigns if item.campaign_id == "campaign_stake"
-    )
+    campaign = next(item for item in source.campaigns if item.campaign_id == "campaign_stake")
     in_window = MessageRecord(
         message_id="msg_zh_inside_stake_window",
         community_id="community_a",
@@ -927,9 +885,7 @@ def test_pipeline_accepts_contract_valid_dataset_without_campaigns(
     tmp_path: Path,
 ) -> None:
     source = generate_dataset(message_count=120)
-    messages = [
-        message.model_copy(update={"campaign_id": None}) for message in source.messages
-    ]
+    messages = [message.model_copy(update={"campaign_id": None}) for message in source.messages]
     dataset = _variant_dataset(
         source,
         tmp_path / "dataset",

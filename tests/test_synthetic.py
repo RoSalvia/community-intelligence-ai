@@ -37,8 +37,7 @@ def _refresh_publication_metadata(output_dir: Path) -> None:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     payload_names = ARTIFACT_NAMES - {"manifest.json"}
     checksums = {
-        name: hashlib.sha256((output_dir / name).read_bytes()).hexdigest()
-        for name in payload_names
+        name: hashlib.sha256((output_dir / name).read_bytes()).hexdigest() for name in payload_names
     }
     generation_source = json.dumps(
         {
@@ -62,7 +61,7 @@ def _duplicate_first_json_key(path: Path, key: str) -> None:
         first_record = json.loads(text.splitlines()[0])
     else:
         first_record = json.loads(text)[0]
-    token = f'{json.dumps(key)}: {json.dumps(first_record[key], ensure_ascii=False)}'
+    token = f"{json.dumps(key)}: {json.dumps(first_record[key], ensure_ascii=False)}"
     path.write_text(text.replace(token, f"{token}, {token}", 1), encoding="utf-8")
 
 
@@ -141,9 +140,7 @@ def test_semantic_drift_questions_have_consistent_explicit_answers() -> None:
         "campaign_launch": "资格条件未变：所有社区成员均可提交反馈",
     }
     questions = [
-        message
-        for message in dataset.messages
-        if "资格条件是不是也发生了变化" in message.text
+        message for message in dataset.messages if "资格条件是不是也发生了变化" in message.text
     ]
 
     assert {question.campaign_id for question in questions} == set(expected_eligibility)
@@ -377,11 +374,7 @@ def test_failed_first_publication_removes_only_staging_directory(
     ) -> None:
         del parent_fd, expected_identity
         nonlocal injected
-        if (
-            not injected
-            and destination_name == output_dir.name
-            and ".staging-" in source_name
-        ):
+        if not injected and destination_name == output_dir.name and ".staging-" in source_name:
             injected = True
             raise OSError("injected publish failure")
         raise AssertionError("unexpected second publication attempt")

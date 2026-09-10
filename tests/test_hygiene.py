@@ -210,9 +210,7 @@ def test_hygiene_evidence_and_result_mappings_are_deeply_immutable() -> None:
         ({"burst_window_seconds": 0}, "burst_window_seconds"),
     ],
 )
-def test_hygiene_rejects_invalid_thresholds(
-    kwargs: dict[str, int], message_match: str
-) -> None:
+def test_hygiene_rejects_invalid_thresholds(kwargs: dict[str, int], message_match: str) -> None:
     with pytest.raises(ValueError, match=message_match):
         analyze_hygiene([], **kwargs)
 
@@ -225,6 +223,4 @@ def test_burst_detection_rejects_invalid_thresholds(
     minimum_messages: int, window_seconds: int, message_match: str
 ) -> None:
     with pytest.raises(ValueError, match=message_match):
-        detect_bursts(
-            [], minimum_messages=minimum_messages, window_seconds=window_seconds
-        )
+        detect_bursts([], minimum_messages=minimum_messages, window_seconds=window_seconds)

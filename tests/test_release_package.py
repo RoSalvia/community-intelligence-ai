@@ -12,10 +12,13 @@ def test_wheel_configuration_includes_the_built_web_product() -> None:
     assert project["project"]["version"] == "0.1.0a0"
     package_data = project["tool"]["setuptools"]["package-data"]
     assert package_data["community_intelligence.web"] == [
+        "internal_m1_review.html",
+        "internal_knowledge_review.html",
         "static/index.html",
         "static/assets/*",
     ]
 
+    assert (ROOT / "src/community_intelligence/web/internal_m1_review.html").is_file()
     static_dir = ROOT / "src" / "community_intelligence" / "web" / "static"
     assert (static_dir / "index.html").is_file()
     assert list((static_dir / "assets").glob("*.js"))

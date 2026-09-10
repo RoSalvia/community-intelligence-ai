@@ -1,0 +1,64 @@
+{
+  "name": "M1 Review CN Community (Synthetic)",
+  "type": "private_supergroup",
+  "id": 424242,
+  "messages": [
+    {
+      "id": 100,
+      "type": "message",
+      "date": "2026-09-10T02:00:00+00:00",
+      "from": "林晓（合成测试用户）",
+      "from_id": "synthetic_user_wallet_001",
+      "from_username": "demo_lin_wallet",
+      "text": "钱包连接后一直显示网络错误，今天有人遇到同样的问题吗？"
+    },
+    {
+      "id": 101,
+      "type": "message",
+      "date": "2026-09-10T02:03:00+00:00",
+      "from": "王禾（合成测试用户）",
+      "from_id": "synthetic_user_wallet_002",
+      "from_username": "demo_wang_wallet",
+      "reply_to_message_id": 100,
+      "text": "我也遇到了，切换网络后还是无法签名。"
+    },
+    {
+      "id": 102,
+      "type": "message",
+      "date": "2026-09-10T02:06:00+00:00",
+      "from": "陈宁（合成测试 Mod）",
+      "from_id": "synthetic_moderator_001",
+      "from_username": "demo_mod_chen",
+      "reply_to_message_id": 100,
+      "text": "收到，我们正在检查钱包连接服务。请先不要重复提交交易。"
+    },
+    {
+      "id": 103,
+      "type": "message",
+      "date": "2026-09-10T02:12:00+00:00",
+      "from": "周清（合成测试用户）",
+      "from_id": "synthetic_user_wallet_003",
+      "text": "移动端和浏览器插件都连不上，错误码是 W-21。"
+    },
+    {
+      "id": 104,
+      "type": "message",
+      "date": "2026-09-10T02:18:00+00:00",
+      "from": "陈宁（合成测试 Mod）",
+      "from_id": "synthetic_moderator_001",
+      "from_username": "demo_mod_chen",
+      "reply_to_message_id": 103,
+      "text": "已记录 W-21。团队确认服务异常，恢复后会在群内更新。"
+    },
+    {
+      "id": 105,
+      "type": "message",
+      "date": "2026-09-10T02:30:00+00:00",
+      "from": "林晓（合成测试用户）",
+      "from_id": "synthetic_user_wallet_001",
+      "from_username": "demo_lin_wallet",
+      "reply_to_message_id": 102,
+      "text": "明白，我先暂停操作，等待更新。"
+    }
+  ]
+}

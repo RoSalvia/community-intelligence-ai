@@ -16,9 +16,11 @@ dependencies = [
     "numpy>=2.1",
     "pandas>=2.2",
     "pydantic>=2.9",
+    "pypdf>=5.0",
     "python-multipart>=0.0.20",
     "scikit-learn>=1.5",
     "scipy>=1.14",
+    "sqlalchemy>=2.0",
     "uvicorn>=0.35",
 ]
 
@@ -44,6 +46,8 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "community_intelligence.web" = [
+    "internal_m1_review.html",
+    "internal_knowledge_review.html",
     "static/index.html",
     "static/assets/*",
 ]

@@ -159,9 +159,7 @@ def test_dataset_rejects_duplicate_record_identifiers(
 
 def test_dataset_rejects_duplicate_outcome_pairs_and_unknown_communities() -> None:
     duplicate_data = generate_dataset(seed=103, message_count=120).model_dump(mode="python")
-    duplicate_data["outcomes"][1]["community_id"] = duplicate_data["outcomes"][0][
-        "community_id"
-    ]
+    duplicate_data["outcomes"][1]["community_id"] = duplicate_data["outcomes"][0]["community_id"]
     duplicate_data["outcomes"][1]["campaign_id"] = duplicate_data["outcomes"][0]["campaign_id"]
 
     with pytest.raises(ValidationError, match="outcome community/campaign pairs must be unique"):

@@ -132,9 +132,7 @@ def test_prefetch_publishes_completed_verified_manifest_without_network(
         relative_path: hashlib.sha256(content).hexdigest()
         for relative_path, content in fake_contents.items()
     }
-    monkeypatch.setattr(
-        semantic_module, "PINNED_ARTIFACT_SHA256", MappingProxyType(fake_hashes)
-    )
+    monkeypatch.setattr(semantic_module, "PINNED_ARTIFACT_SHA256", MappingProxyType(fake_hashes))
     loader_calls: list[tuple[str, str, bool]] = []
 
     class SuccessfulModel:
@@ -157,8 +155,6 @@ def test_prefetch_publishes_completed_verified_manifest_without_network(
     manifest_path = destination / semantic_module.MANIFEST_FILENAME
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert result == destination.resolve()
-    assert loader_calls == [
-        (semantic_module.MODEL_ID, semantic_module.MODEL_REVISION, False)
-    ]
+    assert loader_calls == [(semantic_module.MODEL_ID, semantic_module.MODEL_REVISION, False)]
     assert manifest["files"] == fake_hashes
     assert manifest["provenance"]["flow_id"] == semantic_module.PREFETCH_FLOW_ID

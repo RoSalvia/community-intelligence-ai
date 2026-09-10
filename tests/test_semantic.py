@@ -70,9 +70,7 @@ def local_model_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         content = f"synthetic:{relative_path}".encode()
         artifact.write_bytes(content)
         fake_hashes[relative_path] = hashlib.sha256(content).hexdigest()
-    monkeypatch.setattr(
-        semantic_module, "PINNED_ARTIFACT_SHA256", MappingProxyType(fake_hashes)
-    )
+    monkeypatch.setattr(semantic_module, "PINNED_ARTIFACT_SHA256", MappingProxyType(fake_hashes))
     manifest = build_model_manifest(model_dir)
     (model_dir / MANIFEST_FILENAME).write_text(
         json.dumps(manifest, sort_keys=True) + "\n", encoding="utf-8"
@@ -261,8 +259,10 @@ def local_semantic_model() -> Path:
     if importlib.util.find_spec("sentence_transformers") is None:
         pytest.skip("semantic optional dependency is not installed")
     configured = os.environ.get("COMMUNITY_INTELLIGENCE_SEMANTIC_MODEL")
-    candidate = Path(configured) if configured else Path(
-        "data/generated/models/paraphrase-multilingual-MiniLM-L12-v2-e8f8c211"
+    candidate = (
+        Path(configured)
+        if configured
+        else Path("data/generated/models/paraphrase-multilingual-MiniLM-L12-v2-e8f8c211")
     )
     if not (candidate / MANIFEST_FILENAME).is_file():
         pytest.skip("prefetched verified semantic model is not available locally")

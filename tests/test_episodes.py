@@ -232,8 +232,7 @@ def test_clarification_chain_retains_candidate_evidence_for_each_question() -> N
     assert episode.resolved_question_count == 2
     assert episode.unanswered_question_count == 0
     assert tuple(
-        (item.question_id, item.candidate_answer_id)
-        for item in episode.candidate_answer_evidence
+        (item.question_id, item.candidate_answer_id) for item in episode.candidate_answer_evidence
     ) == (("m1", "m3"), ("m2", "m3"))
 
 

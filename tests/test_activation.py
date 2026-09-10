@@ -313,9 +313,7 @@ def test_empty_input_returns_zero_activation_with_documented_denominators() -> N
         ("zh", "收到"),
     ],
 )
-def test_activation_applies_language_equivalent_filler_rules(
-    language: str, text: str
-) -> None:
+def test_activation_applies_language_equivalent_filler_rules(language: str, text: str) -> None:
     result = analyze_activation(
         [
             message(

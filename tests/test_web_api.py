@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from community_intelligence.web.app import create_app
@@ -48,6 +49,24 @@ def test_health_and_built_frontend_are_available(tmp_path: Path) -> None:
     assert "Community Intelligence" in homepage.text
 
 
+def test_internal_m1_review_harness_is_explicitly_enabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("COMMUNITY_INTELLIGENCE_INTERNAL_REVIEW", raising=False)
+    hidden = TestClient(create_app(data_root=tmp_path / "hidden"))
+    visible = TestClient(create_app(data_root=tmp_path / "visible", internal_review=True))
+
+    assert hidden.get("/internal/m1-review").status_code == 404
+
+    response = visible.get("/internal/m1-review")
+    assert response.status_code == 200
+    assert "Internal M1 Review Harness" in response.text
+    assert 'action="/api/v1/' not in response.text
+    assert "/api/v1/workspaces" in response.text
+    assert "operator_label" in response.text
+
+
 def test_demo_creates_a_report_and_joinable_evidence(tmp_path: Path) -> None:
     data_root = tmp_path / "private-data"
     client = TestClient(create_app(data_root=data_root))
@@ -65,8 +84,8 @@ def test_demo_creates_a_report_and_joinable_evidence(tmp_path: Path) -> None:
     assert payload["report"]["Overview"]["community_count"] == 4
     assert data_root.stat().st_mode & 0o777 == 0o700
 
-    report = client.get(f'/api/analyses/{payload["analysis_id"]}')
-    evidence = client.get(f'/api/analyses/{payload["analysis_id"]}/evidence')
+    report = client.get(f"/api/analyses/{payload['analysis_id']}")
+    evidence = client.get(f"/api/analyses/{payload['analysis_id']}/evidence")
     assert report.status_code == 200
     assert report.json()["generation_id"] == payload["report"]["generation_id"]
     assert evidence.status_code == 200
@@ -87,12 +106,8 @@ def test_telegram_upload_runs_the_community_only_analysis(tmp_path: Path) -> Non
     payload = response.json()
     assert payload["summary"]["message_count"] == 2
     assert payload["report"]["data_status"] == "production"
-    assert payload["report"]["Overview"]["source"]["format"] == (
-        "telegram_desktop_json_v0.1"
-    )
-    assert payload["report"]["capabilities"]["campaign_intelligence"]["status"] == (
-        "not_available"
-    )
+    assert payload["report"]["Overview"]["source"]["format"] == ("telegram_desktop_json_v0.1")
+    assert payload["report"]["capabilities"]["campaign_intelligence"]["status"] == ("not_available")
 
     published = "".join(
         path.read_text(encoding="utf-8")

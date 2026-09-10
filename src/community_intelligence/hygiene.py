@@ -120,9 +120,7 @@ def detect_bursts(
         candidate_windows: list[set[int]] = []
         left = 0
         for right, current in enumerate(ordered):
-            while (
-                current.timestamp - ordered[left].timestamp
-            ).total_seconds() > window_seconds:
+            while (current.timestamp - ordered[left].timestamp).total_seconds() > window_seconds:
                 left += 1
             if right - left + 1 >= minimum_messages:
                 candidate_windows.append(set(range(left, right + 1)))

@@ -72,6 +72,21 @@ def _parser() -> argparse.ArgumentParser:
     serve = subparsers.add_parser("serve", help="open the local web product")
     serve.add_argument("--port", type=_port, default=8765)
     serve.add_argument("--no-open", action="store_true", help="do not open a browser")
+    serve.add_argument(
+        "--m1-review",
+        action="store_true",
+        help="enable the internal M1 product-review harness",
+    )
+    serve.add_argument(
+        "--knowledge-review",
+        action="store_true",
+        help="enable the internal M2 Knowledge product-review surface",
+    )
+    serve.add_argument(
+        "--semantic-model-dir",
+        type=Path,
+        help="verified local multilingual embedding model directory",
+    )
     return parser
 
 
@@ -109,30 +124,65 @@ def _demo(workspace: Path, *, seed: int, messages: int) -> dict[str, object]:
         cleanup_private_directory(staging, expected_inode=staging_inode)
 
 
-def _open_when_ready(url: str) -> None:
-    health_url = f"{url}api/health"
+def _open_when_ready(base_url: str, page_url: str) -> None:
+    health_url = f"{base_url}api/health"
     for _ in range(100):
         try:
             with urllib.request.urlopen(health_url, timeout=0.25) as response:
                 if response.status == 200:
-                    webbrowser.open(url)
+                    webbrowser.open(page_url)
                     return
         except (OSError, urllib.error.URLError):
             time.sleep(0.1)
 
 
-def _serve(*, port: int, open_browser: bool) -> None:
-    url = f"http://127.0.0.1:{port}/"
-    print(f"Community Intelligence is available at {url}")
+def _serve(
+    *,
+    port: int,
+    open_browser: bool,
+    m1_review: bool = False,
+    knowledge_review: bool = False,
+    semantic_model_dir: Path | None = None,
+) -> None:
+    base_url = f"http://127.0.0.1:{port}/"
+    if knowledge_review:
+        page_url = f"{base_url}internal/knowledge-review"
+    elif m1_review:
+        page_url = f"{base_url}internal/m1-review"
+    else:
+        page_url = base_url
+    review_variable = "COMMUNITY_INTELLIGENCE_INTERNAL_REVIEW"
+    previous_review_value = os.environ.get(review_variable)
+    semantic_variable = "COMMUNITY_INTELLIGENCE_SEMANTIC_MODEL_DIR"
+    previous_semantic_value = os.environ.get(semantic_variable)
+    if m1_review or knowledge_review:
+        os.environ[review_variable] = "1"
+    if semantic_model_dir:
+        os.environ[semantic_variable] = str(semantic_model_dir.expanduser().resolve())
+    print(f"Community Intelligence is available at {page_url}")
     if open_browser:
-        threading.Thread(target=_open_when_ready, args=(url,), daemon=True).start()
-    uvicorn.run(
-        "community_intelligence.web.app:create_app",
-        factory=True,
-        host="127.0.0.1",
-        port=port,
-        log_level="info",
-    )
+        threading.Thread(
+            target=_open_when_ready,
+            args=(base_url, page_url),
+            daemon=True,
+        ).start()
+    try:
+        uvicorn.run(
+            "community_intelligence.web.app:create_app",
+            factory=True,
+            host="127.0.0.1",
+            port=port,
+            log_level="info",
+        )
+    finally:
+        if (m1_review or knowledge_review) and previous_review_value is None:
+            os.environ.pop(review_variable, None)
+        elif m1_review or knowledge_review:
+            os.environ[review_variable] = previous_review_value
+        if semantic_model_dir and previous_semantic_value is None:
+            os.environ.pop(semantic_variable, None)
+        elif semantic_model_dir:
+            os.environ[semantic_variable] = previous_semantic_value
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -171,7 +221,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 0
         if args.command == "serve":
-            _serve(port=args.port, open_browser=not args.no_open)
+            _serve(
+                port=args.port,
+                open_browser=not args.no_open,
+                m1_review=args.m1_review,
+                knowledge_review=args.knowledge_review,
+                semantic_model_dir=args.semantic_model_dir,
+            )
             return 0
     except (OSError, ValueError) as error:
         message = str(error).splitlines()[0]

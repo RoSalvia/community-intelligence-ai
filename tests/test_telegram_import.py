@@ -99,39 +99,36 @@ def test_telegram_cli_import_then_analyze_produces_community_only_report(
     dataset_dir = tmp_path / "dataset"
     report_dir = tmp_path / "report"
 
-    assert main(
-        [
-            "import",
-            "telegram",
-            "--input",
-            str(source),
-            "--output",
-            str(dataset_dir),
-            "--language",
-            "en",
-        ]
-    ) == 0
+    assert (
+        main(
+            [
+                "import",
+                "telegram",
+                "--input",
+                str(source),
+                "--output",
+                str(dataset_dir),
+                "--language",
+                "en",
+            ]
+        )
+        == 0
+    )
     import_summary = json.loads(capsys.readouterr().out)
     assert import_summary["message_count"] == 2
     assert Path(import_summary["dataset_dir"]) == dataset_dir
     assert read_dataset(dataset_dir).manifest.languages == ["en"]
-    published = "".join(
-        path.read_text(encoding="utf-8") for path in sorted(dataset_dir.iterdir())
-    )
+    published = "".join(path.read_text(encoding="utf-8") for path in sorted(dataset_dir.iterdir()))
     assert "user123456" not in published
     assert "user999999" not in published
     assert "987654321" not in published
 
-    assert main(
-        ["analyze", "--input", str(dataset_dir), "--output", str(report_dir)]
-    ) == 0
+    assert main(["analyze", "--input", str(dataset_dir), "--output", str(report_dir)]) == 0
     capsys.readouterr()
     report = json.loads((report_dir / "report.json").read_text(encoding="utf-8"))
     assert report["Overview"]["message_count"] == 2
     assert report["Overview"]["source"]["format"] == "telegram_desktop_json_v0.1"
-    assert any(
-        "moderator roles" in item for item in report["Overview"]["source"]["limitations"]
-    )
+    assert any("moderator roles" in item for item in report["Overview"]["source"]["limitations"])
     assert report["capabilities"]["community_analysis"]["status"] == "available"
     assert report["capabilities"]["campaign_intelligence"] == {
         "status": "not_available",
@@ -157,9 +154,7 @@ def test_invalid_telegram_export_has_concise_error_without_partial_output(
     source.write_text(json.dumps(value), encoding="utf-8")
     output = tmp_path / "dataset"
 
-    result = main(
-        ["import", "telegram", "--input", str(source), "--output", str(output)]
-    )
+    result = main(["import", "telegram", "--input", str(source), "--output", str(output)])
 
     captured = capsys.readouterr()
     assert result == 1

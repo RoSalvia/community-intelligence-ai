@@ -35,9 +35,7 @@ def test_installed_console_command_exposes_help() -> None:
 
 def _no_campaign_dataset(tmp_path: Path) -> Path:
     source = generate_dataset(message_count=120)
-    messages = [
-        message.model_copy(update={"campaign_id": None}) for message in source.messages
-    ]
+    messages = [message.model_copy(update={"campaign_id": None}) for message in source.messages]
     contents = data_artifact_contents(messages, [], [], [], source.annotations)
     generation_id, checksums = publication_metadata(source.manifest.dataset_id, contents)
     dataset = SyntheticDataset(
@@ -128,6 +126,63 @@ def test_serve_cli_binds_loopback_and_can_skip_browser(
             },
         )
     ]
+
+
+def test_serve_cli_can_enable_internal_m1_review_harness(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import community_intelligence.cli as cli
+
+    monkeypatch.delenv("COMMUNITY_INTELLIGENCE_INTERNAL_REVIEW", raising=False)
+    enabled_during_server: list[str | None] = []
+
+    def capture_run(*args: object, **kwargs: object) -> None:
+        enabled_during_server.append(os.environ.get("COMMUNITY_INTELLIGENCE_INTERNAL_REVIEW"))
+
+    monkeypatch.setattr(cli.uvicorn, "run", capture_run)
+
+    result = main(["serve", "--m1-review", "--no-open"])
+
+    assert result == 0
+    assert enabled_during_server == ["1"]
+    assert "COMMUNITY_INTELLIGENCE_INTERNAL_REVIEW" not in os.environ
+    assert "http://127.0.0.1:8765/internal/m1-review" in capsys.readouterr().out
+
+
+def test_serve_cli_can_open_knowledge_review_with_local_semantic_model(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import community_intelligence.cli as cli
+
+    model_dir = tmp_path / "model"
+    model_dir.mkdir()
+    seen: list[tuple[str | None, str | None]] = []
+
+    def capture_run(*args: object, **kwargs: object) -> None:
+        seen.append(
+            (
+                os.environ.get("COMMUNITY_INTELLIGENCE_INTERNAL_REVIEW"),
+                os.environ.get("COMMUNITY_INTELLIGENCE_SEMANTIC_MODEL_DIR"),
+            )
+        )
+
+    monkeypatch.setattr(cli.uvicorn, "run", capture_run)
+    result = main(
+        [
+            "serve",
+            "--knowledge-review",
+            "--semantic-model-dir",
+            str(model_dir),
+            "--no-open",
+        ]
+    )
+
+    assert result == 0
+    assert seen == [("1", str(model_dir.resolve()))]
+    assert "http://127.0.0.1:8765/internal/knowledge-review" in capsys.readouterr().out
 
 
 def test_analyze_cli_rejects_existing_output(

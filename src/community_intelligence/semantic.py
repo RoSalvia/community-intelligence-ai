@@ -22,27 +22,17 @@ PINNED_ARTIFACT_SHA256 = MappingProxyType(
         "1_Pooling/config.json": (
             "4fef0a7e8c8ee36e74c0fad89bab60ade72324442d43f559ea219bb7c2580710"
         ),
-        "README.md": (
-            "1e98ea05b0de579fcaad3d625b62ea55647142ed674d5f5ebf1440e4bbbb6f23"
-        ),
-        "config.json": (
-            "bca510755ecfe5db7addd38b7c181176bb5b5fc3e8493897f1c5a25fb430f2e6"
-        ),
+        "README.md": ("1e98ea05b0de579fcaad3d625b62ea55647142ed674d5f5ebf1440e4bbbb6f23"),
+        "config.json": ("bca510755ecfe5db7addd38b7c181176bb5b5fc3e8493897f1c5a25fb430f2e6"),
         "config_sentence_transformers.json": (
             "d05a05d11f53531f9313483f14112b6849e90a039c4c37e734bfb73579f72512"
         ),
-        "model.safetensors": (
-            "7f4f89d628f87ade0e0b57c40affb6402cd77abc8110584d8d35dc86da514ee8"
-        ),
-        "modules.json": (
-            "e4068aab8a95663636c4c28044a95eafdb6492387397ec8283d8f8b31078d645"
-        ),
+        "model.safetensors": ("7f4f89d628f87ade0e0b57c40affb6402cd77abc8110584d8d35dc86da514ee8"),
+        "modules.json": ("e4068aab8a95663636c4c28044a95eafdb6492387397ec8283d8f8b31078d645"),
         "sentence_bert_config.json": (
             "3084164002c0bca01b0259c5327123803fce32e660a57feb93184ffead186fc8"
         ),
-        "tokenizer.json": (
-            "cad551d5600a84242d0973327029452a1e3672ba6313c2a3c3d69c4310e12719"
-        ),
+        "tokenizer.json": ("cad551d5600a84242d0973327029452a1e3672ba6313c2a3c3d69c4310e12719"),
         "tokenizer_config.json": (
             "52202d0e04ff99028314e47c17f34b434d464d5329439874caedaefa9408e047"
         ),
@@ -81,8 +71,7 @@ def build_model_manifest(model_dir: str | Path) -> dict[str, object]:
     if not files:
         raise ValueError("model directory contains no artifacts")
     if any(
-        Path(relative_path).suffix.casefold() in _UNSAFE_WEIGHT_SUFFIXES
-        for relative_path in files
+        Path(relative_path).suffix.casefold() in _UNSAFE_WEIGHT_SUFFIXES for relative_path in files
     ):
         raise ValueError("model directory contains unsafe serialized weights")
     if "model.safetensors" not in files:

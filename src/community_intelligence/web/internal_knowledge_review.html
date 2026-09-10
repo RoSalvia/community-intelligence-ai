@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>M2 Knowledge Review</title>
+  <style>
+    :root { color-scheme: light; font: 15px/1.45 system-ui,sans-serif; background:#f5f6f8; color:#172033 }
+    body { max-width:1180px; margin:24px auto; padding:0 16px 48px }
+    h1 { margin-bottom:4px } h2 { font-size:18px; margin:0 0 12px }
+    .muted { color:#667085 } .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px }
+    section { background:white; border:1px solid #dfe3ea; border-radius:10px; padding:16px; margin-top:16px }
+    label { display:block; font-size:12px; color:#475467; margin:8px 0 3px }
+    input,select,textarea,button { box-sizing:border-box; width:100%; padding:8px; border:1px solid #c9cfda; border-radius:6px; font:inherit }
+    textarea { min-height:120px } button { background:#2457d6; color:white; border:0; cursor:pointer; margin-top:12px }
+    button.secondary { background:#eef2ff; color:#2346a0 }
+    pre { white-space:pre-wrap; word-break:break-word; background:#f8fafc; padding:10px; border-radius:6px; max-height:420px; overflow:auto }
+    .row { display:grid; grid-template-columns:1fr 1fr; gap:10px }
+    .card { border:1px solid #e4e7ec; border-radius:7px; padding:10px; margin:8px 0 }
+    .status { display:inline-block; padding:3px 8px; border-radius:12px; background:#eef2ff; font-weight:650 }
+    a { color:#2457d6 } @media(max-width:800px){.grid,.row{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <h1>M2 Project Knowledge Review</h1>
+  <div class="muted">Internal review surface · 原始资料本地保存；显式配置答案模型时，仅发送问题与有限 Evidence snippets，不发送整库。页面直接调用 /api/v1/*。</div>
+
+  <section>
+    <h2>1. Workspace</h2>
+    <div class="row"><select id="workspace"></select><input id="newWorkspace" placeholder="新 Workspace 名称"></div>
+    <button class="secondary" onclick="createWorkspace()">创建并选择 Workspace</button>
+  </section>
+
+  <div class="grid">
+    <section>
+      <h2>2. Add Source</h2>
+      <label>Existing source_id（留空为新 source；填写后创建 revision）</label><input id="existingSource" placeholder="ks_…">
+      <div class="row"><div><label>Title</label><input id="title" value="Wallet Recovery FAQ"></div><div><label>Language</label><select id="language"><option>en</option><option>zh</option><option>es</option></select></div></div>
+      <div class="row"><div><label>Source type</label><select id="sourceType"></select></div><div><label>Source channel</label><select id="sourceChannel"></select></div></div>
+      <label>Canonical URL</label><input id="url" value="https://example.org/official/wallet-faq">
+      <div class="row"><div><label>Published at (offset required)</label><input id="published" value="2026-09-01T10:00:00Z"></div><div><label>Effective from</label><input id="effective" value="2026-09-01T10:00:00Z"></div></div>
+      <div class="row"><div><label>Effective until (optional)</label><input id="until" placeholder="2026-10-01T00:00:00Z"></div><div><label>Status</label><select id="sourceStatus"><option>current</option><option>historical</option><option>expired</option><option>superseded</option><option>draft</option><option>unknown</option></select></div></div>
+      <div class="row"><div><label>Authority</label><input id="authority" value="official"></div><div><label>Official status</label><input id="official" value="verified_official"></div></div>
+      <label>Content (Manual Official Web Source)</label><textarea id="content"># Wallet Recovery
+
+Q: How can a user recover wallet access?
+
+A: The official recovery process uses the recovery phrase offline. Staff will never ask for the phrase.</textarea>
+      <label>或上传 .md / .txt / text-based .pdf</label><input id="file" type="file" accept=".md,.txt,.pdf">
+      <details><summary>Optional semantic tags（不再自动决定 conflict）</summary><div class="row"><input id="factKey" placeholder="fact_key"><input id="factValue" placeholder="fact_value"></div></details>
+      <button onclick="addSource()">Add Source</button>
+      <pre id="addResult">Ready.</pre>
+    </section>
+
+    <section>
+      <h2>3. Sources / Metadata / Index</h2>
+      <button class="secondary" onclick="loadSources()">Refresh</button>
+      <div id="sources"></div>
+      <pre id="sourceDetail">点击 source 查看 metadata、revision 和 processing provenance。</pre>
+      <div id="revisionActions"></div>
+    </section>
+  </div>
+
+  <section>
+    <h2>4. Historical Query → Status → Citation</h2>
+    <div class="row"><input id="query" value="How can a user recover wallet access?"><input id="asOf" placeholder="optional as_of_time, e.g. 2026-09-05T12:00:00Z"></div>
+    <button onclick="runQuery()">Run Knowledge Query</button>
+    <div id="queryStatus"></div><div id="citations"></div><pre id="queryRaw">Ready.</pre>
+  </section>
+
+<script>
+const types=['whitepaper','product_docs','faq','official_announcement','official_blog','release_notes','changelog','governance_proposal','maintenance_notice','campaign_rules','community_rules','manual_official_note'];
+const channels=['docs','website','medium','x','telegram_announcement','github','governance','manual'];
+sourceType.innerHTML=types.map(x=>`<option>${x}</option>`).join(''); sourceType.value='faq';
+sourceChannel.innerHTML=channels.map(x=>`<option>${x}</option>`).join('');
+function ws(){return workspace.value} function esc(x){return String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+async function api(path,options={}){const r=await fetch(path,options);const body=await r.json().catch(()=>({detail:r.statusText}));if(!r.ok)throw new Error(body.detail||JSON.stringify(body));return body}
+async function loadWorkspaces(){const rows=await api('/api/v1/workspaces');workspace.innerHTML=rows.items.map(x=>`<option value="${x.workspace_id}">${esc(x.project_name)}</option>`).join('');if(rows.items.length)loadSources()}
+async function createWorkspace(){try{const item=await api('/api/v1/workspaces',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project_name:newWorkspace.value||'M2 Review Workspace'})});await loadWorkspaces();workspace.value=item.workspace_id;loadSources()}catch(e){alert(e.message)}}
+function payload(){const tags={};if(factKey.value&&factValue.value){tags.fact_key=factKey.value;tags.fact_value=factValue.value}return {title:title.value,source_type:sourceType.value,source_channel:sourceChannel.value,content:content.value,canonical_url:url.value||null,language:language.value,project_scope:'project',authority_level:authority.value,official_status:official.value,verification_method:'human-confirmed during product review',published_at:published.value,effective_from:effective.value,effective_until:until.value||null,source_timezone:'UTC',status:sourceStatus.value,metadata_provenance:{source_type:'human-confirmed',authority_level:'human-confirmed',official_status:'human-confirmed',published_at:'source-provided',validity:'human-confirmed'},semantic_tags:tags}}
+async function addSource(){try{if(!ws())throw new Error('请先创建 Workspace');let result;const revision=existingSource.value.trim();if(file.files[0]){const p=payload();delete p.content;const form=new FormData();form.append('metadata_json',JSON.stringify(p));form.append('file',file.files[0]);const path=revision?`/api/v1/knowledge-sources/${revision}/revisions/files`:`/api/v1/workspaces/${ws()}/knowledge-sources/files`;result=await api(path,{method:'POST',body:form})}else{const path=revision?`/api/v1/knowledge-sources/${revision}/revisions/manual`:`/api/v1/workspaces/${ws()}/knowledge-sources/manual`;result=await api(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload())})}addResult.textContent=JSON.stringify(result,null,2);await loadSources()}catch(e){addResult.textContent='Error: '+e.message}}
+async function loadSources(){if(!ws())return;sources.innerHTML='Loading…';try{const r=await api(`/api/v1/workspaces/${ws()}/knowledge-sources`);sources.innerHTML=r.items.map(x=>`<div class="card"><b>${esc(x.title)}</b><br><span class="muted">${x.source_type} · ${x.source_channel} · ${x.language}</span><button class="secondary" onclick="openSource('${x.source_id}')">Open metadata</button></div>`).join('')||'<div class="muted">No sources yet.</div>'}catch(e){sources.textContent=e.message}}
+async function openSource(id){try{const s=await api(`/api/v1/knowledge-sources/${id}`);sourceDetail.textContent=JSON.stringify(s,null,2);revisionActions.innerHTML=s.revisions.map(r=>`<button class="secondary" onclick="reindex('${r.revision_id}','${id}')">Reindex revision ${r.version}（保留原文与 ID）</button>`).join('')}catch(e){sourceDetail.textContent=e.message}}
+async function reindex(id,source){try{revisionActions.textContent='Reindexing…';await api(`/api/v1/knowledge-revisions/${id}/reindex`,{method:'POST'});await openSource(source)}catch(e){revisionActions.textContent=e.message}}
+async function runQuery(){try{queryStatus.textContent='Retrieving and assessing bounded evidence…';const body={query:query.value};if(asOf.value)body.as_of_time=asOf.value;const r=await api(`/api/v1/workspaces/${ws()}/knowledge-query`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});queryStatus.innerHTML=`<p><span class="status">${esc(r.answer_status)}</span> ${esc(r.answer||'')}</p><p>${esc((r.limitations||[]).join(' '))}</p><b>Material facts / coverage</b>${(r.answerability?.requirements||[]).map(f=>`<p>${esc(f.status)} — ${esc(f.fact_needed)}</p>`).join('')}<p>Assessment: ${esc(r.answerability?.status)} · Quote validation: ${esc(r.grounding?.status)}</p>${(r.claims||[]).map(c=>`<div class="card">${esc(c.text)}${c.evidence.map(e=>`<blockquote>${esc(e.quote)}</blockquote><button class="secondary" onclick="openChunk('${esc(e.chunk_id)}')">Open supporting chunk</button>`).join('')}</div>`).join('')}`;citations.innerHTML=r.citations.map((c,i)=>`<div class="card"><b>Retrieved ${i+1}: ${esc(c.title)}</b><br>${esc(c.text)}<br><span class="muted">${esc(c.source_type)} · ${esc(c.temporal_state)} · ${esc(c.published_at)}</span><button class="secondary" onclick="openChunk('${c.chunk_id}')">Open source / revision / chunk provenance</button>${c.canonical_url?` <a href="${esc(c.canonical_url)}" target="_blank" rel="noreferrer">Open original URL</a>`:''}<details><summary>Bounded neighbor context</summary>${c.context.map(n=>`<p>${esc(n.section)} — ${esc(n.text)}</p>`).join('')}</details></div>`).join('');queryRaw.textContent=JSON.stringify(r,null,2)}catch(e){queryStatus.textContent='Assessment unavailable';queryRaw.textContent='Error: '+e.message}}
+async function openChunk(id){try{sourceDetail.textContent=JSON.stringify(await api(`/api/v1/knowledge-chunks/${id}`),null,2);sourceDetail.scrollIntoView({behavior:'smooth'})}catch(e){alert(e.message)}}
+workspace.addEventListener('change',loadSources);loadWorkspaces();
+</script>
+</body></html>

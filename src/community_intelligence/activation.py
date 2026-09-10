@@ -88,9 +88,7 @@ def analyze_activation(messages: list[MessageRecord]) -> ActivationResult:
     ordered = validated.messages
     message_by_id = validated.message_by_id
     user_messages = tuple(message for message in ordered if message.user_role == "user")
-    moderator_messages = tuple(
-        message for message in ordered if message.user_role == "moderator"
-    )
+    moderator_messages = tuple(message for message in ordered if message.user_role == "moderator")
     evidence: list[ActivationEvidence] = []
 
     meaningful_ids: list[str] = []
@@ -170,8 +168,7 @@ def analyze_activation(messages: list[MessageRecord]) -> ActivationResult:
     ]
     first_responses.sort(key=lambda pair: (pair[0].timestamp, pair[0].message_id))
     latencies = tuple(
-        (child.timestamp - parent.timestamp).total_seconds()
-        for parent, child in first_responses
+        (child.timestamp - parent.timestamp).total_seconds() for parent, child in first_responses
     )
     evidence.extend(
         ActivationEvidence(
@@ -219,8 +216,7 @@ def analyze_activation(messages: list[MessageRecord]) -> ActivationResult:
             aggregation_method="ratio",
             unit="ratio",
             inclusion_rules=(
-                "language-specific filler and minimum-length rules; no cross-language "
-                "quality claim"
+                "language-specific filler and minimum-length rules; no cross-language quality claim"
             ),
         ),
         "response_latency_seconds": MetricMetadata(

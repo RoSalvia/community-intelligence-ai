@@ -14,9 +14,7 @@ from community_intelligence.models import MessageRecord
 
 MEANINGFUL_RULE_ID = "language_filler_or_min_length_v1"
 MEANINGFUL_RULE_VERSION = "1.0.0"
-COMPARISON_LIMIT = (
-    "language-specific deterministic baseline; no cross-language quality claim"
-)
+COMPARISON_LIMIT = "language-specific deterministic baseline; no cross-language quality claim"
 
 _LANGUAGE_FILLERS = MappingProxyType(
     {
@@ -118,9 +116,7 @@ def validate_message_graph(messages: list[MessageRecord]) -> ValidatedMessageGra
             continue
         parent = message_by_id.get(parent_id)
         if parent is None:
-            raise ValueError(
-                f"reply parent must exist: {child.message_id} -> {parent_id}"
-            )
+            raise ValueError(f"reply parent must exist: {child.message_id} -> {parent_id}")
         if child.community_id != parent.community_id:
             raise ValueError("replies must remain within a community")
         if (

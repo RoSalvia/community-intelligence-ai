@@ -1,0 +1,28 @@
+{
+  "dataset_version": "generic-knowledge-fixtures-v1",
+  "sources": [
+    {"key":"legacy_whitepaper","file":"whitepaper_legacy_en.md","title":"Legacy Bridge Whitepaper","source_type":"whitepaper","source_channel":"website","language":"en","published_at":"2024-01-01T09:00:00Z","effective_from":"2024-01-01T09:00:00Z","effective_until":"2026-01-01T00:00:00Z","status":"historical","semantic_tags":{"fact_key":"bridge_finality","fact_value":"12 blocks"}},
+    {"key":"current_docs","file":"docs_current_en.md","title":"Current Product Docs","source_type":"product_docs","source_channel":"docs","language":"en","published_at":"2026-01-01T00:00:00Z","effective_from":"2026-01-01T00:00:00Z","status":"current","semantic_tags":{"fact_key":"bridge_finality","fact_value":"8 blocks"}},
+    {"key":"faq_zh","file":"faq_zh.md","title":"钱包官方 FAQ","source_type":"faq","source_channel":"docs","language":"zh","published_at":"2026-02-01T08:00:00+08:00","effective_from":"2026-02-01T08:00:00+08:00","status":"current"},
+    {"key":"faq_es","file":"faq_es.md","title":"FAQ oficial","source_type":"faq","source_channel":"docs","language":"es","published_at":"2026-02-01T09:00:00+01:00","effective_from":"2026-02-01T09:00:00+01:00","status":"current"},
+    {"key":"maintenance_a","file":"maintenance_a_en.md","title":"Maintenance Notice A","source_type":"maintenance_notice","source_channel":"telegram_announcement","language":"en","published_at":"2026-09-09T08:00:00Z","effective_from":"2026-09-09T08:00:00Z","status":"current","semantic_tags":{"fact_key":"maintenance_start","fact_value":"10:00 UTC"}},
+    {"key":"maintenance_b","file":"maintenance_b_en.md","title":"Maintenance Notice B","source_type":"official_announcement","source_channel":"website","language":"en","published_at":"2026-09-09T08:05:00Z","effective_from":"2026-09-09T08:05:00Z","status":"current","semantic_tags":{"fact_key":"maintenance_start","fact_value":"11:00 UTC"}},
+    {"key":"blog_es","file":"blog_es.md","title":"Blog oficial de gobernanza","source_type":"official_blog","source_channel":"medium","language":"es","published_at":"2026-03-01T12:00:00+01:00","effective_from":"2026-03-01T12:00:00+01:00","status":"current"},
+    {"key":"release_notes","file":"release_notes_en.md","title":"Release Notes","source_type":"release_notes","source_channel":"github","language":"en","published_at":"2026-08-20T16:30:00Z","effective_from":"2026-08-20T16:30:00Z","status":"current"},
+    {"key":"untrusted_note","file":"untrusted_note_en.txt","title":"Manual Security Note","source_type":"manual_official_note","source_channel":"manual","language":"en","published_at":"2026-06-01T14:00:00Z","effective_from":"2026-06-01T14:00:00Z","status":"current"}
+  ],
+  "golden_queries": [
+    {"id":"current_finality","query":"How many blocks make a bridge transfer final?","as_of_time":"2026-09-10T12:00:00Z","expected_sources":["current_docs"],"expected_sections":["Bridge finality"],"expected_status":"grounded","language":"en"},
+    {"id":"historical_finality","query":"How many blocks made a bridge transfer final?","as_of_time":"2025-06-01T12:00:00Z","expected_sources":["legacy_whitepaper"],"expected_sections":["Bridge Design"],"expected_status":"grounded","language":"en"},
+    {"id":"wallet_zh","query":"钱包登录不了，官方恢复方式是什么？","as_of_time":"2026-09-10T12:00:00Z","expected_sources":["faq_zh"],"expected_sections":["钱包常见问题"],"expected_status":"grounded","language":"zh"},
+    {"id":"staking_es","query":"¿Dónde puedo activar el staking?","as_of_time":"2026-09-10T12:00:00Z","expected_sources":["faq_es"],"expected_sections":["Preguntas frecuentes"],"expected_status":"grounded","language":"es"},
+    {"id":"cross_language_wallet","query":"What is the official way to recover wallet access?","as_of_time":"2026-09-10T12:00:00Z","expected_sources":["faq_zh"],"expected_sections":["钱包常见问题"],"expected_status":"grounded","language":"cross"},
+    {"id":"maintenance_conflict","query":"When does scheduled maintenance start?","as_of_time":"2026-09-10T12:00:00Z","expected_sources":["maintenance_a","maintenance_b"],"expected_sections":["Scheduled maintenance","Scheduled maintenance correction"],"expected_status":"conflict","language":"en"},
+    {"id":"legacy_batch_outdated","query":"What was the legacy bridge interval of fifteen minutes?","as_of_time":"2026-09-10T12:00:00Z","expected_sources":["legacy_whitepaper"],"expected_sections":["Bridge Design"],"expected_status":"outdated_only","language":"en"},
+    {"id":"staking_rate_missing","query":"What guaranteed staking reward percentage is paid?","as_of_time":"2026-09-10T12:00:00Z","expected_sources":["current_docs"],"expected_sections":["Staking"],"expected_status":"insufficient_evidence","language":"en"},
+    {"id":"no_source","query":"Who painted the Mona Lisa?","as_of_time":"2026-09-10T12:00:00Z","expected_sources":[],"expected_sections":[],"expected_status":"no_authoritative_source","language":"en"},
+    {"id":"release_fix","query":"Which release fixed duplicate transaction notifications?","as_of_time":"2026-09-10T12:00:00Z","expected_sources":["release_notes"],"expected_sections":["Version 2.4.0"],"expected_status":"grounded","language":"en"},
+    {"id":"governance_es","query":"¿Cuánto tiempo permanece abierta una votación?","as_of_time":"2026-09-10T12:00:00Z","expected_sources":["blog_es"],"expected_sections":["Proceso de gobernanza"],"expected_status":"grounded","language":"es"},
+    {"id":"injection_is_data","query":"Do project staff request a recovery phrase?","as_of_time":"2026-09-10T12:00:00Z","expected_sources":["untrusted_note"],"expected_sections":[null],"expected_status":"grounded","language":"en"}
+  ]
+}

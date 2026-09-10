@@ -71,12 +71,14 @@ def _digest(prefix: str, value: object, *, length: int | None = None) -> str:
     return f"{prefix}{digest if length is None else digest[:length]}"
 
 
-def import_telegram_export(
+def import_telegram_export_with_identities(
     input_path: str | Path,
     *,
     language: str = "und",
-) -> CommunityDataset:
-    """Parse one Telegram Desktop result.json without retaining raw account IDs."""
+    community_id: str | None = None,
+    user_hash_salt: str | None = None,
+) -> tuple[CommunityDataset, list[dict[str, str | None]], dict[str, str]]:
+    """Parse messages plus local-only operator identities and stable reply targets."""
 
     source = Path(input_path).expanduser().resolve()
     if not source.is_file():
@@ -101,8 +103,10 @@ def import_telegram_export(
         "type": value.get("type"),
         "source_sha256": source_sha256,
     }
-    community_id = _digest("community_tg_", community_identity, length=16)
+    community_id = community_id or _digest("community_tg_", community_identity, length=16)
     candidates: list[dict[str, Any]] = []
+    identities: dict[str, dict[str, str | None]] = {}
+    reply_targets: dict[str, str] = {}
     skipped_service = 0
     skipped_textless = 0
     for position, raw_record in enumerate(records):
@@ -124,20 +128,50 @@ def import_telegram_export(
             or raw_record.get("from")
             or f"unknown-sender:{raw_message_id}"
         )
+        user_id_hash = _digest(
+            "usr_",
+            {
+                "community": community_id,
+                "sender": str(sender),
+                **({"salt": user_hash_salt} if user_hash_salt is not None else {}),
+            },
+        )
+        display_value = raw_record.get("from")
+        display_name = (
+            display_value.strip()[:200]
+            if isinstance(display_value, str) and display_value.strip()
+            else None
+        )
+        handle_value = raw_record.get("from_username") or raw_record.get("username")
+        platform_handle = (
+            f"@{handle_value.strip().lstrip('@')[:64]}"
+            if isinstance(handle_value, str) and handle_value.strip().lstrip("@")
+            else None
+        )
+        previous_identity = identities.get(user_id_hash, {})
+        identities[user_id_hash] = {
+            "user_id_hash": user_id_hash,
+            "display_name": display_name or previous_identity.get("display_name"),
+            "platform_handle": platform_handle or previous_identity.get("platform_handle"),
+            "pseudonym": f"User {user_id_hash.removeprefix('usr_')[:4].upper()}",
+        }
+        message_id = _digest(
+            "tg_", {"community": community_id, "message": raw_message_id}, length=24
+        )
+        raw_reply_value = raw_record.get("reply_to_message_id")
+        raw_reply_id = str(raw_reply_value) if raw_reply_value is not None else None
+        if raw_reply_id is not None:
+            reply_targets[message_id] = _digest(
+                "tg_",
+                {"community": community_id, "message": raw_reply_value},
+                length=24,
+            )
         candidates.append(
             {
                 "raw_id": str(raw_message_id),
-                "raw_reply_id": (
-                    str(raw_record["reply_to_message_id"])
-                    if raw_record.get("reply_to_message_id") is not None
-                    else None
-                ),
-                "message_id": _digest(
-                    "tg_", {"community": community_id, "message": raw_message_id}, length=24
-                ),
-                "user_id_hash": _digest(
-                    "usr_", {"community": community_id, "sender": str(sender)}
-                ),
+                "raw_reply_id": raw_reply_id,
+                "message_id": message_id,
+                "user_id_hash": user_id_hash,
                 "timestamp": _timestamp(raw_record),
                 "text": text,
             }
@@ -208,11 +242,33 @@ def import_telegram_export(
         source_sha256=source_sha256,
         limitations=limitations,
     )
-    return CommunityDataset(
-        messages=messages,
-        campaigns=[],
-        claims=[],
-        outcomes=[],
-        annotations=[],
-        manifest=manifest,
+    return (
+        CommunityDataset(
+            messages=messages,
+            campaigns=[],
+            claims=[],
+            outcomes=[],
+            annotations=[],
+            manifest=manifest,
+        ),
+        list(identities.values()),
+        reply_targets,
     )
+
+
+def import_telegram_export(
+    input_path: str | Path,
+    *,
+    language: str = "und",
+    community_id: str | None = None,
+    user_hash_salt: str | None = None,
+) -> CommunityDataset:
+    """Compatibility API that excludes local-only operator identity metadata."""
+
+    dataset, _, _ = import_telegram_export_with_identities(
+        input_path,
+        language=language,
+        community_id=community_id,
+        user_hash_salt=user_hash_salt,
+    )
+    return dataset

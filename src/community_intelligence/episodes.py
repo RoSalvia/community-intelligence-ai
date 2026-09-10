@@ -150,9 +150,7 @@ def _episode_from_nodes(
     ordered = sorted((message_by_id[node] for node in nodes), key=_message_key)
     message_ids = tuple(message.message_id for message in ordered)
 
-    human_participants = {
-        message.user_id_hash for message in ordered if message.user_role != "bot"
-    }
+    human_participants = {message.user_id_hash for message in ordered if message.user_role != "bot"}
     moderator_messages = sum(message.user_role == "moderator" for message in ordered)
     user_messages = sum(message.user_role == "user" for message in ordered)
     user_to_user_replies = 0
@@ -256,8 +254,7 @@ def build_episodes(messages: list[MessageRecord]) -> list[ConversationEpisode]:
     graph = nx.DiGraph()
     graph.add_nodes_from(message_by_id)
     graph.add_edges_from(
-        (parent_id, child_id)
-        for child_id, parent_id in validated.parent_by_child.items()
+        (parent_id, child_id) for child_id, parent_id in validated.parent_by_child.items()
     )
 
     episodes = [

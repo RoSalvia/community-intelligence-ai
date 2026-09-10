@@ -166,9 +166,7 @@ def _raise_rename_error(error_number: int, destination_name: str) -> None:
     raise OSError(error_number, os.strerror(error_number), destination_name)
 
 
-def _rename_directory_no_replace(
-    parent_fd: int, source_name: str, destination_name: str
-) -> None:
+def _rename_directory_no_replace(parent_fd: int, source_name: str, destination_name: str) -> None:
     """Rename sibling directories atomically without replacing any destination."""
 
     libc = ctypes.CDLL(None, use_errno=True)
@@ -351,11 +349,7 @@ def seal_staging_directory(staging_dir: str | Path) -> DirectoryPublicationIdent
             marker_name = f".community-intelligence-owner-{secrets.token_hex(16)}"
             marker_fd = os.open(
                 marker_name,
-                os.O_WRONLY
-                | os.O_CREAT
-                | os.O_EXCL
-                | getattr(os, "O_CLOEXEC", 0)
-                | _NOFOLLOW,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_CLOEXEC", 0) | _NOFOLLOW,
                 0o600,
                 dir_fd=directory_fd,
             )
@@ -632,8 +626,10 @@ def cleanup_private_directory(
             current = os.stat(absolute.name, dir_fd=parent_fd, follow_symlinks=False)
         except FileNotFoundError:
             return None
-        if not stat.S_ISDIR(current.st_mode) or current.st_ino != expected_inode or (
-            expected_device is not None and current.st_dev != expected_device
+        if (
+            not stat.S_ISDIR(current.st_mode)
+            or current.st_ino != expected_inode
+            or (expected_device is not None and current.st_dev != expected_device)
         ):
             return absolute
         quarantine = _move_to_quarantine(
@@ -721,11 +717,7 @@ def _strict_json_loads(content: str, source_name: str) -> Any:
 
 
 def _read_jsonl(content: str, source_name: str) -> list[dict[str, Any]]:
-    return [
-        _strict_json_loads(line, source_name)
-        for line in content.splitlines()
-        if line
-    ]
+    return [_strict_json_loads(line, source_name) for line in content.splitlines() if line]
 
 
 def _read_manifest(content: str) -> DatasetManifest:
@@ -804,8 +796,7 @@ def read_dataset(input_dir: str | Path) -> CommunityDataset:
     try:
         initial_snapshot = _artifact_snapshot(directory_fd)
         captured = {
-            name: _capture_artifact(directory_fd, name)
-            for name in sorted(PUBLISHED_ARTIFACT_NAMES)
+            name: _capture_artifact(directory_fd, name) for name in sorted(PUBLISHED_ARTIFACT_NAMES)
         }
         final_snapshot = _artifact_snapshot(directory_fd)
         captured_snapshot = {
@@ -819,8 +810,7 @@ def read_dataset(input_dir: str | Path) -> CommunityDataset:
     text = {name: _decode_artifact(item, name) for name, item in captured.items()}
     manifest = _read_manifest(text["manifest.json"])
     checksums = {
-        name: hashlib.sha256(captured[name].content).hexdigest()
-        for name in DATA_ARTIFACT_NAMES
+        name: hashlib.sha256(captured[name].content).hexdigest() for name in DATA_ARTIFACT_NAMES
     }
     if manifest.artifact_checksums != checksums:
         raise ValueError("artifact checksum mismatch")
