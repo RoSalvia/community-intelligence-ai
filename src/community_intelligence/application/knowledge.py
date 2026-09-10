@@ -6,7 +6,9 @@ import hashlib
 import json
 import os
 import re
+import time
 import uuid
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -78,7 +80,8 @@ PARSER_VERSION = "plain-text-and-pdf-v1"
 CHUNK_STRATEGY = "structure-aware"
 CHUNK_STRATEGY_VERSION = "structure-v1"
 INDEX_VERSION = "sqlite-fts5-rrf-structure-v2"
-AUTHORITY_POLICY_VERSION = "authority-validity-rrf-v3"
+AUTHORITY_POLICY_VERSION = "authority-validity-rrf-v4"
+CANDIDATE_SELECTION_VERSION = "majority-one-slot-v1"
 REPRESENTATION_VERSION = "title-heading-body-v1"
 _HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 _QUESTION = re.compile(
@@ -745,7 +748,9 @@ class KnowledgeService:
         if max_context_chars < 1:
             raise ValueError("invalid context bound")
         max_context_chars = min(max_context_chars, 4000, MAX_EVIDENCE_CHARS // top_k)
-        when = as_of_time or self.clock()
+        now = self.clock()
+        when = as_of_time or now
+        current_fact_time = as_of_time is None or when >= now
         _iso(when)
         with self.database.engine.connect() as connection:
             stale = list(
@@ -767,15 +772,22 @@ class KnowledgeService:
             ]
             return result
         query_terms = _terms(query)
-        lexical = self._lexical(query_terms, top_k * 4, workspace_id)
-        semantic_scores = self._semantic(query, workspace_id, top_k * 4)
-        fused = self._rrf(lexical, list(semantic_scores))
-        candidates = self._load_candidates(workspace_id, fused)
+        lexical = self._lexical(query_terms, 40, workspace_id)
+        semantic_scores = self._semantic(query, workspace_id, 40)
+        fused = self._rrf(lexical[:20], list(semantic_scores)[:20])
+        deeper_fused = self._rrf(lexical, list(semantic_scores))
+        candidates = self._load_candidates(workspace_id, deeper_fused)
         if not candidates:
             return self._empty_result("no_authoritative_source", query, when)
 
         for item in candidates:
             item["temporal_state"] = self._temporal_state(item, when)
+            if (
+                current_fact_time
+                and item["temporal_state"] == "active"
+                and self._confirmed_historical(item)
+            ):
+                item["temporal_state"] = "inactive"
             matched = set(query_terms) & set(_terms(item["text"]))
             item["term_coverage"] = len(matched) / max(1, len(query_terms))
             item["semantic_score"] = semantic_scores.get(item["chunk_id"], 0.0)
@@ -783,11 +795,70 @@ class KnowledgeService:
                 item["chunk_id"] in semantic_scores
             )
         # Relevance is diagnostic, not permission to delete an RRF candidate or prove a fact.
-        selected = self._select_candidates(candidates, fused, top_k)
-        if not selected:
+        current_pool = self._select_candidates(
+            [item for item in candidates if item["chunk_id"] in fused], fused, 20
+        )
+        deeper_pool = self._select_candidates(candidates, deeper_fused, len(candidates))
+        pool = self._source_diverse_candidates(current_pool, deeper_pool, 20)
+        if not pool:
             return self._empty_result("no_authoritative_source", query, when)
+        selected = pool[:top_k]
+        reranker = {
+            "status": "not_configured" if self.answerer is None else "not_supported",
+            "fallback": True,
+            "candidate_count": len(pool),
+            "evidence_chars": sum(len(item["text"]) for item in pool),
+        }
+        rerank = getattr(self.answerer, "rerank", None)
+        if callable(rerank):
+            payload = [
+                {
+                    key: item.get(key)
+                    for key in (
+                        "chunk_id",
+                        "title",
+                        "source_type",
+                        "section",
+                        "parent_heading",
+                        "text",
+                        "temporal_state",
+                    )
+                }
+                for item in pool
+            ]
+            started = time.perf_counter()
+            try:
+                ranking, receipt = rerank(query, payload)
+            except (RuntimeError, ValueError, TypeError):
+                reranker.update(
+                    status="provider_error",
+                    latency_ms=(time.perf_counter() - started) * 1000,
+                )
+            else:
+                valid = self._validated_ranking(ranking, [item["chunk_id"] for item in pool])
+                reranker.update(
+                    {
+                        key: receipt[key]
+                        for key in (
+                            "configured_model",
+                            "returned_model",
+                            "usage",
+                            "latency_ms",
+                            "evidence_chars",
+                            "request_chars",
+                            "reranker_version",
+                        )
+                        if key in receipt
+                    }
+                )
+                if valid is None:
+                    reranker.update(status="invalid_response")
+                else:
+                    by_id = {item["chunk_id"]: item for item in pool}
+                    selected = [by_id[chunk_id] for chunk_id in valid[:top_k]]
+                    reranker.update(status="applied", fallback=False)
         citations = [self._citation(item, neighbor_count, max_context_chars) for item in selected]
-        assessment = assess_answer(self.answerer, query, citations)
+        assessment = assess_answer(self.answerer, query, citations, as_of_time=_iso(when))
         status = assessment.pop("status")
         claims = assessment["claims"]
         answer = self._answer_text(status, citations)
@@ -806,7 +877,14 @@ class KnowledgeService:
             "retrieval": {
                 "methods": ["fts5_bm25"] + (["multilingual_embedding"] if self.embedder else []),
                 "fusion": "rrf",
+                "ranking": "multilingual_reranker"
+                if reranker["status"] == "applied"
+                else "rrf",
+                "reranker": reranker,
                 "policy_version": AUTHORITY_POLICY_VERSION,
+                "candidate_selection_version": CANDIDATE_SELECTION_VERSION,
+                "source_diversity_applied": [item["chunk_id"] for item in pool]
+                != [item["chunk_id"] for item in current_pool],
                 "index_version": INDEX_VERSION,
                 "representation_version": REPRESENTATION_VERSION,
                 "embedding_status": "available" if self.embedder else "unavailable",
@@ -839,14 +917,15 @@ class KnowledgeService:
             and item["status"] not in {"draft", "unknown"}
             and item["temporal_state"] != "future"
         ]
-        order = {cid: n for n, cid in enumerate(fused)}
+        def rank_key(item: dict[str, Any]) -> tuple[float, str]:
+            return -fused[item["chunk_id"]], item["chunk_id"]
         active = sorted(
             (item for item in eligible if item["temporal_state"] == "active"),
-            key=lambda item: order[item["chunk_id"]],
+            key=rank_key,
         )
         inactive = sorted(
             (item for item in eligible if item["temporal_state"] == "inactive"),
-            key=lambda item: order[item["chunk_id"]],
+            key=rank_key,
         )
         selected = (active + inactive)[:top_k]
         cross_channel_inactive = next(
@@ -855,12 +934,45 @@ class KnowledgeService:
         if (
             cross_channel_inactive
             and active
-            and order[cross_channel_inactive["chunk_id"]] < order[active[0]["chunk_id"]]
+            and fused[cross_channel_inactive["chunk_id"]] > fused[active[0]["chunk_id"]]
         ):
             selected = [cross_channel_inactive] + [
                 item for item in selected if item is not cross_channel_inactive
             ]
         return selected[:top_k]
+
+    @staticmethod
+    def _validated_ranking(ranking: object, candidate_ids: list[str]) -> list[str] | None:
+        if not isinstance(ranking, list) or len(ranking) != len(candidate_ids):
+            return None
+        if any(not isinstance(item, str) for item in ranking):
+            return None
+        if len(set(ranking)) != len(ranking) or set(ranking) != set(candidate_ids):
+            return None
+        return ranking
+
+    @staticmethod
+    def _source_diverse_candidates(
+        current: list[dict[str, Any]], deeper: list[dict[str, Any]], limit: int
+    ) -> list[dict[str, Any]]:
+        current = current[:limit]
+        counts = Counter(item["source_id"] for item in current)
+        if len(current) < limit or max(counts.values(), default=0) <= limit // 2:
+            return current
+        dominant = max(counts, key=counts.get)
+        represented = set(counts)
+        replacement = next(
+            (item for item in deeper if item["source_id"] not in represented), None
+        )
+        if replacement is None:
+            return current
+        selected = list(current)
+        drop_index = next(
+            index for index in range(len(selected) - 1, -1, -1)
+            if selected[index]["source_id"] == dominant
+        )
+        selected[drop_index] = replacement
+        return selected
 
     def _lexical(self, terms: list[str], limit: int, workspace_id: str | None = None) -> list[str]:
         if not terms:
@@ -963,6 +1075,18 @@ class KnowledgeService:
             return "inactive"
         return "active"
 
+    @staticmethod
+    def _confirmed_historical(item: dict[str, Any]) -> bool:
+        if item["status"] != "historical":
+            return False
+        provenance = item.get("metadata_provenance_json", {})
+        if isinstance(provenance, str):
+            try:
+                provenance = json.loads(provenance)
+            except json.JSONDecodeError:
+                return False
+        return provenance.get("validity") in {"source-provided", "human-confirmed"}
+
     def _citation(self, item: dict[str, Any], neighbors: int, max_chars: int) -> dict[str, Any]:
         with self.database.engine.connect() as connection:
             context_rows = connection.execute(
@@ -1008,6 +1132,9 @@ class KnowledgeService:
             "section": item["section"],
             "page": item["page"],
             "published_at": item["published_at"],
+            "effective_from": item["effective_from"],
+            "effective_until": item["effective_until"],
+            "superseded_at": item["superseded_at"],
             "temporal_state": item["temporal_state"],
             "retrieval_scores": {
                 "rrf": item["rrf_score"],
@@ -1049,7 +1176,16 @@ class KnowledgeService:
             "retrieval": {
                 "methods": ["fts5_bm25"] + (["multilingual_embedding"] if self.embedder else []),
                 "fusion": "rrf",
+                "ranking": "rrf",
+                "reranker": {
+                    "status": "not_run",
+                    "fallback": False,
+                    "candidate_count": 0,
+                    "evidence_chars": 0,
+                },
                 "policy_version": AUTHORITY_POLICY_VERSION,
+                "candidate_selection_version": CANDIDATE_SELECTION_VERSION,
+                "source_diversity_applied": False,
                 "index_version": INDEX_VERSION,
                 "embedding_status": "available" if self.embedder else "unavailable",
             },

@@ -1,135 +1,107 @@
-# M2 Quality Stability + Controlled Multilingual Reranker Experiment
+# M2 Formal Reranker Integration and Regression
 
-2026-09-10 · 基础稳定性修复完成；reranker 对照完成。正式 retrieval path 尚未接入 reranker，等待 Product Owner 接受 latency / remote-snippet trade-off。
+2026-09-10 · Product path integrated. The two TON multi-source Freeze blockers are closed by a controlled source-diversity experiment and authority-policy v4. Product Owner accepted the evidence and M2 is Frozen; M3 has not started.
 
-## 结论
+## Outcome
 
-三个已确认的基础问题已闭合：generic 12 题连续三轮均为 12/12 answer status 正确，`outdated_only`、release、conflict、insufficient 与 no-answer 均未退化；H18 不再把用户的操作背景扩成未知本机值；非法引用会进行一次有界修复，正常 abstention 不重试。
+The approved remote semantic path is now:
 
-在同一批 50 条可回答 TON Docs query 上，只把必要 metadata policy 后的同一 Top20 从 RRF 排序改为 multilingual listwise reranker 排序：Recall@5 从 **74.3% → 98.7%**，完整答案从 **43/50 → 47/50**。代价是每题多一次显式配置的 remote LLM 调用，端到端中位延迟从 **2.11s → 4.51s**。
+`Hybrid retrieval → necessary metadata policy → majority-one-slot-v1 candidate selection → bounded Top20 → validated multilingual reranker → Top5 → material-facts answer pipeline`
 
-建议采用 reranker，但仅用于用户显式配置 remote LLM 的 semantic profile；未配置时继续使用 RRF。由于这会扩大单次远程 evidence selection 到 bounded Top20 并增加约 2.31s 中位延迟，本轮只提交采用建议，不直接修改正式 retrieval contract。
+The product does not partially trust generated rankings. A remote provider that is absent, unsupported, timed out, failed, or returned an unknown/duplicate/missing ID causes the whole ranking to fall back to the original RRF Top5. The reranker cannot create a candidate, citation, or fact.
 
-## 1. 基础质量稳定修复
+The formal regression reused the locked 34-query TON regression and 28-query document-disjoint holdout without editing query, gold, or rubric. Of 62 total queries, 50 are retrieval-answerable; answer/no-answer metrics use their applicable denominators. Run artifacts are local and Git ignored at `data/generated/validation/m2-3-formal-reranker-regression/run-6/`.
 
-### Temporal / metadata
+## Retrieval results
 
-- necessary policy 仍排除 unverified、draft/unknown 与 future。
-- current query 仍优先 active source。
-- 若 inactive candidate 同时被 lexical 与 multilingual semantic 找到，且其原始 RRF 排名高于所有 active candidate，则保留该 candidate；不会再被 active-first 整体挤出 Top5。
-- Answer 层读取 active 与 inactive evidence，并按每条已验证 claim 的实际 citation temporal state 决定 `grounded` / `outdated_only`，不再用“候选中存在任一 active source”代替事实有效性。
+All values below use `structure-v1`, 180/30 chunks and ±1 neighbor context. The RRF fallback remains the deterministic Top5. The semantic path applies authority-policy v4 and the validated one-slot diversity rule before sending at most 20 existing candidates to the reranker.
 
-### Answerability / citation stability
-
-- Prompt 只分解用户直接询问的 material facts；操作背景、未知本机环境值和未询问的原因不再自动成为额外 requirement。
-- Quote 必须是对应原始 chunk text 的逐字摘录，不能把 heading metadata 拼进 quote。
-- 确定性 quote 校验失败时，允许同一 evidence packet 做一次 repair；repair 后仍不合法则保持 `insufficient_evidence`。合法的 insufficient/no-answer 不重试。
-
-### Generic regression
-
-`generic-knowledge-fixtures-v1` 使用固定 `structure-v1 / 180/30 / ±1` 连续运行 3 次：
-
-| Gate | 三轮结果 |
-|---|---:|
-| Answer status | 12/12、12/12、12/12 |
-| outdated_only | 1/1、1/1、1/1 |
-| grounded | 8/8、8/8、8/8 |
-| conflict / insufficient / no-answer | 每轮全部通过 |
-| Citation validity | 每轮 100% |
-| Recall@5 / MRR / nDCG@5 | 每轮 91.7% / 0.932 / 0.869 |
-
-完整本地记录：`data/generated/validation/m2-2-generic-stability/run-1.json`（Git ignored）。
-
-### 与 M2.1 的同题变化
-
-固定 34 + 28 条 TON query 的 retrieval candidate generation 未变，因此 Current RRF 的 aggregate Recall@5 仍为 74.3%。质量修复发生在 temporal selection 与 answer 层：严格完整答案由 M2.1 的 `39/50（78%）` 提升到 `43/50（86%）`；严格 false-grounded 由 `5/44（11.4%）` 降至 `3/46（6.5%）`；insufficient `6/6`、no-answer `4/4` 保持。逐题净变化为 6 条改善、2 条由 complete 变 partial，原因见第 5 节。
-
-## 2. Controlled reranker contract
-
-- Query、gold、rubric 未修改：原 regression 34 题 + 原 holdout 28 题，共 62；其中可回答 50。
-- Candidate generation 完全复用已锁定的 lexical Top20 + semantic Top20；没有 rewrite、multi-query 或重新召回。
-- 两臂共享 necessary metadata policy 后的同一 Top20。
-- Current arm：RRF policy Top5。
-- Experiment arm：使用已显式配置的 `deepseek-v4-flash` 做一次 validation-only multilingual listwise ranking，再取 Top5。
-- 两臂都使用相同 `material-facts-evidence-v2` answer pipeline、180/30 chunks、±1 neighbor。
-- 完整答案由同一 locked rubric 的 paired AI judge 判定；不是独立人工评审。Retrieval 与 status/citation 指标为确定性计算。
-
-Reranker 只看到 query 与 bounded candidate snippets。此次公开 TON corpus 每题 Top20 body 中位 5,549 字符、最大 9,578 字符；没有发送整份文档或私人数据。
-
-## 3. Aggregate results
-
-下表基于 50 条可回答 query；CN/ES 各 9 条，样本仍小。
-
-| Slice | Current Recall@5 | Reranker Recall@5 | Current MRR | Reranker MRR | Current nDCG@5 | Reranker nDCG@5 |
+| Path | Hit@1 / @3 / @5 | Precision@1 / @3 / @5 | Recall@1 / @3 / @5 | R-Precision | MRR | nDCG@5 |
 |---|---:|---:|---:|---:|---:|---:|
-| Overall | 74.3% | **98.7%** | 0.736 | **0.990** | 0.706 | **0.979** |
-| EN（32） | 82.8% | **99.0%** | 0.798 | **0.984** | 0.776 | **0.980** |
-| CN（9） | 55.6% | **100%** | 0.556 | **1.000** | 0.530 | **0.991** |
-| ES（9） | 63.0% | **96.3%** | 0.694 | **1.000** | 0.630 | **0.963** |
+| RRF Top5 | 68.0 / 78.0 / 82.0% | 68.0 / 36.7 / 24.4% | 49.0 / 69.0 / 74.3% | 63.0% | 0.736 | 0.706 |
+| Reranker Top5 | **98.0 / 98.0 / 98.0%** | **98.0 / 50.7 / 32.0%** | **71.2 / 94.2 / 96.7%** | **89.7%** | **0.980** | **0.958** |
 
-| Answer / safety | Current | Reranker |
+Each answerable query has 1.66 gold chunks on average, so fixed Precision@5 has a natural ceiling of 33.2% even with every gold chunk retrieved. Reranker Precision@5 reaches 32.0%; R-Precision is the complementary cardinality-aware measure.
+
+### Language slices
+
+| Path / language | N | Hit@1 / @3 / @5 | Precision@1 / @3 / @5 | Recall@1 / @3 / @5 | R-Precision | MRR | nDCG@5 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| RRF EN | 32 | 75.0 / 84.4 / 87.5% | 75.0 / 37.5 / 25.6% | 56.3 / 75.5 / 82.8% | 66.1% | 0.798 | 0.776 |
+| Reranker EN | 32 | **100 / 100 / 100%** | **100 / 50.0 / 31.9%** | **74.2 / 96.1 / 99.0%** | **90.6%** | **1.000** | **0.978** |
+| RRF CN | 9 | 44.4 / 66.7 / 66.7% | 44.4 / 29.6 / 17.8% | 33.3 / 55.6 / 55.6% | 55.6% | 0.556 | 0.530 |
+| Reranker CN | 9 | **100 / 100 / 100%** | **100 / 48.1 / 28.9%** | **77.8 / 100 / 100%** | **94.4%** | **1.000** | **0.991** |
+| RRF ES | 9 | 66.7 / 66.7 / 77.8% | 66.7 / 40.7 / 26.7% | 38.9 / 59.3 / 63.0% | 59.3% | 0.694 | 0.630 |
+| Reranker ES | 9 | **88.9 / 88.9 / 88.9%** | **88.9 / 55.6 / 35.6%** | **53.7 / 81.5 / 85.2%** | **81.5%** | **0.889** | **0.852** |
+
+### Product-relevant slices
+
+| Path / slice | N | Hit@1 / @3 / @5 | Precision@1 / @3 / @5 | Recall@1 / @3 / @5 | R-Precision | MRR | nDCG@5 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| RRF cross-language | 18 | 55.6 / 66.7 / 72.2% | 55.6 / 35.2 / 22.2% | 36.1 / 57.4 / 59.3% | 57.4% | 0.625 | 0.580 |
+| Reranker cross-language | 18 | **94.4 / 94.4 / 94.4%** | **94.4 / 51.9 / 32.2%** | **65.7 / 90.7 / 92.6%** | **88.0%** | **0.944** | **0.922** |
+| RRF noisy | 5 | 40.0 / 40.0 / 60.0% | 40.0 / 20.0 / 16.0% | 26.7 / 33.3 / 43.3% | 33.3% | 0.440 | 0.388 |
+| Reranker noisy | 5 | **100 / 100 / 100%** | **100 / 60.0 / 44.0%** | **61.7 / 88.3 / 100%** | **93.3%** | **1.000** | **0.989** |
+| RRF multi-fact | 24 | 70.8 / 87.5 / 95.8% | 70.8 / 51.4 / 35.8% | 31.3 / 68.8 / 79.9% | 60.4% | 0.803 | 0.736 |
+| Reranker multi-fact | 24 | **100 / 100 / 100%** | **100 / 70.8 / 45.8%** | **44.1 / 92.0 / 97.2%** | **82.6%** | **1.000** | **0.954** |
+
+The final product-path result is 96.7% Recall@5, materially above RRF's 74.3%. Remote reranker output varies slightly across otherwise identical runs; the final strict-order run is the reporting baseline. Answer quality is reported separately below.
+
+## Controlled source-diversity experiment
+
+The locked 62-query set compared A, the prior bounded RRF Top20, with B, a minimal general rule. B first creates the same Top20, then looks deeper only in local lexical/embedding candidates. If one source owns a strict majority of the pool, it replaces exactly that source's lowest-ranked item with the highest-ranked item from an unrepresented source. The original first five candidates are preserved, the remote payload stays capped at 20, and no source type, project name or TON rule is encoded.
+
+Hard per-source caps from 2 through 8 were screened and rejected because they reduced candidate Recall@20, including long-document, multi-fact and cross-language slices. `majority-one-slot-v1` was selected because candidate Recall@20 stayed 98.7%, multi-fact stayed 97.2%, long-document stayed 98.2%, and cross-language stayed 98.1%. Mean unique sources in Top20 rose from 3.97 to 4.50; mean dominant-source share fell from 58.0% to 55.3%.
+
+In the final controlled reranker A/B, B kept Hit@5 and Recall@5 unchanged at 98.0% and 96.7%, improved MRR from 0.960 to 0.970 and nDCG@5 from 0.947 to 0.950. Multi-fact and long-document Recall@5 stayed at 97.2% and 98.2%; cross-language Hit/Recall/MRR/nDCG were unchanged. No individual query lost Recall@5 or MRR. Separately, the locked multi-source MS16 release chunk entered the candidate pool and the result changed from false `grounded` to the required current-source `conflict`.
+
+## Answer and grounding results
+
+| Metric | RRF fallback path | Reranker semantic path |
 |---|---:|---:|
-| 严格完整答案 | 43/50（86%） | **47/50（94%）** |
-| Grounded 但未覆盖全部 rubric | 3/46 | 3/50 |
-| Insufficient accuracy | 6/6 | 6/6 |
-| No-answer accuracy | 4/4 | 4/4 |
-| Retrieval Recall 降低的 case | — | **0** |
+| Complete Answer Rate | 43/50 = 86.0% | **48/50 = 96.0%** |
+| False Grounded Rate | 2/45 = 4.4% | **2/50 = 4.0%** |
+| Insufficient Evidence Accuracy | **6/6 = 100%** | **6/6 = 100%** |
+| No-answer Accuracy | **6/6 = 100%** | **6/6 = 100%** |
+| Citation Validity | **51/51 = 100%** | **54/54 = 100%** |
+| Citation repair rate | 0/62 | 0/62 |
+| Answer-provider error/fallback rate | 0/62 | 0/62 |
+| Reranker fallback rate | n/a | 2/62 = 3.2% |
 
-分数据集：原 regression Recall@5 `72.6% → 98.8%`，完整答案 `24/28 → 27/28`；holdout Recall@5 `76.5% → 98.5%`，完整答案 `19/22 → 20/22`。
+The two incomplete reranker answers are T06 and H20: selected evidence is relevant and citations are valid, but one rubric material detail is omitted. Both are also incomplete on the RRF arm, so no locked RRF success regressed. Small answer-count changes between remote runs can include provider variance; deterministic citation validation remains 100%.
 
-## 4. 改善来自哪里
+## Runtime, privacy exposure and estimated cost
 
-Reranker 改善了 16 条 query 的 gold Recall，没有降低任何 query 的 Recall。完整答案的净提升来自 4 个原已知 low-rank case：
+These are complete product-path measurements, not reranker-only increments. Benchmark judge calls are excluded.
 
-| Case | Failure before | Result after |
-|---|---|---|
-| T13 | 中文 query；正确 semantic candidate 在 RRF 第 7 | complete |
-| T15 | 中文 query；正确 candidate 在 RRF 第 8 | complete |
-| T17 | 中文 query；正确 candidate 在 RRF 第 10 | complete |
-| H03 | noisy query；正确 mnemonic candidate 在 RRF 第 7 | complete |
-
-另外，T10/T11/T12 等 noisy query、T18/T22/H04/H20/H22 等 cross-language/multi-fact query 的 gold coverage 提高，但原答案已能由 neighbor/context 补齐，因此没有重复计入完整答案增量。
-
-Reranker 后仍有两个非满 Recall case：T06 与 H08 各召回 3 个 gold 中的 2 个，但首个正确证据均排第一且答案所需事实已覆盖。这不是 query-level candidate miss。
-
-## 5. Regression 与限制
-
-- Reranker 相对 fixed Current RRF：没有完整答案 regression、没有 retrieval regression，insufficient/no-answer 不变。
-- 相对 M2.1 旧答案，基础修复带来 T02/T03/T07/T12/H18/H22 改善，但 T06/H21 在原严格 rubric 下从 complete → partial。两题都回答了字面问题，遗漏的是 rubric 的额外上下文：T06 没明确复述“legacy”；H21 没补充“仅凭 client_id 不能解密”。为修 H18 而要求模型不扩写未询问背景后，这两项出现取舍。三次 prompt 尝试无法稳定兼得，继续调会针对 benchmark 过拟合，因此保留并如实计分。
-- Listwise 输出有 1/62 次包含一个非候选 ID；确定性清洗丢弃该 ID，有效 Top5 顺序不变，遗漏候选按 RRF 顺序补尾。实验工具在定稿前暴露并修正了三项 runner guard：必须返回完整 permutation、实际候选少于 5、重复/非候选 ID。修正后从 checkpoint 续跑，不重算已完成 query。它们不改变产品结果，但说明生成式 reranker 必须保留 permutation validation/fallback。
-- 完整答案评分来自 paired AI judge；需要 Product Owner 或独立 reviewer 才能升级为人工认可指标。
-- 这仍是单一 TON Docs repository，不证明多来源 authority/time conflict 质量。
-
-## 6. Latency 与 cost
-
-| Runtime item | Current | Reranker path | Delta |
+| Runtime item / query | RRF fallback | Reranker semantic | Delta |
 |---|---:|---:|---:|
-| End-to-end median | 2.11s | 4.51s | **+2.31s paired median** |
-| End-to-end p95 | 4.94s | 5.73s | +0.79s |
-| Reranker-only median / p95 | — | 2.42s / 3.11s | +1 remote call |
-| Answer model calls | 62 | 62 | 0 |
-| Reranker calls | 0 | 62 | +62 |
+| Remote calls | 0.968 | 1.903 | +0.935 |
+| Input tokens | 4,134.5 | 6,913.9 | +2,779.3 |
+| Output tokens | 306.4 | 753.8 | +447.4 |
+| Total tokens | 4,440.9 | 7,667.6 | +3,226.7 |
+| Remote Evidence chars | 2,893.8 | 7,975.0 | +5,081.2 |
+| Estimated Evidence tokens (chars/4) | 723.8 | 1,994.2 | +1,270.4 |
+| p50 latency | 1.955s | 4.484s | +2.530s |
+| p95 latency | 2.981s | 5.995s | +3.014s |
+| Peak estimated cost | US$0.001825 | US$0.002426 | +US$0.000601 |
+| Off-peak estimated cost | US$0.000913 | US$0.001213 | +US$0.000300 |
 
-Reranker 62 次共 205,892 tokens：117,628 cache-hit input、61,189 cache-miss input、27,075 output，平均约 3,321 tokens/query。按 [DeepSeek 官方价格](https://api-docs.deepseek.com/quick_start/pricing/) 在 2026-09-10 的 peak/off-peak 单价估算，62 题约 **US$0.064 / US$0.032**，即每题约 **US$0.00104 / US$0.00052**；这是 token 估算，不是账单。Benchmark 的 62 次 paired judge 调用不属于产品 runtime，已单独记录。
+Input-token accounting uses model-reported prompt cache-hit/miss fields. The estimate applies the official DeepSeek V4 Flash rates current on 2026-09-10: peak US$0.014/M cache-hit input, US$0.44/M cache-miss input and US$1.32/M output; off-peak is half. The configured/returned alias was `deepseek-flash`, so this is an estimate, not a billing statement. Pricing is provider-specific and not part of the product contract.
 
-完整运行、模型 usage、latency 与原始回答位于 `data/generated/validation/m2-2-reranker-experiment/run-1/`（Git ignored）。
+Remote evidence exposure stays bounded to the selected public-test snippets. The formal median/p95 evidence payload was 7,498/15,727 characters on the reranker path versus 2,621/5,136 on RRF. No complete corpus, local path, secret, operator identity or source URL was sent. Relative to the pre-diversity formal run, mean reranker Evidence changed from 8,013 to 7,975 characters, peak estimated cost changed by less than US$0.000003/query, p50 changed by +0.011s and p95 by -0.118s. There is no meaningful remote cost or latency increase; deeper retrieval is local.
 
-## 7. Recommendation / next gate
+## Fallback verification
 
-证据支持正式采用 reranker：它解决的正是已确认的 low-rank/cross-language failure，Recall 增加 24.3 个百分点、完整答案增加 8 个百分点，且无 safety status regression。对 Investigation/Copilot 这类非实时操作，约 2.31s 的中位增加是可接受的质量交换。
+- No provider configuration: RRF Top5 retained.
+- Provider exception/timeout: RRF Top5 retained.
+- Unknown, duplicate or missing IDs: entire generated order rejected; RRF Top5 retained.
+- Non-object/malformed ranking: rejected before product selection; RRF Top5 retained.
+- The final live formal run produced two invalid permutations and deterministically retained the original RRF Top5. Separate malformed/timeout/unknown/duplicate/missing-ID tests exercised the same fallback contract.
+- The final hardening change only rejects non-object responses and is covered by a focused test; it does not change valid-run metrics.
 
-推荐 contract：
+## Scope decision
 
-1. remote LLM 已由用户显式配置时，bounded policy Top20 → validated reranker Top5 → existing answer pipeline；
-2. 未配置、调用失败或返回不足 5 个有效 ID 时，确定性回退 Current RRF Top5；
-3. receipt 记录 reranker model/revision、latency、usage、fallback 和 candidate count；
-4. 不加入 rewrite、multi-query、GraphRAG、LLM Wiki；不改变 chunk/neighbor/candidate generation。
+Reranking and the minimal source-diversity rule are adopted because the gains address observed low-rank, cross-language, noisy-query and source-crowding failures without slice regressions. There is no evidence to add query rewrite, multi-query, GraphRAG, LLM Wiki, LangGraph, larger chunks or broader neighbors. Conditional reranking remains a future latency/cost/privacy hypothesis, not current M2 scope.
 
-基础 M2 已具备进入 TON Multi-source Validation 的质量条件；但 Multi-source 应在 Product Owner 确认上述 remote Top20 / latency / cost trade-off 后，以选定的正式 baseline 运行，避免又更换检索路径导致结果不可比。
-
-## 8. Verification
-
-- Offline full suite：`377 passed, 5 skipped`；5 个 skip 为未启用真实 provider 时的 live gates。
-- 显式配置 DeepSeek 后的 live answer gates：`5 passed`。
-- 新增质量 focused suite：`24 passed`；lint 与 diff whitespace 检查通过。
-- 最终 production file hashes 与 reranker receipt、generic stability record 一致；配置、原始 validation 数据和结果均位于 Git ignored 路径。
+The 12-query generic Knowledge regression stayed at 91.7% Recall@5 with all five answer-status/citation gates at 100% across three repetitions; its MRR improved from 0.932 to 1.000. Final automated verification is `392 passed, 5 skipped`; the skips are explicit live-provider gates. Frontend tests, typecheck, lint and production build also pass. Full TON multi-source outcome is recorded in `TON_MULTI_SOURCE_VALIDATION.md`.

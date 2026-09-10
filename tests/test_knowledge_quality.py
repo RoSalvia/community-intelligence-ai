@@ -124,10 +124,61 @@ def test_policy_preserves_rrf_order_within_temporal_group():
     ]
 
     selected = KnowledgeService._select_candidates(
-        candidates, {"first": 0.03, "second": 0.02}, top_k=2
+        candidates, {"second": 0.02, "first": 0.03}, top_k=2
     )
 
     assert [item["chunk_id"] for item in selected] == ["first", "second"]
+
+
+def test_source_diversity_replaces_only_one_lowest_dominant_candidate():
+    base = [
+        {"chunk_id": f"a{index}", "source_id": "a"}
+        for index in range(12)
+    ] + [
+        {"chunk_id": f"b{index}", "source_id": "b"}
+        for index in range(8)
+    ]
+    deeper = base + [{"chunk_id": "c0", "source_id": "c"}]
+
+    selected = KnowledgeService._source_diverse_candidates(base, deeper, 20)
+
+    assert [item["chunk_id"] for item in selected[:5]] == [f"a{index}" for index in range(5)]
+    assert len(selected) == 20
+    assert {item["chunk_id"] for item in base} - {item["chunk_id"] for item in selected} == {
+        "a11"
+    }
+    assert selected[11]["chunk_id"] == "c0"
+
+
+def test_source_diversity_leaves_non_majority_pool_unchanged():
+    base = [
+        {"chunk_id": f"a{index}", "source_id": "a"}
+        for index in range(10)
+    ] + [
+        {"chunk_id": f"b{index}", "source_id": "b"}
+        for index in range(10)
+    ]
+
+    assert KnowledgeService._source_diverse_candidates(
+        base, base + [{"chunk_id": "c0", "source_id": "c"}], 20
+    ) == base
+
+
+def test_source_diversity_preserves_original_rrf_order_on_deeper_pool():
+    base = [
+        {"chunk_id": f"a{index}", "source_id": "a"}
+        for index in range(12)
+    ] + [
+        {"chunk_id": f"b{index}", "source_id": "b"}
+        for index in range(8)
+    ]
+    deeper = [base[3], base[1], {"chunk_id": "c0", "source_id": "c"}, *base]
+
+    selected = KnowledgeService._source_diverse_candidates(base, deeper, 20)
+
+    assert selected[:11] == base[:11]
+    assert selected[11]["chunk_id"] == "c0"
+    assert selected[12:] == base[12:]
 
 
 def test_future_source_is_not_outdated_evidence(knowledge):
@@ -138,6 +189,13 @@ def test_future_source_is_not_outdated_evidence(knowledge):
     )
     assert result["answer_status"] == "no_authoritative_source"
     assert result["citations"] == []
+    assert result["retrieval"]["ranking"] == "rrf"
+    assert result["retrieval"]["reranker"] == {
+        "status": "not_run",
+        "fallback": False,
+        "candidate_count": 0,
+        "evidence_chars": 0,
+    }
 
 
 def test_explicit_reindex_preserves_source_chunk_identity_and_is_incremental(knowledge):
@@ -366,3 +424,220 @@ def test_outdated_evidence_survives_unrelated_active_candidate(knowledge):
     result = service.query(workspace, "legacy fifteen minute interval")
     assert result["answer_status"] == "outdated_only"
     assert result["claims"][0]["evidence"][0]["chunk_id"] == old_chunk["chunk_id"]
+
+
+def test_confirmed_historical_without_end_is_background_for_current_but_valid_as_of(
+    knowledge,
+):
+    service, workspace = knowledge
+    old = service.add_source(
+        workspace,
+        source(
+            title="Historical routing note",
+            content="Routing is always instant.",
+            published_at=datetime(2022, 1, 1, tzinfo=UTC),
+            effective_from=datetime(2022, 1, 1, tzinfo=UTC),
+            status="historical",
+        ),
+    )
+    current = service.add_source(
+        workspace,
+        source(
+            title="Current routing docs",
+            content="Routing can be delayed during congestion.",
+            published_at=datetime(2026, 1, 1, tzinfo=UTC),
+            effective_from=datetime(2026, 1, 1, tzinfo=UTC),
+        ),
+    )
+    old_chunk = old["chunks"][0]
+    current_chunk = current["chunks"][0]
+    service._lexical = lambda terms, limit, workspace_id=None: [
+        old_chunk["chunk_id"],
+        current_chunk["chunk_id"],
+    ]
+
+    class Answerer:
+        def assess(self, query, evidence):
+            return {
+                "relevance": "related",
+                "requirements": [
+                    {"id": "routing", "fact_needed": "routing delay", "status": "supported"}
+                ],
+                "claims": [
+                    {
+                        "requirement_id": "routing",
+                        "text": item["text"],
+                        "evidence": [
+                            {"chunk_id": item["chunk_id"], "quote": item["text"]}
+                        ],
+                    }
+                    for item in evidence
+                ],
+            }
+
+    service.answerer = Answerer()
+    present = service.query(workspace, "routing delay")
+    historical = service.query(
+        workspace,
+        "routing delay",
+        as_of_time=datetime(2023, 1, 1, tzinfo=UTC),
+    )
+
+    assert present["answer_status"] == "grounded"
+    assert [claim["text"] for claim in present["claims"]] == [current_chunk["text"]]
+    assert historical["answer_status"] == "grounded"
+    assert [claim["text"] for claim in historical["claims"]] == [old_chunk["text"]]
+
+
+def test_system_derived_historical_status_does_not_lower_current_priority(knowledge):
+    service, workspace = knowledge
+    inferred_provenance = source().metadata_provenance | {"validity": "system-derived"}
+    old = service.add_source(
+        workspace,
+        source(
+            title="Unconfirmed historical label",
+            content="Limit is 10 tokens.",
+            published_at=datetime(2025, 1, 1, tzinfo=UTC),
+            effective_from=datetime(2025, 1, 1, tzinfo=UTC),
+            status="historical",
+            metadata_provenance=inferred_provenance,
+        ),
+    )
+    current = service.add_source(workspace, source(content="Limit is 20 tokens."))
+    chunks = [old["chunks"][0], current["chunks"][0]]
+    service._lexical = lambda terms, limit, workspace_id=None: [
+        item["chunk_id"] for item in chunks
+    ]
+
+    class Answerer:
+        def assess(self, query, evidence):
+            assert {item["temporal_state"] for item in evidence} == {"active"}
+            return {
+                "relevance": "related",
+                "requirements": [
+                    {"id": "limit", "fact_needed": "limit", "status": "conflict"}
+                ],
+                "claims": [
+                    {
+                        "requirement_id": "limit",
+                        "text": item["text"],
+                        "evidence": [
+                            {"chunk_id": item["chunk_id"], "quote": item["text"]}
+                        ],
+                    }
+                    for item in evidence
+                ],
+            }
+
+    service.answerer = Answerer()
+
+    assert service.query(workspace, "limit")["answer_status"] == "conflict"
+
+
+def _rerank_fixture(service, workspace):
+    revisions = [
+        service.add_source(workspace, source(title=f"Guide {n}", content=f"Fact number {n}."))
+        for n in range(6)
+    ]
+    ids = [revision["chunks"][0]["chunk_id"] for revision in revisions]
+    service._lexical = lambda terms, limit, workspace_id=None: ids
+    service._semantic = lambda query, workspace_id, limit: {
+        chunk_id: 1 - index / 10 for index, chunk_id in enumerate(ids)
+    }
+    return ids
+
+
+def test_configured_reranker_reorders_only_policy_candidates(knowledge):
+    service, workspace = knowledge
+    ids = _rerank_fixture(service, workspace)
+
+    class Answerer:
+        def rerank(self, query, candidates):
+            assert query == "fact"
+            assert [item["chunk_id"] for item in candidates] == ids
+            assert all(
+                set(item)
+                == {
+                    "chunk_id",
+                    "title",
+                    "source_type",
+                    "section",
+                    "parent_heading",
+                    "text",
+                    "temporal_state",
+                }
+                for item in candidates
+            )
+            return list(reversed(ids)), {
+                "latency_ms": 12.0,
+                "usage": {"prompt_tokens": 20, "completion_tokens": 6, "total_tokens": 26},
+                "evidence_chars": 84,
+            }
+
+        def assess(self, query, evidence):
+            return {"relevance": "unrelated", "requirements": [], "claims": []}
+
+    service.answerer = Answerer()
+    result = service.query(workspace, "fact")
+
+    assert [item["chunk_id"] for item in result["citations"]] == list(reversed(ids))[:5]
+    assert result["retrieval"]["ranking"] == "multilingual_reranker"
+    assert result["retrieval"]["reranker"]["status"] == "applied"
+    assert result["retrieval"]["reranker"]["fallback"] is False
+
+
+def test_invalid_reranker_ids_fall_back_to_original_rrf_order(knowledge):
+    service, workspace = knowledge
+    ids = _rerank_fixture(service, workspace)
+
+    class Answerer:
+        def rerank(self, query, candidates):
+            return [ids[1], ids[1], "unknown", *ids[2:5]], {"latency_ms": 1.0}
+
+        def assess(self, query, evidence):
+            return {"relevance": "unrelated", "requirements": [], "claims": []}
+
+    service.answerer = Answerer()
+    result = service.query(workspace, "fact")
+
+    assert [item["chunk_id"] for item in result["citations"]] == ids[:5]
+    assert result["retrieval"]["ranking"] == "rrf"
+    assert result["retrieval"]["reranker"]["status"] == "invalid_response"
+    assert result["retrieval"]["reranker"]["fallback"] is True
+
+
+def test_reranker_provider_failure_falls_back_to_original_rrf_order(knowledge):
+    service, workspace = knowledge
+    ids = _rerank_fixture(service, workspace)
+
+    class Answerer:
+        def rerank(self, query, candidates):
+            raise RuntimeError("timeout")
+
+        def assess(self, query, evidence):
+            return {"relevance": "unrelated", "requirements": [], "claims": []}
+
+    service.answerer = Answerer()
+    result = service.query(workspace, "fact")
+
+    assert [item["chunk_id"] for item in result["citations"]] == ids[:5]
+    assert result["retrieval"]["ranking"] == "rrf"
+    assert result["retrieval"]["reranker"]["status"] == "provider_error"
+    assert result["retrieval"]["reranker"]["fallback"] is True
+
+
+def test_unconfigured_remote_provider_keeps_rrf_top_five(knowledge):
+    service, workspace = knowledge
+    ids = _rerank_fixture(service, workspace)
+    service.answerer = None
+
+    result = service.query(workspace, "fact")
+
+    assert [item["chunk_id"] for item in result["citations"]] == ids[:5]
+    assert result["retrieval"]["ranking"] == "rrf"
+    assert result["retrieval"]["reranker"] == {
+        "status": "not_configured",
+        "fallback": True,
+        "candidate_count": 6,
+        "evidence_chars": 84,
+    }

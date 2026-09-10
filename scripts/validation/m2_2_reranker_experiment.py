@@ -13,7 +13,7 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, build_opener
 
-from knowledge_external_validation import baseline_hashes, retrieval_metrics, save, sha
+from knowledge_external_validation import baseline_hashes, save, sha
 from sqlalchemy import select
 
 from community_intelligence.application.knowledge import KnowledgeService, _terms
@@ -22,6 +22,7 @@ from community_intelligence.application.knowledge_answer import (
     _NoRedirect,
     assess_answer,
 )
+from community_intelligence.evaluation import retrieval_metrics
 from community_intelligence.infrastructure.database import Database, workspaces
 
 ROOT = Path(__file__).resolve().parents[2]

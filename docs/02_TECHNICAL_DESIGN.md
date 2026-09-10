@@ -176,7 +176,7 @@ P0 支持 UTF-8 `.md`/`.txt` 与可抽取文本的 `.pdf`，以及 Manual Offici
 
 1. optional `as_of_time`（默认当前时间）决定 revision 在该时刻的 active/outdated/future 状态；比较 `effective_from/effective_until/published_at/superseded_at`。
 2. 非 official 或未验证来源不能产生 `grounded`。
-3. 必要 policy 排除未验证、draft/unknown 与未来来源；已有 supersession/effective 时间决定 active/inactive。current query 优先 active，但若 inactive candidate 同时由 lexical/semantic 命中且原 RRF 高于全部 active，则保留该 candidate，避免 `outdated_only` evidence 被整体挤出。
+3. 必要 policy 排除未验证、draft/unknown 与未来来源；已有 supersession/effective 时间决定 active/inactive。current query 优先 active，但若 inactive candidate 同时由 lexical/semantic 命中且原 RRF 高于全部 active，则保留该 candidate，避免 `outdated_only` evidence 被整体挤出。对于没有 verified validity end 的 `historical` revision，仅当 `validity` metadata provenance 为 `source-provided` 或 `human-confirmed` 时，它才在 current-fact query 中作为 historical background、不得与 current official source 同等产生 current conflict；past `as_of_time` 仍可让它参与当时事实判断。`system-derived` / `ai-inferred` 标记不自动降权。policy version 为 `authority-validity-rrf-v4`。
 4. Answer status 按每条已验证 claim 的 citation temporal state 判定，而不是按候选集合中是否存在 active source。Generic 180/30/±1 连续三轮已通过 current/outdated/conflict/insufficient/no-answer gate；本阶段仍不增加 query-sensitive router。
 
 policy version 与每次结果一起返回。P0 保存完整 source type/channel/authority/recency/validity，但不实现 AI query router；query-sensitive routing 只在 benchmark failure case 证明必要时加入。
@@ -199,9 +199,11 @@ Community chat 和 document text 统一以 untrusted data envelope 输入模型�
 
 Knowledge Review Surface 只消费上述 `/api/v1/*`，状态为 source list → metadata/revision detail → processing status → query result → citation provenance。固定 fixture/golden set 与产品代码分离；Retrieval 计算 Recall@K、MRR/nDCG 和 cross-language slice，Answer 层计算 citation validity、grounded、abstention、insufficient evidence、conflict、outdated error。每个 run 固化 dataset/config/model/chunk/index versions。
 
-M2.1 页面增加 facts/coverage、缺项、支持引用与 bounded context；`POST /api/v1/knowledge-revisions/{id}/reindex` 仅升级派生索引。External regression、document-disjoint holdout、generic curated 保底结果分别记录，不能合并宣传。M2/M2.1 均未 Frozen。
+M2.1 页面增加 facts/coverage、缺项、支持引用与 bounded context；`POST /api/v1/knowledge-revisions/{id}/reindex` 仅升级派生索引。External regression、document-disjoint holdout、generic curated 保底结果分别记录，不能合并宣传。M2 已于 2026-09-10 Product Frozen；正式版本与 Freeze evidence 见 `10_M2_FREEZE_RECORD.md`。
 
-Query rewrite、multi-query、GraphRAG、RAPTOR、HyDE 与 agentic retrieval 在 M2 默认不存在。Controlled TON experiment 显示 remote multilingual listwise reranker 在同一 policy Top20 上将 Recall@5 从 74.3% 提升到 98.7%，但增加一次 remote call 与约 2.31s 中位延迟；正式接入等待 Product Owner 接受 privacy/latency/cost contract，未配置时必须保留 RRF fallback。
+正式 semantic path 为 `hybrid retrieval → necessary metadata policy → majority-one-slot-v1 → bounded Top20 → multilingual-listwise-v1 → Top5 → existing answer pipeline`。本地 lexical/semantic 各保留至 40 仅用于形成可替换候选；先生成原 Top20，只有单一 source 严格占多数时，才以尚未出现 source 的最高位 candidate 替换 dominant source 的最低位一项，且保留原 Top5。远程候选仍不超过 20。Reranker 只接收问题和 Top20 内的有限结构/正文，只能返回该候选集合的完整 permutation；未知、重复、缺失 ID、非 object 响应、timeout 或 provider error 均不得部分采纳，确定性回退原 RRF Top5。remote LLM 未配置时直接使用 RRF Top5。receipt 区分 candidate policy、reranker 与 answer 调用、tokens、evidence/request chars、latency 与 fallback reason。
+
+Query rewrite、multi-query、GraphRAG、RAPTOR、HyDE 与 agentic retrieval 在 M2 不存在。固定 62 题最终正式回归显示 reranker 路径 Recall@5 为 96.7%（RRF 74.3%），Complete Answer 为 48/50（RRF 43/50）；正式采用依据、完整 Hit/Precision/Recall/R-Precision/MRR/nDCG、source-diversity A/B 与 runtime cost 见 validation report。Conditional reranking 仅记录为未来 latency/cost/privacy hypothesis，本阶段不实现。TON multi-source 固定 16 题最终复跑为 16/16 strict pass，status/source-selection 均为 100%；M2 已于 2026-09-10 Product Frozen，M3 未开始。
 
 ## 8. Signal Engine
 

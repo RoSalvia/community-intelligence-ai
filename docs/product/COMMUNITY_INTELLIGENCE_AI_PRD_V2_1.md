@@ -663,6 +663,8 @@ embedding_model / embedding_revision / index_version
 
 RAG contract 从 M2 开始支持 optional `as_of_time`。系统基于 `effective_from`、`effective_until`、`published_at`、`superseded_at` 判断 source 在查询时间点是否有效，不能用今天的资料倒推历史事实。
 
+对于 current-fact query，`historical` status 只有在其 `validity` metadata provenance 为 `source-provided` 或 `human-confirmed` 时，才降低为历史背景，不与 current official source 以相同优先级竞争，也不仅因措辞不同触发 current conflict。系统不得伪造 `effective_until`、删除 historical source 或把“看起来很旧”的 AI/system 推断直接生效。带 past `as_of_time` 的 query 中，只要该 source 在当时已经发布且满足已有 verified 时间边界，它仍可参与当时事实判断。该规则必须属于 versioned metadata policy。
+
 每个 chunk 保留：
 
 ```text
@@ -686,13 +688,16 @@ original query
 → BM25 / FTS lexical retrieval + multilingual embedding retrieval
 → Reciprocal Rank Fusion
 → authority + validity + recency metadata policy
-→ Top-K fine-grained chunks
+→ bounded source-diverse candidate selection
+→ bounded Top-20 candidates
+→ validated multilingual reranker（仅显式配置 remote LLM 时）
+→ Top-5 fine-grained chunks
 → bounded parent / neighbor context expansion
 → answer status + citations
 → citation validation
 ```
 
-不使用随意加权的“综合事实分”。Context expansion 有明确数量/字符上限，不无界发送整份文档。Query rewrite、multi-query、reranker 只在固定 benchmark 暴露明确 failure case且对照实验稳定提升后加入。
+不使用随意加权的“综合事实分”。Source diversity 只能对已有 local hybrid candidates 做通用、有界、versioned 的选择，不得按项目或 source type 写专用规则，也不得用硬 cap 牺牲长文、多事实或跨语言召回；远程候选总量仍受 Top-20 限制。Context expansion 有明确数量/字符上限，不无界发送整份文档。Reranker 只能重排已有 candidate，返回未知、重复、缺失 ID 或 provider timeout/failure 时确定性回退 RRF Top-5；remote LLM 未配置时同样走 RRF Top-5。Query rewrite、multi-query 仍须等待新的固定 benchmark failure evidence。
 
 Answer status contract：`grounded | conflict | outdated_only | no_authoritative_source | insufficient_evidence`。`conflict` 必须并列展示当前有效且互相冲突的官方依据；“检索相关”不等于“事实被证明”。
 
@@ -1479,9 +1484,11 @@ P0 8 类 + Uncertain。
 
 每个 Golden Query 记录 `query`、`as_of_time`、expected source/revision/chunks 与 expected answer status。每轮 evaluation 记录 dataset version、N、语言/文档类型分布、chunk strategy/version、embedding model/revision 与 retrieval configuration。
 
-Retrieval 层至少报告 Recall@K、MRR / nDCG（适用时）及 cross-language retrieval performance。
+Retrieval 层固定报告 Hit Rate@1/@3/@5、Precision@1/@3/@5、Recall@1/@3/@5、R-Precision、MRR 与 nDCG@5，并拆分 overall / EN / CN / ES，以及适用的 cross-language / noisy / multi-fact slices。固定 Precision@5 必须连同每题 gold cardinality 与其自然上限解释，R-Precision 用于补充不同 gold 数量下的可比性。
 
-Answer / Grounding 层至少报告 citation validity、grounded-answer accuracy、no-answer / abstention accuracy、insufficient-evidence accuracy、conflict detection accuracy、outdated-source error rate 与 unsupported answer rate。
+Answer / Grounding 层固定报告 Complete Answer Rate、False Grounded Rate、Insufficient Evidence Accuracy、No-answer Accuracy、Citation Validity 与 citation repair/fallback rate；可继续报告 conflict detection、outdated-source error 与 unsupported answer rate。不得以 Recall 或模型返回 `grounded` 状态代替最终答案质量。
+
+正式 runtime receipt 分别统计 RRF fallback 与 reranker semantic path 的 remote calls/query、input/output/total tokens、estimated cost/query、p50/p95 latency、remote Evidence characters/tokens/query 及两路径 delta；benchmark judge/evaluation-only 调用排除在产品 runtime cost 外。
 
 ---
 
@@ -1898,6 +1905,8 @@ Technical Design 必须覆盖：
 - period comparison
 
 ## M2 — Knowledge Base
+
+**状态：Product Frozen（2026-09-10）。** Freeze 表示 Project Knowledge contract 与 production baseline 已达到 MVP 后续依赖条件；正式版本、验收证据和不阻塞限制记录于 `docs/10_M2_FREEZE_RECORD.md`。后续优化不得静默改变本节 contract，需通过独立 evaluation evidence 和版本升级进入 backlog。
 
 - multi-source file/manual ingestion 与完整 metadata
 - versioned revision、historical validity、incremental indexing

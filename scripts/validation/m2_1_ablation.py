@@ -6,7 +6,9 @@ import json
 import sqlite3
 from datetime import datetime
 
-from knowledge_external_validation import ROOT, retrieval_metrics, save, sha
+from knowledge_external_validation import ROOT, save, sha
+
+from community_intelligence.evaluation import retrieval_metrics
 
 
 def necessary_policy(items, when):

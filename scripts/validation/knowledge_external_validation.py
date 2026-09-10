@@ -6,12 +6,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import math
 import re
 from collections import Counter
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.request import Request, urlopen
+
+from community_intelligence.evaluation import retrieval_metrics
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -167,23 +168,6 @@ def acquire(spec_path: Path, output: Path) -> None:
         },
     )
     print("Corpus sealed:", sha((output / "corpus.lock.json").read_bytes()))
-
-
-def retrieval_metrics(gold: list[str], ranked: list[str]) -> dict:
-    if not gold:
-        return {"recall_at_5": None, "mrr_at_5": None, "ndcg_at_5": None, "hit_at_5": None}
-    expected = set(gold)
-    ranked = list(dict.fromkeys(ranked))[:5]
-    hits = expected.intersection(ranked)
-    ranks = [r for r, target in enumerate(ranked, 1) if target in expected]
-    dcg = sum(1 / math.log2(r + 1) for r in ranks)
-    ideal = sum(1 / math.log2(r + 1) for r in range(1, min(5, len(expected)) + 1))
-    return {
-        "recall_at_5": len(hits) / len(expected),
-        "mrr_at_5": 1 / min(ranks) if ranks else 0,
-        "ndcg_at_5": dcg / ideal,
-        "hit_at_5": int(bool(hits)),
-    }
 
 
 def run(

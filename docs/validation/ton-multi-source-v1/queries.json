@@ -1,0 +1,146 @@
+{
+  "dataset_version": "ton-multi-source-official-v1-queries",
+  "frozen_at": "2026-09-10T09:29:00Z",
+  "corpus_sha256": "403cc555f4fe2799ad969da4a8820fd976f5c68e0a4f961dc41182103c0b6447",
+  "design_rule": "Questions and gold were frozen after the source corpus and before the first run. Expected sources identify the minimum official evidence needed; no query was edited after observing results.",
+  "queries": [
+    {
+      "id": "MS01",
+      "dimension": "announcement_over_docs",
+      "query": "As of September 10, 2026, what is TON's native token name and ticker?",
+      "as_of_time": "2026-09-10T09:00:00Z",
+      "expected_status": "grounded",
+      "required_sources": ["announcement_gram_rename"],
+      "forbidden_sources": ["docs_start_pre_rename"]
+    },
+    {
+      "id": "MS02",
+      "dimension": "as_of_time",
+      "query": "At 09:00 UTC on June 12, 2026, what was TON's native token called?",
+      "as_of_time": "2026-06-12T09:00:00Z",
+      "expected_status": "grounded",
+      "required_sources": ["docs_start_pre_rename"],
+      "forbidden_sources": ["docs_start_current"]
+    },
+    {
+      "id": "MS03",
+      "dimension": "as_of_time",
+      "query": "At 13:00 UTC on June 15, 2026, what were the native token name and ticker?",
+      "as_of_time": "2026-06-15T13:00:00Z",
+      "expected_status": "grounded",
+      "required_sources": ["announcement_gram_rename"],
+      "forbidden_sources": ["docs_start_pre_rename", "docs_start_current"]
+    },
+    {
+      "id": "MS04",
+      "dimension": "announcement_over_docs",
+      "query": "Did users need to swap, bridge, claim, or migrate their tokens for the Toncoin-to-Gram rename?",
+      "as_of_time": "2026-09-10T09:00:00Z",
+      "expected_status": "grounded",
+      "required_sources": ["announcement_gram_rename"]
+    },
+    {
+      "id": "MS05",
+      "dimension": "legacy_vs_current",
+      "query": "Under TON's current Simplex consensus, how is a block finalized and what happens if the leader is offline?",
+      "as_of_time": "2026-09-10T09:00:00Z",
+      "expected_status": "grounded",
+      "required_sources": ["current_simplex"],
+      "forbidden_sources": ["legacy_catchain"]
+    },
+    {
+      "id": "MS06",
+      "dimension": "outdated_only",
+      "query": "In Catchain 1.0, what data identifies a catchain instance and which hash is used as its internal identifier?",
+      "as_of_time": "2026-09-10T09:00:00Z",
+      "expected_status": "outdated_only",
+      "required_sources": ["legacy_catchain"],
+      "forbidden_sources": ["current_simplex"]
+    },
+    {
+      "id": "MS07",
+      "dimension": "release_supersession",
+      "query": "What block-generation change was introduced in TON v2026.08?",
+      "as_of_time": "2026-09-10T09:00:00Z",
+      "expected_status": "grounded",
+      "required_sources": ["release_2026_08"],
+      "forbidden_sources": ["release_2026_05"]
+    },
+    {
+      "id": "MS08",
+      "dimension": "release_as_of_time",
+      "query": "As of June 1, 2026, which TVM version and networking change did the latest TON release announce?",
+      "as_of_time": "2026-06-01T12:00:00Z",
+      "expected_status": "grounded",
+      "required_sources": ["release_2026_05"],
+      "forbidden_sources": ["release_2026_08"]
+    },
+    {
+      "id": "MS09",
+      "dimension": "insufficient_evidence",
+      "query": "By exactly what percentage did TON v2026.08 reduce block-generation latency?",
+      "as_of_time": "2026-09-10T09:00:00Z",
+      "expected_status": "insufficient_evidence",
+      "required_sources": ["release_2026_08"]
+    },
+    {
+      "id": "MS10",
+      "dimension": "announcement_as_of_time",
+      "query": "As of December 6, 2023, when was the new TVM functionality scheduled to be enabled on mainnet?",
+      "as_of_time": "2023-12-06T12:00:00Z",
+      "expected_status": "grounded",
+      "required_sources": ["announcement_tvm_scheduled"],
+      "forbidden_sources": ["announcement_tvm_activated"]
+    },
+    {
+      "id": "MS11",
+      "dimension": "announcement_supersession",
+      "query": "As of December 21, 2023, had validators activated the TVM update?",
+      "as_of_time": "2023-12-21T12:00:00Z",
+      "expected_status": "grounded",
+      "required_sources": ["announcement_tvm_activated"],
+      "forbidden_sources": ["announcement_tvm_scheduled"]
+    },
+    {
+      "id": "MS12",
+      "dimension": "historical_blog",
+      "query": "According to the official TON Medium-linked explanation available on February 9, 2022, how did Instant Hypercube Routing move messages between shards?",
+      "as_of_time": "2022-02-09T12:00:00Z",
+      "expected_status": "grounded",
+      "required_sources": ["medium_hypercube_excerpt"]
+    },
+    {
+      "id": "MS13",
+      "dimension": "current_docs_over_blog",
+      "query": "Do current TON docs guarantee that every cross-shard message is processed instantly without delay?",
+      "as_of_time": "2026-09-10T09:00:00Z",
+      "expected_status": "grounded",
+      "required_sources": ["docs_shards_current"]
+    },
+    {
+      "id": "MS14",
+      "dimension": "insufficient_evidence",
+      "query": "What is the exact maximum delay, in seconds, for a cross-shard message during congestion?",
+      "as_of_time": "2026-09-10T09:00:00Z",
+      "expected_status": "insufficient_evidence",
+      "required_sources": ["docs_shards_current"]
+    },
+    {
+      "id": "MS15",
+      "dimension": "no_authoritative_source",
+      "query": "Which tax office issues validator registration certificates in Argentina?",
+      "as_of_time": "2026-09-10T09:00:00Z",
+      "expected_status": "no_authoritative_source",
+      "required_sources": []
+    },
+    {
+      "id": "MS16",
+      "dimension": "current_source_conflict",
+      "query": "In the current TON implementation, is the block candidate generated by the validator leader or by a separate collator?",
+      "as_of_time": "2026-09-10T09:00:00Z",
+      "expected_status": "conflict",
+      "required_sources": ["current_simplex", "release_2026_08"],
+      "conflict_note": "The current Simplex document assigns candidate proposal to the validator leader, while the current v2026.08 release says block generation can be offloaded to specialized collators. The fixed evidence does not explain whether these are logical and implementation roles, so the product must surface both rather than invent a reconciliation."
+    }
+  ]
+}

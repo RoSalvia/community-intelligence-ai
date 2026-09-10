@@ -94,7 +94,7 @@ M2 与 M3 在 M1 后可并行；M7 与 M8 在各自依赖满足后可并行。M9
 - 依赖：D1.1、D1.5。
 - 验收：API `202` 后可轮询；失败不发布 partial read model；同 fingerprint 可复用成功结果。
 
-## M2 — Knowledge Base
+## M2 — Knowledge Base（Product Frozen 2026-09-10）
 
 ### D2.1 Knowledge metadata 与 revision store
 
@@ -143,9 +143,11 @@ M2 与 M3 在 M1 后可并行；M7 与 M8 在各自依赖满足后可并行。M9
 - 已实现：D2.3/4 structure representation + incremental reindex；移除无收益 post-RRF relevance 窄带过滤；D2.5 显式 LLM 的 material-fact assessment + 引用校验 + 本地降级；D2.7 页面展示 facts/coverage/支持 chunk。
 - 已验证：原 34 条 TON queries/gold/rubric 未改的 regression；8 篇新文档先封存后锁定 28 题的单次 holdout；current/raw RRF/必要 metadata 的候选固定消融。见 `validation/M2_1_RAG_QUALITY_REVIEW.md`。
 - 已闭合：outdated-only active-first regression、H18 answerability over-decomposition、非法 quote 单次 repair；generic 12 题连续三轮 answer status 12/12，release/outdated 均稳定。
-- Controlled reranker：固定同一 Top20、query/gold/rubric、180/30、±1 与 answer pipeline；Recall@5 74.3% → 98.7%，完整答案 43/50 → 47/50，无 retrieval 或 safety-status regression。详见 `validation/M2_RAG_STABILITY_AND_RERANKER_REVIEW.md`。
-- Product decision：是否接受显式 remote profile 每题多一次调用、Top20 bounded snippets、约 +2.31s 中位延迟；接受后再接入正式 path，失败/未配置回退 RRF。
-- Stop：M2 尚未 Frozen；未进入 TON Multi-source 或 M3。
+- 正式 reranker：Product Owner 已批准显式 remote profile 使用 `policy Top20 → validated multilingual reranker → Top5`；未配置、timeout/error、未知/重复/缺失 ID 与非法响应均整体回退 RRF Top5，不能生成 candidate/Evidence。固定 62 题正式产品路径回归与完整 runtime cost 见 `validation/M2_RAG_STABILITY_AND_RERANKER_REVIEW.md`。
+- Evaluation contract：Retrieval 固定 Hit/Precision/Recall@1/@3/@5、R-Precision、MRR、nDCG@5 和 language/slice；Answer 固定 Complete、False Grounded、Insufficient、No-answer、Citation Validity、repair/fallback；两条 runtime path 排除 judge 调用单独核算。
+- TON Multi-source：固定真实 official Docs、legacy Whitepaper、GitHub Release/Changelog、official Medium-linked excerpt 与 Telegram announcement，先锁 corpus 再锁 query；同 hash 最终复跑为 16/16 strict pass、status 100%、source selection 100%。见 `validation/TON_MULTI_SOURCE_VALIDATION.md`。
+- Freeze gate：通用 `majority-one-slot-v1` 在单 source 严格占多数时最多替换其最低位一项，修复短 release 被长文挤出 Top20；硬 cap 因 regression 被拒绝。`authority-validity-rrf-v4` 仅在 `historical` 状态由 source/human 确认时将其降为 current-fact 背景，past `as_of_time` 仍可参与，不伪造 validity end。两项锁定回归无结构性 blocker；Product Owner 已于 2026-09-10 正式 Freeze M2，最终证据与 baseline versions 见 `10_M2_FREEZE_RECORD.md`。
+- Stop：M3 未开始；不引入 rewrite、multi-query、GraphRAG、LLM Wiki 或 LangGraph。
 
 ## M3 — Conversation Intelligence
 
@@ -336,6 +338,7 @@ M2 与 M3 在 M1 后可并行；M7 与 M8 在各自依赖满足后可并行。M9
 
 ### D9.3 Signal/RAG evaluation
 
+- 工作：保留 M2 Frozen baseline；追踪 T06/H20 material-detail omission、remote-provider variance、conditional reranking、本地 multilingual reranker 与更多项目 external validation。只有固定 benchmark evidence 支持时才提出 versioned baseline 变更，不重新打开 M2 scope。
 - 依赖：D2.5、D4.3、D9.1。
 - 验收：Signal precision/recall/FPR/latency/evidence；RAG retrieval/citation/grounding/outdated/conflict/no-answer 达门槛。
 
