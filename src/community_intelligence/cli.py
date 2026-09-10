@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import secrets
+import stat
 import sys
 import tempfile
 import threading
@@ -18,6 +20,7 @@ from pathlib import Path
 import uvicorn
 
 from community_intelligence.importers.telegram import import_telegram_export
+from community_intelligence.importers.telegram_html import canonicalize_telegram_html_exports
 from community_intelligence.io import (
     cleanup_private_directory,
     publish_directory_no_replace,
@@ -69,6 +72,17 @@ def _parser() -> argparse.ArgumentParser:
     telegram.add_argument("--input", type=Path, required=True)
     telegram.add_argument("--output", type=Path, required=True)
     telegram.add_argument("--language", default="und")
+    telegram_html = import_formats.add_parser(
+        "telegram-html",
+        help="normalize one or more Telegram Desktop HTML export snapshots",
+    )
+    telegram_html.add_argument("--input", type=Path, action="append", required=True)
+    telegram_html.add_argument("--output", type=Path, required=True)
+    telegram_html.add_argument("--community-id", required=True)
+    telegram_html.add_argument("--language", default="und")
+    telegram_html.add_argument("--source-timezone", required=True)
+    telegram_html.add_argument("--timezone-provenance", required=True)
+    telegram_html.add_argument("--identity-salt-file", type=Path, required=True)
     serve = subparsers.add_parser("serve", help="open the local web product")
     serve.add_argument("--port", type=_port, default=8765)
     serve.add_argument("--no-open", action="store_true", help="do not open a browser")
@@ -103,6 +117,32 @@ def _summary(dataset_dir: Path, report_dir: Path) -> dict[str, object]:
         "metric_observation_count": len(report["Metric Lab"]["observations"]),
         "evidence_count": evidence_count,
     }
+
+
+def _load_or_create_identity_salt(path: Path) -> str:
+    requested = Path(os.path.abspath(path.expanduser()))
+    requested.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        metadata = requested.lstat()
+    except FileNotFoundError:
+        salt = secrets.token_hex(32)
+        descriptor = os.open(
+            requested,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_CLOEXEC", 0),
+            0o600,
+        )
+        try:
+            os.write(descriptor, f"{salt}\n".encode())
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+        return salt
+    if not stat.S_ISREG(metadata.st_mode) or requested.is_symlink():
+        raise ValueError("identity salt path must be a regular non-symlink file")
+    salt = requested.read_text(encoding="utf-8").strip()
+    if len(salt) < 16:
+        raise ValueError("identity salt must contain at least 16 characters")
+    return salt
 
 
 def _demo(workspace: Path, *, seed: int, messages: int) -> dict[str, object]:
@@ -207,6 +247,38 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "message_count": len(dataset.messages),
                         "source_format": dataset.manifest.source_format,
                         "limitations": dataset.manifest.limitations,
+                    },
+                    sort_keys=True,
+                )
+            )
+            return 0
+        if args.command == "import" and args.import_format == "telegram-html":
+            salt_path = Path(os.path.abspath(args.identity_salt_file.expanduser()))
+            input_roots = [path.expanduser().resolve(strict=True) for path in args.input]
+            if any(salt_path.is_relative_to(root) for root in input_roots):
+                raise ValueError("identity salt must be outside source export roots")
+            identity_salt = _load_or_create_identity_salt(salt_path)
+            output_path = canonicalize_telegram_html_exports(
+                input_roots,
+                args.output,
+                community_id=args.community_id,
+                language=args.language,
+                source_timezone=args.source_timezone,
+                timezone_provenance=args.timezone_provenance,
+                identity_salt=identity_salt,
+            )
+            manifest = json.loads(
+                (output_path / "dataset_manifest.json").read_text(encoding="utf-8")
+            )
+            print(
+                json.dumps(
+                    {
+                        "dataset_dir": str(output_path.resolve()),
+                        "ordinary_message_count": manifest["profile"]["ordinary_message_count"],
+                        "output_fingerprint": manifest["output_fingerprint"],
+                        "parse_quarantine_count": manifest["profile"]["parse_quarantine_count"],
+                        "service_event_count": manifest["profile"]["service_event_count"],
+                        "source_format": manifest["source_format"],
                     },
                     sort_keys=True,
                 )

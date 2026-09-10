@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://community-intelligence.local/schemas/telegram-html-canonical-v1.schema.json",
+  "title": "Telegram Desktop HTML canonical conversation dataset",
+  "description": "Schema family for the five private canonical artifacts. Each JSONL artifact uses the corresponding definition in $defs; dataset_manifest.json uses DatasetManifest.",
+  "type": "object",
+  "$defs": {
+    "SourceOccurrence": {
+      "type": "object",
+      "required": ["source_html_file", "source_ordinal", "start_line", "start_offset", "end_offset", "raw_html_sha256", "snapshot", "selected"],
+      "properties": {
+        "source_html_file": {"type": "string"},
+        "source_ordinal": {"type": "integer", "minimum": 1},
+        "start_line": {"type": "integer", "minimum": 1},
+        "start_offset": {"type": "integer", "minimum": 0},
+        "end_offset": {"type": "integer", "minimum": 0},
+        "raw_html_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "snapshot": {"type": "string"},
+        "selected": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "TimestampSource": {
+      "type": "object",
+      "required": ["local_value", "raw_title", "source_timezone", "timezone_provenance"],
+      "properties": {
+        "local_value": {"type": "string"},
+        "raw_title": {"type": "string"},
+        "source_timezone": {"type": "string"},
+        "timezone_provenance": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "AuthorIdentity": {
+      "type": "object",
+      "required": ["anchor_source_message_id", "display_name", "resolution", "status"],
+      "properties": {
+        "anchor_source_message_id": {"type": "string"},
+        "display_name": {"type": ["string", "null"]},
+        "resolution": {"enum": ["explicit_from_name", "joined_inheritance", "joined_inheritance_failed", "missing_from_name"]},
+        "status": {"enum": ["available", "deleted_account", "missing"]}
+      },
+      "additionalProperties": false
+    },
+    "Link": {
+      "type": "object",
+      "required": ["href", "text"],
+      "properties": {
+        "href": {"type": "string"},
+        "text": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "CanonicalMessage": {
+      "type": "object",
+      "required": [
+        "message_id", "source_message_id", "source_platform", "community_id",
+        "community_source_identity", "language", "timestamp", "timestamp_source",
+        "author_identity", "anonymized_author_id", "text_original",
+        "reply_to_message_id", "reply_to_canonical_message_id", "forwarded_from",
+        "links", "media_refs", "source_html_file", "source_ordinal",
+        "source_occurrences", "raw_content_hash", "content_hash", "parser_version",
+        "canonical_ordinal"
+      ],
+      "properties": {
+        "message_id": {"type": "string"},
+        "source_message_id": {"type": ["string", "null"]},
+        "source_platform": {"const": "telegram"},
+        "community_id": {"type": "string"},
+        "community_source_identity": {"type": "object"},
+        "language": {"type": "string"},
+        "timestamp": {"type": ["string", "null"]},
+        "timestamp_source": {"oneOf": [{"$ref": "#/$defs/TimestampSource"}, {"type": "null"}]},
+        "author_identity": {"$ref": "#/$defs/AuthorIdentity"},
+        "anonymized_author_id": {"type": "string", "pattern": "^usr_[0-9a-f]+$"},
+        "text_original": {"type": "string"},
+        "reply_to_message_id": {"type": ["string", "null"]},
+        "reply_to_canonical_message_id": {"type": ["string", "null"]},
+        "forwarded_from": {"type": ["string", "null"]},
+        "links": {"type": "array", "items": {"$ref": "#/$defs/Link"}},
+        "media_refs": {"type": "array", "items": {"type": "string"}},
+        "source_html_file": {"type": "string"},
+        "source_ordinal": {"type": "integer", "minimum": 1},
+        "source_occurrences": {"type": "array", "items": {"$ref": "#/$defs/SourceOccurrence"}},
+        "raw_content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "parser_version": {"type": "string"},
+        "canonical_ordinal": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
+    },
+    "ServiceEvent": {
+      "type": "object",
+      "required": ["service_event_id", "source_message_id", "source_platform", "community_id", "timestamp", "timestamp_source", "service_text", "source_html_file", "source_ordinal", "source_occurrences", "raw_content_hash", "content_hash", "parser_version", "canonical_ordinal"],
+      "properties": {
+        "service_event_id": {"type": "string"},
+        "source_message_id": {"type": ["string", "null"]},
+        "source_platform": {"const": "telegram"},
+        "community_id": {"type": "string"},
+        "timestamp": {"type": ["string", "null"]},
+        "timestamp_source": {"oneOf": [{"$ref": "#/$defs/TimestampSource"}, {"type": "null"}]},
+        "service_text": {"type": "string"},
+        "source_html_file": {"type": "string"},
+        "source_ordinal": {"type": "integer", "minimum": 1},
+        "source_occurrences": {"type": "array", "items": {"$ref": "#/$defs/SourceOccurrence"}},
+        "raw_content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "parser_version": {"type": "string"},
+        "canonical_ordinal": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
+    },
+    "MediaReference": {
+      "type": "object",
+      "required": ["media_id", "source_message_id", "source_html_file", "kind", "href", "local_path", "exists", "bytes", "sha256", "thumbnail_path", "thumbnail_exists", "thumbnail_bytes", "thumbnail_sha256", "status_text", "source_occurrences"],
+      "properties": {
+        "media_id": {"type": "string"},
+        "source_message_id": {"type": ["string", "null"]},
+        "source_html_file": {"type": "string"},
+        "kind": {"enum": ["photo", "sticker", "gif", "video_file", "location", "embedded_photo", "embedded_video"]},
+        "href": {"type": ["string", "null"]},
+        "local_path": {"type": ["string", "null"]},
+        "exists": {"type": "boolean"},
+        "bytes": {"type": ["integer", "null"], "minimum": 0},
+        "sha256": {"type": ["string", "null"]},
+        "thumbnail_path": {"type": ["string", "null"]},
+        "thumbnail_exists": {"type": "boolean"},
+        "thumbnail_bytes": {"type": ["integer", "null"], "minimum": 0},
+        "thumbnail_sha256": {"type": ["string", "null"]},
+        "status_text": {"type": ["string", "null"]},
+        "source_occurrences": {"type": "array"}
+      },
+      "additionalProperties": false
+    },
+    "QuarantineRecord": {
+      "type": "object",
+      "required": ["reason"],
+      "properties": {
+        "reason": {"type": "string"},
+        "source_message_id": {"type": ["string", "null"]},
+        "source_html_file": {"type": "string"},
+        "source_ordinal": {"type": "integer", "minimum": 1},
+        "raw_html_sha256": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "DatasetManifest": {
+      "type": "object",
+      "required": ["schema_version", "parser_version", "source_format", "community_id", "language", "source_timezone", "input_fingerprint", "output_fingerprint", "artifact_sha256", "profile", "m1_compatibility"],
+      "properties": {
+        "schema_version": {"const": "1.0.0"},
+        "parser_version": {"const": "telegram_desktop_html_v1.0.0"},
+        "source_format": {"const": "telegram_desktop_html"},
+        "community_id": {"type": "string"},
+        "language": {"type": "string"},
+        "source_timezone": {"type": "object"},
+        "input_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "output_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "artifact_sha256": {"type": "object"},
+        "profile": {"type": "object"},
+        "m1_compatibility": {"type": "object"}
+      },
+      "additionalProperties": true
+    }
+  }
+}
