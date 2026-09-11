@@ -1,8 +1,8 @@
 ---
 artifact: prd
 product: Community Intelligence AI
-version: 2.1
-date: 2026-09-10
+version: 2.2
+date: 2026-09-11
 status: Ready for Technical Design
 owner: Product
 primary_use_case: Web3 multilingual community operations
@@ -13,7 +13,7 @@ mvp_languages:
   - ES
 ---
 
-# Community Intelligence AI — MVP PRD v2.1
+# Community Intelligence AI — MVP PRD v2.2
 
 > **一句话定位：** 面向多语言 Web3 社区运营的 AI Community Copilot。系统持续理解社区聊天与项目知识，主动发现风险和机会；运营人员可通过对话让 Agent 解释、调查和修正判断，并将任何结论定位回原始聊天证据。
 
@@ -122,11 +122,14 @@ MVP 是完整 AI Community Copilot 的第一阶段：
 Sense
 Community Intelligence
         ↓
+Prioritize
+Risk / Opportunity Signals
+        ↓
 Investigate
-Investigation Agent
+Community Evidence + Official Knowledge Grounding
         ↓
 Explain / Correct
-Ask Community + Human Intervention
+Investigation + Ask Community + Human Intervention
         ↓
 Recommend
 Strategy / Intervention Agent（下一阶段）
@@ -140,7 +143,15 @@ Outcome Feedback（未来）
 
 当前 MVP 范围：
 
-> **Sense + Investigate + Explain + Human Correct**
+> **Sense + Prioritize + Investigate + Explain + Human Correct**
+
+其中 Project Knowledge / RAG 不作为独立终点，而作为 Investigation 的官方事实层：
+
+> **Community 侧告诉系统“发生了什么”，Project Knowledge 告诉系统“官方怎么说”。**
+
+RAG 的主要价值不是替 Community Lead 回忆项目常识，也不是直接回答社区成员的零散问题，而是在系统发现值得关注的社区问题后，自动关联可追溯的官方口径、规则、公告与历史版本，帮助 Community Lead 判断问题性质并采取下一步行动。
+
+Standalone Knowledge QA / conversational follow-up 可以存在，但属于 secondary surface，不是 M2 的主要产品价值。
 
 当前 MVP 不做完整 Strategy / Execute。
 
@@ -160,6 +171,8 @@ Outcome Feedback（未来）
 10. **聊天入口不仅用于问答，也是解释、调查和人工纠错入口**
 11. **MVP 优先证明“几步内产生运营价值”，而不是堆叠功能**
 12. **功能模块可以稳定，指标 / taxonomy / threshold 后续持续迭代**
+13. **Community Evidence 与 Official Knowledge 必须分层：前者描述社区实际发生了什么，后者提供官方事实基准。**
+14. **RAG 默认服务于 Investigation grounding，不要求 Community Lead 先提出一个自然语言知识问题。**
 
 ---
 
@@ -173,49 +186,84 @@ Community Lead 早上打开产品。
 
 > **过去 8 小时有 3 件事值得关注。**
 >
-> - CN：Wallet connection 问题明显上升，18 名用户受影响，11 个问题尚未解决。
+> - CN：Quest reward 相关 Question / Confusion 明显上升，涉及 18 名用户，11 个问题尚未得到有效回复。
 > - ES：Staking eligibility 出现集中 confusion。
 > - EN：无明显风险，但 User A31 进入 High Contributor 候选。
 
-用户点击：
+Community Lead 不需要先阅读数百条聊天，也不需要自己想好一个问题去问知识库。
+
+用户点击 CN Signal 的：
 
 > `Investigate`
 
-Agent 自动沿分析链检查：
+系统形成 Investigation Context：
+
+- 当前 Signal；
+- 相关 Topic / Behavior；
+- 受影响用户与趋势；
+- 代表性 Community Evidence；
+- 社区中反复出现的 claim / confusion；
+- 分析时间窗口；
+- `as_of_time`；
+- 当前调查目标。
+
+Investigation Agent 根据中间结果调用分析工具，并在需要项目事实时自动调用 Project Knowledge：
 
 ```text
-Topic trend
+Topic / Behavior
 → affected users
-→ behavior distribution
 → unanswered questions
 → Mod response
-→ cross-language comparison
-→ Project Knowledge retrieval
-→ original evidence
+→ observed community claims
+→ retrieve relevant official knowledge
+→ compare community evidence with official context
+→ identify supported / conflicting / unknown facts
 ```
 
-Agent 输出：
+Investigation 页面固定呈现三层信息：
 
-```text
-Finding
-Why
-Evidence
-Confidence
-Possible Cause
-Suggested Next Action
-```
+### What we see in the community
 
-用户点击 Evidence，直接定位原始聊天上下文。
+社区正在发生什么，包括趋势、用户范围、Behavior、回复情况及原始 Evidence。
 
-用户还可以在 Ask Community 中继续追问：
+### What official sources say
 
-> “这个问题官方文档里有答案吗？”
+自动关联与当前问题相关的官方 Blog、Announcement、Docs、FAQ、规则或历史版本，并保留 citation、时间和 provenance。
+
+### What we know / what remains unknown
+
+明确区分：
+
+- 社区说法与官方信息一致；
+- 社区存在误解；
+- 官方信息不足或未明确；
+- 官方规则发生过变化；
+- 已有官方维护 / known issue；
+- 当前可能是新的产品问题；
+- 当前 claim 缺少 authoritative evidence。
+
+Community Lead 再据此决定是否：
+
+- 统一 Mod 回复口径；
+- 发布 clarification；
+- 更新 FAQ；
+- 升级 Product / Engineering；
+- 继续观察；
+- 查看原始 Conversation Evidence。
+
+如果需要继续深挖，用户可以在 Ask Community 中追问：
+
+> “官方有没有明确说过奖励会立即到账？”
 >
-> “为什么你认为是 Product Issue？”
+> “这个规则和 7 月那次活动一样吗？”
 >
-> “EN 和 ES 有没有同样的问题？”
+> “只看 8 月 1 日以前的官方信息。”
 >
-> “这个不是 Bug，是计划内维护，帮我修正这个 Finding。”
+> “根据现有官方证据，整理一版给 Mods 的回复口径。”
+
+因此：
+
+> **自动 grounding 是主路径，对话式 RAG 是 follow-up。**
 
 ---
 
@@ -243,9 +291,26 @@ Suggested Next Action
 - Tokenomics；
 - Product Guides；
 - Community Rules；
-- Campaign / Official Announcements；
-- Release Notes；
-- 手工补充官方项目知识。
+- Campaign Rules；
+- Official Announcements；
+- Official Blog；
+- Release Notes / Changelog；
+- Maintenance Notice；
+- 手工补充并确认的官方项目知识。
+
+P0 RAG 主要用于：
+
+- 为 Signal / Investigation 自动补充 Official Context；
+- 核查社区 claim 是否有官方依据；
+- 核查规则、活动、产品说明；
+- 识别历史规则变化；
+- 查询 maintenance / known issue / release context；
+- 为 Mod response guidance 提供官方 grounding；
+- Agent 调查中的 project-specific factual verification。
+
+Community Lead 不需要为了触发 RAG 先手工输入一个自然语言问题。
+
+Standalone Project Knowledge QA 可以作为 secondary capability，但不是 P0 Hero Flow。
 
 ### C. Intelligence Engine
 
@@ -267,15 +332,22 @@ Suggested Next Action
 - Community Timeline；
 - Ask Community；
 - Signal → Investigate；
+- Signal → Investigation Context；
+- Investigation → Official Context；
 - Human Correction / Intervention；
 - Evidence → Original Conversation。
 
 ### E. Investigation Agent
 
+- Signal-driven investigation；
+- Investigation Context assembly；
 - bounded tool calling；
 - dynamic investigation；
-- evidence-grounded answer；
-- RAG when needed；
+- Community Evidence retrieval；
+- Project Knowledge grounding；
+- community claim vs official fact verification；
+- evidence-grounded diagnosis；
+- explicit unknown / insufficient evidence；
 - suggested immediate action。
 
 ## 6.2 P1 — 下一版本
@@ -602,20 +674,71 @@ Behavior 可按：
 
 ## 11.1 产品目的
 
-Knowledge Base 不是为了增加“和白皮书聊天”的功能。
+Knowledge Base 不是为了增加一个“和白皮书聊天”的功能，也不是社区成员问答机器人。
 
 它提供：
 
 > **Project-specific Source of Truth**
 
-用于帮助系统判断：
+其主要职责是在 Community Intelligence 已经发现值得关注的问题后，为 Investigation 自动补充官方事实上下文。
 
-- 用户说法是否与官方信息一致；
-- Mod 回答是否正确；
-- confusion 是否源于已有文档未触达；
-- 是否存在 FAQ gap；
-- FUD / misinformation 是否有事实依据；
-- Agent 调查时如何回答项目事实问题。
+产品中的两种证据必须明确分层：
+
+### Community Evidence
+
+回答：
+
+> **社区正在发生什么？**
+
+来源包括：
+
+- Conversation；
+- Topic；
+- Behavior；
+- Reply / Support；
+- Trend；
+- affected users；
+- Mod response；
+- observed community claims。
+
+### Project Knowledge
+
+回答：
+
+> **官方怎么说？**
+
+来源包括：
+
+- Official Blog；
+- Announcement；
+- Docs；
+- FAQ；
+- Campaign Rules；
+- Maintenance Notice；
+- Release Notes；
+- 其他经验证的官方来源。
+
+M2 的核心价值是将两者在 Investigation 中关联起来，但不得混淆来源。
+
+典型用途包括：
+
+- 社区出现大量 confusion 时，检查官方规则是否已经说明；
+- 社区传播某个 claim 时，核查当前是否有 authoritative evidence；
+- 用户认为规则发生变化时，恢复历史官方版本；
+- Product Issue 激增时，检查是否存在 maintenance / known issue / release context；
+- Mod 准备回复用户时，提供可引用的官方口径；
+- Agent 需要做 project-specific factual judgment 时提供事实依据。
+
+Knowledge Base 可以返回：
+
+- supported official fact；
+- conflicting official sources；
+- historical rule change；
+- outdated-only evidence；
+- no authoritative source；
+- insufficient evidence。
+
+没有官方证据本身也是有效调查结果。
 
 ---
 
@@ -643,7 +766,7 @@ source_type / source_channel
 canonical_url / platform / platform_content_id / author
 language / project_scope
 authority_level / official_status / source_owner / verification_method
-published_at
+published_on / published_at / temporal_precision
 updated_at / effective_from / effective_until
 ingested_at / observed_at / superseded_at / source_timezone
 version / revision_id
@@ -655,13 +778,32 @@ parser_version / chunk_strategy / chunk_strategy_version
 embedding_model / embedding_revision / index_version
 ```
 
-所有时间字段必须精确到时间且为 offset-aware timestamp；内部统一保留 UTC，同时保留原始 `source_timezone`。`status` 至少支持 `current | superseded | expired | historical | draft | unknown`。
+Publication metadata 必须保留来源真实提供的时间精度，不得为了 schema 伪造更高精度。
 
-会影响事实排序的关键 metadata（至少 authority、official status、validity、published_at、source_type）必须逐字段记录 provenance：`source-provided | human-confirmed | system-derived | ai-inferred`。AI 推断不能未经人工确认直接成为有效事实。AI semantic tags 与 factual provenance metadata 分层存储。
+至少支持：
+
+- `published_on`：来源只提供日期；
+- `published_at`：来源提供精确 timestamp；
+- `temporal_precision = day | second`；
+- nullable `effective_from / effective_until`。
+
+Blog 等 date-only source 不得伪造 midnight timestamp。
+
+Publication time 与 validity time 必须分开：
+
+> **published ≠ effective**
+
+只有来源明确提供或经人工确认时，才写入 validity metadata。
+
+`as_of_time` evaluation 必须尊重 source temporal precision；day-precision source 在同日精确时刻查询中不得冒充已知具体发布时间。
+
+精确时间字段必须为 offset-aware timestamp；内部统一保留 UTC，同时保留原始 `source_timezone`。`status` 至少支持 `current | superseded | expired | historical | draft | unknown`。
+
+会影响事实排序的关键 metadata（至少 authority、official status、validity、publication metadata〔`published_on / published_at / temporal_precision`〕、source_type）必须逐字段记录 provenance：`source-provided | human-confirmed | system-derived | ai-inferred`。AI 推断不能未经人工确认直接成为有效事实。AI semantic tags 与 factual provenance metadata 分层存储。
 
 ### Authority 与历史有效性
 
-RAG contract 从 M2 开始支持 optional `as_of_time`。系统基于 `effective_from`、`effective_until`、`published_at`、`superseded_at` 判断 source 在查询时间点是否有效，不能用今天的资料倒推历史事实。
+RAG contract 从 M2 开始支持 optional `as_of_time`。系统基于 publication metadata（`published_on / published_at / temporal_precision`）、`effective_from`、`effective_until` 与 `superseded_at` 判断 source 在查询时间点是否已经发布且有效，不能用今天的资料倒推历史事实。`temporal_precision=second` 时按精确 timestamp 判断；`temporal_precision=day` 时只能做日期级判断，在同日带具体时刻的 `as_of_time` 下不得推断 source 已经发布，必须保留 temporal uncertainty。
 
 对于 current-fact query，`historical` status 只有在其 `validity` metadata provenance 为 `source-provided` 或 `human-confirmed` 时，才降低为历史背景，不与 current official source 以相同优先级竞争，也不仅因措辞不同触发 current conflict。系统不得伪造 `effective_until`、删除 historical source 或把“看起来很旧”的 AI/system 推断直接生效。带 past `as_of_time` 的 query 中，只要该 source 在当时已经发布且满足已有 verified 时间边界，它仍可参与当时事实判断。该规则必须属于 versioned metadata policy。
 
@@ -731,17 +873,63 @@ RAG retrieval 必须保留 source metadata 和 chunk provenance。
 
 ## 11.5 RAG 使用边界
 
-需要 RAG：
+### Primary use — Investigation Grounding
 
-- Mod answer correctness；
-- misinformation；
-- confusion；
-- project question；
-- FAQ gap；
-- Campaign interpretation；
-- Agent project-specific question。
+RAG 默认在 Investigation 需要项目事实时调用。
 
-不需要 RAG：
+典型场景：
+
+#### Community Claim Verification
+
+社区集中传播一个说法时，检查：
+
+- 官方是否真的说过；
+- 截至 `as_of_time` 是否已经发布；
+- 当前是否存在 conflicting source；
+- claim 是否 unsupported。
+
+#### Rule / Campaign Clarification
+
+社区对活动条件、奖励、eligibility、deadline、规则产生 confusion 时，自动关联相关官方说明。
+
+#### Historical Rule Verification
+
+用户声称“以前规则不是这样”时，检查：
+
+- 历史 source；
+- 新旧规则；
+- publication / validity 时间；
+- supersession 关系。
+
+#### Incident Context
+
+Product Issue / Complaint 突然上升时，检查近期：
+
+- maintenance；
+- known issue；
+- release；
+- product change；
+- official acknowledgement。
+
+如果没有相关官方信息，也要明确返回：
+
+> No related authoritative source found.
+
+#### Response Guidance Grounding
+
+在 Community Lead / Mod 准备统一回复口径前，提供：
+
+- 可以确认的官方事实；
+- 不应宣称的未确认内容；
+- 对应 source citation。
+
+### Secondary use — Conversational Follow-up
+
+Community Lead 可以在 Investigate 后继续追问 Project Knowledge，但对话不是 RAG 的唯一或主要入口。
+
+### 不需要 RAG
+
+以下事实仍由 deterministic / statistical layer 直接计算：
 
 - message count；
 - unique users；
@@ -749,7 +937,12 @@ RAG retrieval 必须保留 source metadata 和 chunk provenance。
 - response latency；
 - duplicates；
 - participation trend；
-- user concentration。
+- user concentration；
+- activity mode。
+
+原则：
+
+> **能从社区数据直接计算的，不调用 RAG；需要核查项目官方事实时才调用 RAG。**
 
 ---
 
@@ -774,10 +967,33 @@ Response status
 +
 Hygiene
 +
-Knowledge grounding（如适用）
-+
 Evidence
 ```
+
+Signal 默认基于 Community Evidence 产生，不要求每个 Signal 在触发前完成 RAG。
+
+Signal 需要为后续 Investigation 提供：
+
+- affected subject / Topic；
+- Behavior；
+- observed claims；
+- representative Evidence；
+- trend / persistence；
+- affected communities；
+- time window；
+- `knowledge_check_needed`；
+- `knowledge_check_reason`。
+
+`knowledge_check_reason` 是解释 M4 为什么要求 Investigation 调用 M2 的版本化 reason code。`knowledge_check_needed=true` 时必须记录，`false` 时为空；它不得保存模型隐藏推理。示例：
+
+```text
+community_claim_requires_official_verification
+product_issue_requires_maintenance_context
+```
+
+只有明确依赖官方事实才能定义的 recipe 可以执行轻量 Knowledge check；完整 Official Context enrichment 默认发生在 Investigate。
+
+这避免 Knowledge latency 阻塞 Sense / Signal，同时确保需要事实核查的问题在 Investigation 阶段获得官方 grounding。
 
 ### FR-SIGNAL-001
 
@@ -797,7 +1013,10 @@ window
 trigger_metrics
 topic_ids
 behavior_types
-knowledge_refs
+observed_claims
+knowledge_check_needed
+knowledge_check_reason
+knowledge_refs（optional）
 evidence_ids
 confidence
 status
@@ -809,11 +1028,21 @@ status
 
 ---
 
-# 13. Ask Community — Chat as Copilot Surface
+# 13. Ask Community — Follow-up Copilot Surface
 
-Ask Community 是全局入口，不是附属 Chatbot。
+Ask Community 是 Community Lead 的自由调查、解释与人工纠错入口，但不是 RAG 的主要触发方式。
 
-它承担三个功能。
+Hero Flow 优先：
+
+> Signal → Investigate → automatic Official Context
+
+Ask Community 主要承担：
+
+- 对 Investigation 继续追问；
+- Explain；
+- cross-community comparison；
+- Project Knowledge follow-up；
+- Human Intervention / Correction。
 
 ## 13.1 Explain
 
@@ -836,15 +1065,26 @@ Agent 基于：
 
 ## 13.2 Investigate
 
-用户可自由提出社区调查问题：
+Investigation 可以从两类入口开始：
 
-- 哪个语言区最近最值得关注？
-- 为什么 ES 讨论下降？
-- 最近大家主要在抱怨什么？
+### Signal-driven
+
+Community Lead 从 Need Attention / Opportunity 点击 `Investigate`。
+
+系统自动继承 Signal 和 Community Evidence，不要求用户重新描述问题。
+
+### Free-form
+
+Community Lead 也可以主动提出调查问题，例如：
+
+- 最近为什么 Quest reward confusion 上升？
 - 哪些问题没有被 Mod 处理？
-- EN/CN/ES 是否都在讨论同一个问题？
+- CN 和 ES 是否出现同一种产品问题？
+- 官方是否承认了这个 issue？
 
-Agent 自主决定需要查询哪些工具。
+两类入口最终都转换成统一的 `InvestigationContext`。
+
+Project Knowledge retrieval 是 Investigation 内部工具调用，不要求用户手动提出一个 RAG query。
 
 ---
 
@@ -925,9 +1165,23 @@ source = human_review
 
 Investigation Agent 是 MVP 的主要 Agent。
 
-它不是“总结聊天”，而是：
+它不是“总结聊天”，也不是“Knowledge Chatbot”。
 
-> **根据调查问题和中间结果，自主决定下一步需要调用哪些分析工具。**
+它的任务是：
+
+> **从一个值得关注的 Community Signal / 调查目标出发，组织 Community Evidence、自动补充 Official Context，并帮助 Community Lead 判断现在已知什么、未知什么以及下一步应该检查什么。**
+
+Investigation 的核心不是生成一个听起来合理的解释，而是建立：
+
+```text
+Community State
++
+Community Evidence
++
+Official Context
++
+Known / Unknown boundary
+```
 
 ---
 
@@ -937,11 +1191,50 @@ A. Need Attention → `Investigate`
 
 B. Opportunity → `Investigate`
 
-C. Ask Community free-form question
+C. Ask Community free-form investigation
+
+Signal-driven Investigation 为 MVP Hero Path。
 
 ---
 
-## 14.3 Tool Contract
+## 14.3 Investigation Context
+
+Investigation 开始时必须形成 versioned `InvestigationContext`：
+
+```text
+source_type = signal | free_form
+signal_id（optional；仅 Signal-driven）
+community_ids[]
+analysis_window
+as_of_time
+
+topic_ids[]
+behavior_types[]
+
+observed_claims[]
+community_evidence_ids[]
+
+trigger_fact_ids[]
+affected_scope
+
+investigation_goal
+knowledge_check_needed
+knowledge_check_reason
+
+context_version
+```
+
+其中：
+
+- `observed_claims` 来自 Community Evidence，不得冒充官方事实；
+- `as_of_time` 默认继承被调查社区事件的时间边界；
+- `investigation_goal` 可以由 Signal recipe 产生，也可以来自 Lead free-form intent；
+- `knowledge_check_reason` 在 `knowledge_check_needed=true` 时必须继承或生成可审计的版本化 reason code；
+- Knowledge retrieval 可以将 Context 转换成内部 retrieval intent，但不得改写原始 Community Evidence。
+
+---
+
+## 14.4 Tool Contract
 
 MVP 概念工具：
 
@@ -967,7 +1260,35 @@ retrieve_project_knowledge
 
 ---
 
-## 14.4 Agent Limits
+### Official Context
+
+`retrieve_project_knowledge` 返回的不只是搜索结果列表，而是 Investigation 中的 `OfficialContext`：
+
+```text
+as_of_time
+
+source_ids[]
+revision_ids[]
+chunk_ids[]
+
+supported_facts[]
+conflicting_facts[]
+historical_changes[]
+
+unsupported_community_claims[]
+unknowns[]
+
+answer_status
+citation_refs[]
+```
+
+Official Context 必须保留真实 Source / Revision / Chunk provenance。
+
+没有匹配官方资料时，`unknowns` / `no_authoritative_source` 是合法输出，不得为了给 Investigation 一个结论而补全不存在的官方事实。
+
+---
+
+## 14.5 Agent Limits
 
 ### FR-AGENT-001
 
@@ -983,9 +1304,16 @@ Agent 必须根据前一步结果决定后续步骤，不固定全量调用。
 
 ```text
 Finding
-Why / Analysis Chain
-Evidence
-Knowledge Sources（如适用）
+
+What we see in the community
+Community Evidence
+
+What official sources say
+Official Context + citations
+
+What we know
+What remains unknown
+
 Confidence
 Possible Cause
 Suggested Next Action
@@ -1012,6 +1340,10 @@ Suggested Next Action
 ### FR-AGENT-007
 
 不得将 association 直接描述为 causality。
+
+### FR-AGENT-008
+
+Signal-driven Investigation 中，如果 `knowledge_check_needed=true`，Agent 必须记录 `knowledge_check_reason`，并在形成 project-specific factual diagnosis 前尝试 Project Knowledge grounding；Knowledge unavailable 时必须显式标记，不得使用模型记忆替代。
 
 ---
 
@@ -1373,7 +1705,25 @@ AI Interpretation 不得覆盖原文。
 
 ## RAG
 
-只在需要项目事实时调用。
+只在需要核查项目官方事实时调用。
+
+RAG 的默认调用方是 Investigation，而不是 raw community message。
+
+Raw Conversation 不直接自动进入 Project Knowledge QA。
+
+正确主路径为：
+
+```text
+Conversation
+→ Topic / Behavior / Reply
+→ Signal
+→ Investigation Context
+→ Project Knowledge retrieval
+→ Official Context
+→ Diagnosis
+```
+
+Conversational Knowledge QA 是 secondary follow-up。
 
 ---
 
@@ -1478,21 +1828,133 @@ P0 8 类 + Uncertain。
 
 ---
 
-## 24.5 RAG Evaluation
+## 24.5 M2 Knowledge Component Evaluation
 
-建立 generic representative fixture pack，覆盖 EN/CN/ES 及 Long Whitepaper、FAQ、Product Docs、Official Announcement、Official Blog/Medium、Release Notes/Changelog、conflicting/superseded sources。需包含跨相邻语义单元、同义改写、旧资料被覆盖、无答案、bullets/table-like、very long section、short FAQ 与 prompt injection；产品代码不得包含 fixture-specific rule。
+M2 继续保留组件级 regression，用于证明 Knowledge retrieval engine 本身没有退化。
 
-每个 Golden Query 记录 `query`、`as_of_time`、expected source/revision/chunks 与 expected answer status。每轮 evaluation 记录 dataset version、N、语言/文档类型分布、chunk strategy/version、embedding model/revision 与 retrieval configuration。
+该 evaluation 不等同于 Community Lead 的最终业务价值评价。
 
-Retrieval 层固定报告 Hit Rate@1/@3/@5、Precision@1/@3/@5、Recall@1/@3/@5、R-Precision、MRR 与 nDCG@5，并拆分 overall / EN / CN / ES，以及适用的 cross-language / noisy / multi-fact slices。固定 Precision@5 必须连同每题 gold cardinality 与其自然上限解释，R-Precision 用于补充不同 gold 数量下的可比性。
+固定覆盖：
 
-Answer / Grounding 层固定报告 Complete Answer Rate、False Grounded Rate、Insufficient Evidence Accuracy、No-answer Accuracy、Citation Validity 与 citation repair/fallback rate；可继续报告 conflict detection、outdated-source error 与 unsupported answer rate。不得以 Recall 或模型返回 `grounded` 状态代替最终答案质量。
+- multi-source official knowledge；
+- EN / CN / ES；
+- cross-language retrieval；
+- long document；
+- FAQ；
+- Official Announcement；
+- Official Blog；
+- Release Notes；
+- conflicting / superseded sources；
+- historical `as_of_time`；
+- no-answer；
+- prompt injection。
 
-正式 runtime receipt 分别统计 RRF fallback 与 reranker semantic path 的 remote calls/query、input/output/total tokens、estimated cost/query、p50/p95 latency、remote Evidence characters/tokens/query 及两路径 delta；benchmark judge/evaluation-only 调用排除在产品 runtime cost 外。
+组件级固定报告：
+
+### Retrieval
+
+- Hit@1 / @3 / @5
+- Precision@1 / @3 / @5
+- Recall@1 / @3 / @5
+- R-Precision
+- MRR
+- nDCG@5
+
+### Answer / Grounding
+
+- Complete Answer Rate
+- False Grounded Rate
+- Insufficient Evidence Accuracy
+- No-answer Accuracy
+- Citation Validity
+- conflict / outdated handling
+- unsupported answer rate
+
+### Runtime
+
+- remote calls/query
+- tokens/query
+- estimated cost/query
+- p50 / p95 latency
+- bounded Evidence payload
+
+2026-09-10 冻结的 M2 Retrieval / Ranking production baseline 继续作为 component regression。2026-09-11 的 backward-compatible temporal metadata contract v3 compatibility update 不重新打开 chunking、embedding、RRF、reranker 或 authority policy 优化。
+
+除非新的固定 component benchmark 发现明确 regression，不因 Investigation evaluation 调整 chunking、embedding、RRF、reranker 或 authority policy。
 
 ---
 
-## 24.6 Agent Evaluation
+## 24.6 Investigation Grounding Evaluation
+
+M2 的主要业务价值在 M3 / M4 / Investigation 联动后评价。
+
+Primary business benchmark 不再使用：
+
+> raw community utterance → direct RAG answer
+
+作为 P0 主评测。
+
+新的 evaluation unit 是：
+
+> **真实 Community Signal / Investigation Context → 正确 Official Context**
+
+Evaluation case 来自真实社区事件或 Signal，不从 Knowledge 反向生成。
+
+每个 case 至少包含：
+
+```text
+signal / investigation goal
+community window
+community evidence refs
+observed claims
+as_of_time
+
+required official facts
+acceptable evidence set(s)
+forbidden future / invalid evidence
+
+expected:
+supported / conflict / historical change /
+no authoritative evidence / insufficient evidence
+```
+
+Gold 采用 fact-first contract：每个 required official fact 可以对应一个或多个 acceptable evidence set。只要系统找到该事实，并引用任一有效、可追溯且时间正确的官方证据，即可满足该项；不得把命中预先指定的唯一 source 或 chunk 作为通过条件。
+
+核心指标：
+
+```text
+Official Context Recall@K
+Required Fact Coverage
+No-authoritative-evidence Accuracy
+Historical Correctness
+Conflict Detection Accuracy
+Citation Validity
+Unsupported Official Claim Rate
+Investigation Grounding Latency
+Investigation Grounding Cost
+```
+
+并拆分：
+
+- rule / campaign clarification；
+- misinformation verification；
+- historical rule change；
+- incident context；
+- maintenance / known issue；
+- Blog-only；
+- Telegram-only；
+- multi-source；
+- cross-language。
+
+特别要求：
+
+> Signal/Investigation 与 Gold Official Context 必须独立于待测 product retrieval 建立。
+
+此前冻结的 `60 real-community raw queries` 与 Gold Protocol v1/v2 失败实验保留为 research asset，用于说明 message-level QA 与 Community Lead 主工作流不匹配，不再作为 P0 primary RAG business benchmark（`deprecated as primary P0 RAG business benchmark / retained research asset`）。
+
+---
+
+## 24.7 Agent Evaluation
 
 Benchmark Question 示例：
 
@@ -1509,7 +1971,15 @@ Benchmark Question 示例：
 - unsupported claim rate；
 - evidence citation validity；
 - knowledge citation validity；
-- answer usefulness。
+- answer usefulness；
+- Investigation Context completeness；
+- community evidence / official evidence separation；
+- knowledge tool invocation relevance；
+- Official Context coverage；
+- known / unknown boundary correctness；
+- unnecessary RAG invocation rate；
+- knowledge-check reason validity；
+- project-specific unsupported claim rate。
 
 Material unsupported claim：
 
@@ -1676,7 +2146,8 @@ created_at
 
 ```text
 revision_id / source_id / version / content_hash / status
-published_at / updated_at / effective_from / effective_until
+published_on / published_at / temporal_precision
+updated_at / effective_from / effective_until
 ingested_at / observed_at / superseded_at / source_timezone
 supersedes_source_id / supersedes_revision_id
 superseded_by_source_id / superseded_by_revision_id
@@ -1733,7 +2204,10 @@ analysis_window
 trigger_metrics
 topic_ids[]
 behavior_types[]
-knowledge_refs[]
+observed_claims[]
+knowledge_check_needed
+knowledge_check_reason
+knowledge_refs[]（optional）
 evidence_ids[]
 confidence
 status
@@ -1781,21 +2255,83 @@ evidence_ids[]
 review_status
 ```
 
+## InvestigationContext
+
+```text
+investigation_context_id
+
+source_type = signal | free_form
+signal_id（optional；仅 Signal-driven）
+
+community_ids[]
+analysis_window
+as_of_time
+
+topic_ids[]
+behavior_types[]
+
+observed_claims[]
+community_evidence_ids[]
+trigger_fact_ids[]
+
+investigation_goal
+knowledge_check_needed
+knowledge_check_reason
+
+context_version
+created_at
+```
+
+## OfficialContext
+
+```text
+official_context_id
+investigation_context_id
+
+as_of_time
+
+source_ids[]
+revision_ids[]
+chunk_ids[]
+
+supported_facts[]
+conflicting_facts[]
+historical_changes[]
+unsupported_community_claims[]
+unknowns[]
+
+answer_status
+citation_refs[]
+
+retrieval_method
+retrieval_version
+created_at
+```
+
 ## Investigation
 
 ```text
 investigation_id
-question
-scope
+investigation_context_id
+
 tool_steps[]
+
 finding
+community_evidence_ids[]
+official_context_id
+
+known_facts[]
+unknowns[]
+
 confidence
-evidence_ids[]
-knowledge_refs[]
+possible_cause
 suggested_next_action
+
 model
 prompt_version
 method_version
+
+question（optional；仅 free-form Investigate）
 ```
 
 ## HumanCorrection
@@ -1906,7 +2442,11 @@ Technical Design 必须覆盖：
 
 ## M2 — Knowledge Base
 
-**状态：Product Frozen（2026-09-10）。** Freeze 表示 Project Knowledge contract 与 production baseline 已达到 MVP 后续依赖条件；正式版本、验收证据和不阻塞限制记录于 `docs/10_M2_FREEZE_RECORD.md`。后续优化不得静默改变本节 contract，需通过独立 evaluation evidence 和版本升级进入 backlog。
+**状态：M2 Retrieval / Ranking production baseline Frozen（2026-09-10）；temporal metadata contract 于 2026-09-11 完成 backward-compatible v3 compatibility update。** Freeze 表示 retrieval/ranking baseline 已达到 MVP 后续依赖条件；正式版本、验收证据和不阻塞限制记录于 `docs/10_M2_FREEZE_RECORD.md`。本次 temporal metadata update 支持 `published_on / published_at / temporal_precision`，未重新打开 chunking、embedding、RRF、reranker 或 authority policy 优化。后续对冻结 baseline 的改变仍需通过独立 evaluation evidence 和版本升级进入 backlog。
+
+M2 Retrieval / Ranking baseline Freeze 表示该检索组件可被后续模块依赖，不代表 temporal metadata contract 永久不可演进，也不代表其 Community Lead 业务价值已独立完成验收。
+
+M2 的业务级 acceptance 与 M3/M4/M5 联动，在 Signal-driven Investigation 中完成。
 
 - multi-source file/manual ingestion 与完整 metadata
 - versioned revision、historical validity、incremental indexing
@@ -1924,18 +2464,25 @@ Technical Design 必须覆盖：
 
 ## M4 — Signal Home
 
+- deterministic facts
+- Risk / Opportunity Signals
 - Brief
 - Need Attention
 - Opportunities
 - Timeline
+- observed claims
+- knowledge-check-needed flag + reason
+- Investigation Context handoff
 
-## M5 — Copilot
+## M5 — Investigation / Copilot
 
-- Ask Community
-- Signal Investigate
-- tool layer
+- Signal → Investigation Context
+- Community Evidence tools
+- Project Knowledge grounding
+- Official Context
+- known / unknown synthesis
+- Ask Community follow-up
 - bounded Agent
-- knowledge retrieval
 
 ## M6 — Human Intervention
 
@@ -1961,7 +2508,8 @@ Technical Design 必须覆盖：
 - Topic
 - Behavior
 - Signal
-- RAG
+- M2 component regression
+- Signal-driven Investigation Grounding
 - Agent
 - human productivity
 
@@ -1991,6 +2539,7 @@ Technical Design 必须覆盖：
 - [ ] retrieval 返回 source citation
 - [ ] outdated / conflicting source 可识别
 - [ ] 无 source 时不编答案
+- [ ] Knowledge 可以由 Investigation Context 自动调用，不要求 Lead 手写 query
 
 ## Conversations
 
@@ -2011,8 +2560,13 @@ Technical Design 必须覆盖：
 
 - [ ] Ask Community 可用
 - [ ] Need Attention → Investigate 可用
+- [ ] Signal → Investigate 自动继承 Community Evidence
 - [ ] ≤5 tool calls
 - [ ] 支持 Knowledge retrieval
+- [ ] `knowledge_check_needed` 时记录 `knowledge_check_reason` 并可生成 Official Context
+- [ ] Community Evidence 与 Official Context 分开展示
+- [ ] 能明确展示 What we know / What remains unknown
+- [ ] 无 authoritative source 时不使用模型记忆补答案
 - [ ] unsupported material claim 不允许
 - [ ] Evidence 可打开
 
@@ -2043,7 +2597,8 @@ Technical Design 必须覆盖：
 - [ ] Topic benchmark
 - [ ] Behavior benchmark
 - [ ] Signal benchmark
-- [ ] RAG benchmark
+- [ ] M2 component regression
+- [ ] Signal-driven Investigation Grounding benchmark
 - [ ] Agent benchmark
 - [ ] human review time experiment protocol
 - [ ] issue lead-time experiment protocol
@@ -2133,58 +2688,86 @@ Learning
 显示：
 
 ```text
-CN — Wallet issue spike
+CN — Quest reward confusion spike
 18 users affected
 11 unresolved
 ```
+
+社区里多名用户认为：
+
+> “完成 Quest 后奖励应该立即到账。”
 
 ### 30–60s
 
 点击 `Investigate`。
 
-Agent 自动：
-
-```text
-check topic trend
-→ check affected users
-→ check unanswered questions
-→ check Mod response
-→ retrieve official docs
-```
-
-输出：
-
-> 官方 Troubleshooting 文档描述了类似连接问题，但当前用户反馈明显集中在最新版本之后，且现有 FAQ 无对应解决方案。建议先升级 Product / Engineering，并让 CN Mod 发布临时确认信息。
-
-### 60–75s
-
-点 `View conversations`。
-
-展示原始 CN 聊天与上下文。
-
-### 75–90s
-
-Ask Community：
-
-> “这个不是 Bug，是昨晚计划维护。”
+系统自动继承 Signal，不要求 Community Lead 输入问题。
 
 Agent：
 
 ```text
-Proposed correction:
-Product Issue
-→ Planned Maintenance
-
-[Confirm]
+check topic / behavior
+→ inspect affected users
+→ inspect unanswered questions
+→ inspect Mod response
+→ extract observed community claims
+→ retrieve relevant official knowledge
+→ compare official context
 ```
+
+页面显示：
+
+What we see in the community
+
+- Quest reward 相关 confusion 明显增加；
+- 多名用户预期完成后即时到账；
+- 当前存在未回复问题。
+
+What official sources say
+
+- 官方 Announcement / Blog 明确说明参与条件和奖励规则；
+- 当前没有找到“完成后即时到账”的官方承诺。
+
+What remains unknown
+
+- 当前反馈是单纯理解偏差，还是实际发放异常，官方资料不足以确认。
+
+Suggested Next Action
+
+- 统一 Mod 回复口径；
+- 向 Product team 确认实际 reward distribution 状态；
+- 必要时发布 clarification。
+
+### 60–75s
+
+点击 Official Context：
+
+查看真实 Blog / Telegram Announcement citation。
+
+点击 Community Evidence：
+
+查看对应 CN 原始聊天。
+
+### 75–90s
+
+Community Lead 继续追问：
+
+> “根据当前官方信息，帮我整理一版给 Mods 的回复口径。”
+
+或者进行 Human Correction：
+
+> “这个问题已经确认是计划内维护。”
+
+系统提出 structured correction，等待人工 Confirm。
 
 这 90 秒展示：
 
-- 社区感知；
-- 分析链；
-- RAG；
+- Community Sense；
+- Signal prioritization；
+- Investigation；
+- automatic RAG grounding；
+- official/community evidence separation；
 - Agent；
-- Evidence；
 - Human-in-the-loop。
 
 ---
@@ -2196,3 +2779,4 @@ Product Issue
 | v1.0 | 2026-09-09 | Community Pulse / Conversation / Mod / Contributor 初版 |
 | v2.0 | 2026-09-10 | Brief-first、Signal-first、Investigation Agent、Reported vs Observed |
 | **v2.1** | **2026-09-10** | **新增 Project Knowledge / RAG、Ask Community 解释与人工干预入口；明确 Suggested Next Action 与 Future Strategy Agent；重构为 Ready-for-Technical-Design PRD** |
+| **v2.2** | **2026-09-11** | **重新定位 RAG 为 Signal-driven Investigation 的官方事实层；新增 Investigation Context / Official Context；明确 automatic grounding 为主、conversational RAG 为 follow-up；将 RAG 业务评测从 raw-message QA 改为 Signal/Investigation Grounding Evaluation。** |
