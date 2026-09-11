@@ -1,0 +1,65 @@
+{
+  "extraction_method_version": "telegram-live-json-chat-slice-v1.0.0",
+  "extraction_timestamp": "2026-09-11T10:46:45+00:00",
+  "included_chats": [
+    {
+      "name": "Blum 官方中文社区🇨🇳",
+      "snapshot_key": "blum-cn",
+      "snapshot_sha256": "5bde9e261eb80ec7f715e0863bb105044655baf1859c58288ccc0c05b8caed2e",
+      "source_byte_range": [
+        147,
+        24259691
+      ],
+      "source_byte_range_sha256": "30cdbf315f19e85223a7a9240597669ee34f1bc44bfe7b86a262a459234f129a"
+    },
+    {
+      "name": "Blum Español 🇪🇸🇨🇱🇦🇷🇺🇾🇲🇽🇵🇦",
+      "snapshot_key": "blum-es",
+      "snapshot_sha256": "4ea94a78417ed299846256ca6d26881e404beaff42989ba8688471393f815766",
+      "source_byte_range": [
+        24259693,
+        49052208
+      ],
+      "source_byte_range_sha256": "74f025e35effd8a8e5193b7a2904b3a71bd2226d2bff9aa6c65a6483e255ff0d"
+    }
+  ],
+  "privacy_note": "raw chat IDs remain in ignored private provenance only",
+  "snapshot_sha256": "3ee6038272502c772e1ad4f2a852705eafa58ff3eedb53065baa66f5b8d0c857",
+  "source_file_mtime_ns_at_extraction": 1789123598280310337,
+  "source_file_size_at_extraction": 85446198,
+  "source_path": "/Users/enm1cuarto/Downloads/Telegram_Export_2026-09-11/result.json",
+  "stability": {
+    "checks": 3,
+    "observations": [
+      {
+        "captured_at": "2026-09-11T10:46:25+00:00",
+        "chat_range_sha256": {
+          "blum-cn": "30cdbf315f19e85223a7a9240597669ee34f1bc44bfe7b86a262a459234f129a",
+          "blum-es": "74f025e35effd8a8e5193b7a2904b3a71bd2226d2bff9aa6c65a6483e255ff0d"
+        },
+        "source_mtime_ns": 1789123578322721028,
+        "source_size": 85424968
+      },
+      {
+        "captured_at": "2026-09-11T10:46:35+00:00",
+        "chat_range_sha256": {
+          "blum-cn": "30cdbf315f19e85223a7a9240597669ee34f1bc44bfe7b86a262a459234f129a",
+          "blum-es": "74f025e35effd8a8e5193b7a2904b3a71bd2226d2bff9aa6c65a6483e255ff0d"
+        },
+        "source_mtime_ns": 1789123588485546782,
+        "source_size": 85439741
+      },
+      {
+        "captured_at": "2026-09-11T10:46:45+00:00",
+        "chat_range_sha256": {
+          "blum-cn": "30cdbf315f19e85223a7a9240597669ee34f1bc44bfe7b86a262a459234f129a",
+          "blum-es": "74f025e35effd8a8e5193b7a2904b3a71bd2226d2bff9aa6c65a6483e255ff0d"
+        },
+        "source_mtime_ns": 1789123598280310337,
+        "source_size": 85446198
+      }
+    ],
+    "observed_source_growth": true,
+    "stable": true
+  }
+}

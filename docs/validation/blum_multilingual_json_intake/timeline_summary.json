@@ -1,0 +1,174 @@
+{
+  "blum-cn": {
+    "full": {
+      "15m": {
+        "coverage_end": "2024-09-22T11:45:00+08:00",
+        "coverage_start": "2024-03-19T09:00:00+08:00",
+        "empty_window_count": 11538,
+        "grain_minutes": 15,
+        "nonempty_window_count": 6425,
+        "serialized_window_policy": "nonempty_only",
+        "timezone": "Asia/Shanghai",
+        "total_window_count": 17963
+      },
+      "1d": {
+        "coverage_end": "2024-09-23T00:00:00+08:00",
+        "coverage_start": "2024-03-19T00:00:00+08:00",
+        "empty_window_count": 28,
+        "grain_minutes": 1440,
+        "nonempty_window_count": 160,
+        "serialized_window_policy": "nonempty_only",
+        "timezone": "Asia/Shanghai",
+        "total_window_count": 188
+      },
+      "1h": {
+        "coverage_end": "2024-09-22T12:00:00+08:00",
+        "coverage_start": "2024-03-19T09:00:00+08:00",
+        "empty_window_count": 2156,
+        "grain_minutes": 60,
+        "nonempty_window_count": 2335,
+        "serialized_window_policy": "nonempty_only",
+        "timezone": "Asia/Shanghai",
+        "total_window_count": 4491
+      },
+      "5m": {
+        "coverage_end": "2024-09-22T11:45:00+08:00",
+        "coverage_start": "2024-03-19T09:10:00+08:00",
+        "empty_window_count": 41128,
+        "grain_minutes": 5,
+        "nonempty_window_count": 12759,
+        "serialized_window_policy": "nonempty_only",
+        "timezone": "Asia/Shanghai",
+        "total_window_count": 53887
+      }
+    },
+    "overlap": {
+      "15m": {
+        "coverage_end": "2024-09-22T11:45:00+08:00",
+        "coverage_start": "2024-05-16T07:45:00+08:00",
+        "empty_window_count": 6202,
+        "grain_minutes": 15,
+        "nonempty_window_count": 6198,
+        "serialized_window_policy": "nonempty_only",
+        "timezone": "Asia/Shanghai",
+        "total_window_count": 12400
+      },
+      "1d": {
+        "coverage_end": "2024-09-23T00:00:00+08:00",
+        "coverage_start": "2024-05-16T00:00:00+08:00",
+        "empty_window_count": 0,
+        "grain_minutes": 1440,
+        "nonempty_window_count": 130,
+        "serialized_window_policy": "nonempty_only",
+        "timezone": "Asia/Shanghai",
+        "total_window_count": 130
+      },
+      "1h": {
+        "coverage_end": "2024-09-22T12:00:00+08:00",
+        "coverage_start": "2024-05-16T07:00:00+08:00",
+        "empty_window_count": 925,
+        "grain_minutes": 60,
+        "nonempty_window_count": 2176,
+        "serialized_window_policy": "nonempty_only",
+        "timezone": "Asia/Shanghai",
+        "total_window_count": 3101
+      },
+      "5m": {
+        "coverage_end": "2024-09-22T11:45:00+08:00",
+        "coverage_start": "2024-05-16T07:45:00+08:00",
+        "empty_window_count": 24731,
+        "grain_minutes": 5,
+        "nonempty_window_count": 12469,
+        "serialized_window_policy": "nonempty_only",
+        "timezone": "Asia/Shanghai",
+        "total_window_count": 37200
+      }
+    }
+  },
+  "blum-es": {
+    "full": {
+      "15m": {
+        "coverage_end": "2026-09-11T08:15:00+08:00",
+        "coverage_start": "2024-05-16T02:15:00+08:00",
+        "empty_window_count": 69268,
+        "grain_minutes": 15,
+        "nonempty_window_count": 12164,
+        "serialized_window_policy": "nonempty_only",
+        "timezone": "Asia/Shanghai",
+        "total_window_count": 81432
+      },
+      "1d": {
+        "coverage_end": "2026-09-12T00:00:00+08:00",
+        "coverage_start": "2024-05-16T00:00:00+08:00",
+        "empty_window_count": 234,
+        "grain_minutes": 1440,
+        "nonempty_window_count": 615,
+        "serialized_window_policy": "nonempty_only",
+        "timezone": "Asia/Shanghai",
+        "total_window_count": 849
+      },
+      "1h": {
+        "coverage_end": "2026-09-11T09:00:00+08:00",
+        "coverage_start": "2024-05-16T02:00:00+08:00",
+        "empty_window_count": 15335,
+        "grain_minutes": 60,
+        "nonempty_window_count": 5024,
+        "serialized_window_policy": "nonempty_only",
+        "timezone": "Asia/Shanghai",
+        "total_window_count": 20359
+      },
+      "5m": {
+        "coverage_end": "2026-09-11T08:05:00+08:00",
+        "coverage_start": "2024-05-16T02:25:00+08:00",
+        "empty_window_count": 222073,
+        "grain_minutes": 5,
+        "nonempty_window_count": 22219,
+        "serialized_window_policy": "nonempty_only",
+        "timezone": "Asia/Shanghai",
+        "total_window_count": 244292
+      }
+    },
+    "overlap": {
+      "15m": {
+        "coverage_end": "2024-09-22T11:30:00+08:00",
+        "coverage_start": "2024-05-16T02:15:00+08:00",
+        "empty_window_count": 7954,
+        "grain_minutes": 15,
+        "nonempty_window_count": 4467,
+        "serialized_window_policy": "nonempty_only",
+        "timezone": "Asia/Shanghai",
+        "total_window_count": 12421
+      },
+      "1d": {
+        "coverage_end": "2024-09-23T00:00:00+08:00",
+        "coverage_start": "2024-05-16T00:00:00+08:00",
+        "empty_window_count": 0,
+        "grain_minutes": 1440,
+        "nonempty_window_count": 130,
+        "serialized_window_policy": "nonempty_only",
+        "timezone": "Asia/Shanghai",
+        "total_window_count": 130
+      },
+      "1h": {
+        "coverage_end": "2024-09-22T12:00:00+08:00",
+        "coverage_start": "2024-05-16T02:00:00+08:00",
+        "empty_window_count": 1503,
+        "grain_minutes": 60,
+        "nonempty_window_count": 1603,
+        "serialized_window_policy": "nonempty_only",
+        "timezone": "Asia/Shanghai",
+        "total_window_count": 3106
+      },
+      "5m": {
+        "coverage_end": "2024-09-22T11:30:00+08:00",
+        "coverage_start": "2024-05-16T02:25:00+08:00",
+        "empty_window_count": 28292,
+        "grain_minutes": 5,
+        "nonempty_window_count": 8969,
+        "serialized_window_policy": "nonempty_only",
+        "timezone": "Asia/Shanghai",
+        "total_window_count": 37261
+      }
+    }
+  }
+}

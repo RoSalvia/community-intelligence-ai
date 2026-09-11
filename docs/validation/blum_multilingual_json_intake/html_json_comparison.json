@@ -1,0 +1,229 @@
+{
+  "coverage": {
+    "html_end": "2024-08-18T21:09:15+08:00",
+    "html_start": "2024-03-19T09:11:45+08:00",
+    "json_end": "2024-09-22T03:41:23+00:00",
+    "json_minus_html_end_seconds": 2989928.0,
+    "json_minus_html_start_seconds": 0.0,
+    "json_start": "2024-03-19T01:11:45+00:00"
+  },
+  "exact_matched_cohort": {
+    "html_message_count": 33380,
+    "html_messages_missing_from_json": 0,
+    "html_reply_resolution_rate": 0.585772461186,
+    "html_resolved_reply_count": 4603,
+    "html_unresolved_reply_count": 3255,
+    "input_sha256": {
+      "html_canonical_messages": "287ecee01751e1eb2f0c17f2abd843ebc8304d5076ead158c93b27e265aa26eb",
+      "html_identity_messages": "912e232202763c7289a089511bfa3d4bfbbc1a561c736af9817ddaf4391f9363"
+    },
+    "interpretation": "exact source-message-ID cohort; aggregate results only",
+    "json_from_id_coverage": 1.0,
+    "json_reply_resolution_rate": 0.585772461186,
+    "json_resolved_reply_count": 4603,
+    "json_unresolved_reply_count": 3255,
+    "matched_message_count": 33380,
+    "matched_message_coverage": 1.0,
+    "reply_partition_exact_match_count": 33380,
+    "reply_partition_exact_match_rate": 1.0,
+    "text_exact_match_count": 33379,
+    "text_exact_match_rate": 0.999970041941,
+    "timestamp_exact_match_count": 33380,
+    "timestamp_exact_match_rate": 1.0,
+    "timestamp_max_absolute_delta_seconds": 0.0
+  },
+  "html_evidence": {
+    "profile_sha256": "96e4bda5a784bfd3d9eb2d1aeb479e4f05a0b22517755b10051b7e6effef8adb",
+    "profile_version": "blum-cn-structural-profile-v1.0.0",
+    "recommendations_sha256": "c4c8e08ec09e22595bdd6d8b4927ea3017517b9b666ae58944cb7fb4c51d631f"
+  },
+  "identity": {
+    "coverage_delta": 0.309886159377,
+    "html_high_confidence_message_coverage": 0.690113840623,
+    "interpretation": "both are export-local pseudonymous identities, not verified people",
+    "json_from_id_message_coverage": 1.0
+  },
+  "message_count": {
+    "difference": 36529,
+    "html": 33380,
+    "json": 69909
+  },
+  "preferred_source_decision": {
+    "fallback_source": "telegram_desktop_html",
+    "gates": [
+      {
+        "gate": "stable closed-object snapshot",
+        "passed": true
+      },
+      {
+        "gate": "authoritative absolute timestamps",
+        "passed": true
+      },
+      {
+        "actual": 1.0,
+        "gate": "usable from_id coverage >= 95%",
+        "passed": true,
+        "threshold": 0.95
+      },
+      {
+        "gate": "reply resolution not worse than HTML on exact matched cohort",
+        "html": 0.585772461186,
+        "json": 0.585772461186,
+        "passed": true
+      }
+    ],
+    "interpretation": "JSON is preferred for Blum when all gates pass; HTML remains a fallback and historical comparison source.",
+    "no_composite_score": true,
+    "preferred_source": "telegram_desktop_json",
+    "recommendation": "yes"
+  },
+  "reply_resolution": {
+    "comparison_limit": "full exports have different coverage; use exact_matched_cohort for source quality and this block for whole-snapshot facts",
+    "html_rate": 0.585772461186,
+    "html_resolved": 4603,
+    "html_unresolved": 3255,
+    "json_rate": 0.550405480984,
+    "json_resolved": 7873,
+    "json_unresolved": 6431,
+    "rate_delta": -0.035366980202
+  },
+  "selected_window_review": {
+    "hero_date_intersection": [
+      "2024-06-08",
+      "2024-06-11",
+      "2024-07-05"
+    ],
+    "html_challenge_windows": [
+      {
+        "json_candidate_triggered": true,
+        "json_metrics": {
+          "high_confidence_identity_count": 22,
+          "max_reply_chain_depth_edges": 6,
+          "message_count": 184,
+          "question_count": 26,
+          "resolved_reply_count": 65,
+          "unresolved_reply_count": 29
+        },
+        "json_recommended_again": true,
+        "json_window_present": true,
+        "window_start": "2024-06-16T22:00:00+08:00"
+      },
+      {
+        "json_candidate_triggered": true,
+        "json_metrics": {
+          "high_confidence_identity_count": 15,
+          "max_reply_chain_depth_edges": 8,
+          "message_count": 184,
+          "question_count": 34,
+          "resolved_reply_count": 65,
+          "unresolved_reply_count": 35
+        },
+        "json_recommended_again": false,
+        "json_window_present": true,
+        "window_start": "2024-06-25T19:00:00+08:00"
+      },
+      {
+        "json_candidate_triggered": true,
+        "json_metrics": {
+          "high_confidence_identity_count": 7,
+          "max_reply_chain_depth_edges": 18,
+          "message_count": 119,
+          "question_count": 13,
+          "resolved_reply_count": 64,
+          "unresolved_reply_count": 12
+        },
+        "json_recommended_again": true,
+        "json_window_present": true,
+        "window_start": "2024-06-08T21:00:00+08:00"
+      },
+      {
+        "json_candidate_triggered": true,
+        "json_metrics": {
+          "high_confidence_identity_count": 18,
+          "max_reply_chain_depth_edges": 8,
+          "message_count": 149,
+          "question_count": 25,
+          "resolved_reply_count": 31,
+          "unresolved_reply_count": 15
+        },
+        "json_recommended_again": false,
+        "json_window_present": true,
+        "window_start": "2024-07-08T19:00:00+08:00"
+      },
+      {
+        "json_candidate_triggered": true,
+        "json_metrics": {
+          "high_confidence_identity_count": 11,
+          "max_reply_chain_depth_edges": 4,
+          "message_count": 156,
+          "question_count": 22,
+          "resolved_reply_count": 36,
+          "unresolved_reply_count": 28
+        },
+        "json_recommended_again": false,
+        "json_window_present": true,
+        "window_start": "2024-07-07T01:00:00+08:00"
+      },
+      {
+        "json_candidate_triggered": true,
+        "json_metrics": {
+          "high_confidence_identity_count": 11,
+          "max_reply_chain_depth_edges": 4,
+          "message_count": 194,
+          "question_count": 20,
+          "resolved_reply_count": 34,
+          "unresolved_reply_count": 7
+        },
+        "json_recommended_again": false,
+        "json_window_present": true,
+        "window_start": "2024-08-05T12:00:00+08:00"
+      },
+      {
+        "json_candidate_triggered": false,
+        "json_metrics": {
+          "high_confidence_identity_count": 12,
+          "max_reply_chain_depth_edges": 1,
+          "message_count": 36,
+          "question_count": 3,
+          "resolved_reply_count": 5,
+          "unresolved_reply_count": 4
+        },
+        "json_recommended_again": false,
+        "json_window_present": true,
+        "window_start": "2024-07-30T18:00:00+08:00"
+      },
+      {
+        "json_candidate_triggered": false,
+        "json_metrics": {
+          "high_confidence_identity_count": 15,
+          "max_reply_chain_depth_edges": 1,
+          "message_count": 133,
+          "question_count": 13,
+          "resolved_reply_count": 12,
+          "unresolved_reply_count": 5
+        },
+        "json_recommended_again": false,
+        "json_window_present": true,
+        "window_start": "2024-08-16T17:00:00+08:00"
+      }
+    ],
+    "html_hero_dates": [
+      "2024-06-08",
+      "2024-06-11",
+      "2024-07-05",
+      "2024-07-08",
+      "2024-08-17"
+    ],
+    "json_hero_dates": [
+      "2024-06-08",
+      "2024-06-11",
+      "2024-07-05",
+      "2024-08-28"
+    ]
+  },
+  "timestamp": {
+    "html_contract": "local Asia/Shanghai inference confirmed for the HTML export",
+    "improvement": "JSON removes the HTML timezone-inference dependency",
+    "json_contract": "date_unixtime authoritative absolute UTC timestamp"
+  }
+}

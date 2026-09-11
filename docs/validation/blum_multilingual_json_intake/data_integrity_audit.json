@@ -1,0 +1,110 @@
+{
+  "blum-cn": {
+    "canonical_dataset": {
+      "contract": "CommunityDataset schema 1.1 via existing Telegram JSON importer",
+      "source_sha256": "5bde9e261eb80ec7f715e0863bb105044655baf1859c58288ccc0c05b8caed2e",
+      "text_bearing_message_count": 69220
+    },
+    "community_id": "blum-cn",
+    "content_structure": {
+      "edited_metadata_message_count": 299,
+      "forwarded_message_count": 1160,
+      "link_message_count": 1710,
+      "media_only_message_count": 2,
+      "reaction_message_count": 1576,
+      "text_bearing_message_count": 69220,
+      "textless_without_media_metadata_count": 687,
+      "webpage_preview_message_count": 66
+    },
+    "coverage": {
+      "first_ordinary_message_timestamp": "2024-03-19T01:11:45+00:00",
+      "last_ordinary_message_timestamp": "2024-09-22T03:41:23+00:00",
+      "ordinary_message_count": 69909,
+      "service_event_count": 184,
+      "source_message_id_range": {
+        "maximum": 196941,
+        "minimum": 5
+      },
+      "total_record_count": 70093
+    },
+    "identity": {
+      "anonymized_stable_actor_coverage": 1.0,
+      "anonymized_stable_actor_entity_count": 2698,
+      "anonymized_stable_actor_message_count": 69909,
+      "deleted_account_message_count": 10043,
+      "deleted_account_message_coverage": 0.143658184211,
+      "from_id_coverage": 1.0,
+      "from_id_message_count": 69909,
+      "interpretation": "export-local salted pseudonymous entities, not verified unique humans",
+      "messages_without_usable_actor_identity": 0
+    },
+    "language": "zh",
+    "projection_version": "telegram-json-structural-projection-v1.0.0",
+    "reply": {
+      "cross_boundary_replies": 6431,
+      "maximum_reply_chain_depth_edges": 18,
+      "messages_with_reply_to_message_id": 14304,
+      "negative_latency_replies": 0,
+      "reply_resolution_rate": 0.550405480984,
+      "resolved_reply_edges": 7873,
+      "response_latency_availability": 0.550405480984,
+      "response_latency_available_count": 7873,
+      "unresolved_reply_edges": 6431
+    },
+    "timestamp_contract": "date_unixtime authoritative; normalized to UTC"
+  },
+  "blum-es": {
+    "canonical_dataset": {
+      "contract": "CommunityDataset schema 1.1 via existing Telegram JSON importer",
+      "source_sha256": "4ea94a78417ed299846256ca6d26881e404beaff42989ba8688471393f815766",
+      "text_bearing_message_count": 80984
+    },
+    "community_id": "blum-es",
+    "content_structure": {
+      "edited_metadata_message_count": 1803,
+      "forwarded_message_count": 864,
+      "link_message_count": 967,
+      "media_only_message_count": 18,
+      "reaction_message_count": 11309,
+      "text_bearing_message_count": 80984,
+      "textless_without_media_metadata_count": 950,
+      "webpage_preview_message_count": 121
+    },
+    "coverage": {
+      "first_ordinary_message_timestamp": "2024-05-15T18:26:38+00:00",
+      "last_ordinary_message_timestamp": "2026-09-11T00:00:49+00:00",
+      "ordinary_message_count": 81952,
+      "service_event_count": 90,
+      "source_message_id_range": {
+        "maximum": 127620,
+        "minimum": 11
+      },
+      "total_record_count": 82042
+    },
+    "identity": {
+      "anonymized_stable_actor_coverage": 1.0,
+      "anonymized_stable_actor_entity_count": 3905,
+      "anonymized_stable_actor_message_count": 81952,
+      "deleted_account_message_count": 10636,
+      "deleted_account_message_coverage": 0.129783287778,
+      "from_id_coverage": 1.0,
+      "from_id_message_count": 81952,
+      "interpretation": "export-local salted pseudonymous entities, not verified unique humans",
+      "messages_without_usable_actor_identity": 0
+    },
+    "language": "es",
+    "projection_version": "telegram-json-structural-projection-v1.0.0",
+    "reply": {
+      "cross_boundary_replies": 4228,
+      "maximum_reply_chain_depth_edges": 23,
+      "messages_with_reply_to_message_id": 39998,
+      "negative_latency_replies": 0,
+      "reply_resolution_rate": 0.894294714736,
+      "resolved_reply_edges": 35770,
+      "response_latency_availability": 0.894294714736,
+      "response_latency_available_count": 35770,
+      "unresolved_reply_edges": 4228
+    },
+    "timestamp_contract": "date_unixtime authoritative; normalized to UTC"
+  }
+}

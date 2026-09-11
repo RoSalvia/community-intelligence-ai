@@ -1,0 +1,65 @@
+{
+  "events": [
+    {
+      "official_catalog_category": "Trends",
+      "official_catalog_publication_date": "2024-03-29",
+      "official_catalog_title": "Crypto with Blum: Why It's a Gen Z and Millennial Must"
+    },
+    {
+      "official_catalog_category": "Company News",
+      "official_catalog_publication_date": "2024-04-09",
+      "official_catalog_title": "Blum: Your Go-To Crypto App"
+    },
+    {
+      "official_catalog_category": "New Features",
+      "official_catalog_publication_date": "2024-04-19",
+      "official_catalog_title": "Blum's Telegram Mini App is Out"
+    },
+    {
+      "official_catalog_category": "New Features",
+      "official_catalog_publication_date": "2024-04-26",
+      "official_catalog_title": "What Is Blum? - Learn About the Blum Crypto Ecosystem & FAQ"
+    },
+    {
+      "official_catalog_category": "Company News",
+      "official_catalog_publication_date": "2024-05-01",
+      "official_catalog_title": "Blum is on the Hunt for Developers"
+    },
+    {
+      "official_catalog_category": "Company News",
+      "official_catalog_publication_date": "2024-05-03",
+      "official_catalog_title": "Blum's Exciting Roadmap in 2024: What's Coming Up"
+    },
+    {
+      "official_catalog_category": "New Features",
+      "official_catalog_publication_date": "2024-05-18",
+      "official_catalog_title": "New on Blum: Drop Game!"
+    },
+    {
+      "official_catalog_category": "Campaigns",
+      "official_catalog_publication_date": "2024-06-11",
+      "official_catalog_title": "Blum Quests Launch Campaign: $10,000 USDT GIVEAWAY!"
+    },
+    {
+      "official_catalog_category": "Company News",
+      "official_catalog_publication_date": "2024-07-05",
+      "official_catalog_title": "Pokras Lampas Hacked Blum? The Real Story!"
+    },
+    {
+      "official_catalog_category": "New Features",
+      "official_catalog_publication_date": "2024-07-22",
+      "official_catalog_title": "Meet Tribes: Level Up Your Engagement and Rewards on Blum"
+    }
+  ],
+  "source": {
+    "aggregate_path": "docs/validation/blum-knowledge-pack-v1/historical-blog-aggregate.json",
+    "aggregate_sha256": "05e0e01fa2a94f2e2344cf8703c92515c2cfb8b281ae2f37f3306ba9485d6b00",
+    "commit": "9335b3f",
+    "git_ref": "blum-knowledge-acquisition",
+    "interpretation_limit": "Event metadata is used only for temporal alignment; archive captures do not prove content validity at publication time.",
+    "publication_time_basis": "date-only from current official Blog catalog",
+    "validation_report_path": "docs/validation/blum-knowledge-pack-v1/VALIDATION_REPORT.md",
+    "validation_report_sha256": "f82137bff0ea5fdfc073585a9f23bc165fd31df5ef2ae06675c298f24407bdc4"
+  },
+  "version": "blum-cn-blog-event-input-v1.0.0"
+}

@@ -1,0 +1,5 @@
+{
+  "derivation": "max(first ordinary timestamps) through min(last ordinary timestamps)",
+  "end_inclusive": "2024-09-22T03:41:23+00:00",
+  "start": "2024-05-15T18:26:38+00:00"
+}

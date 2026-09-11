@@ -1,0 +1,2290 @@
+{
+  "blum-cn": {
+    "challenge_reply_validation": [
+      {
+        "challenge_category": "reply_heavy",
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.57399103139,
+          "exact_duplicate_rate": 0.116591928251,
+          "filler_rate": 0.125560538117,
+          "high_confidence_identity_count": 32,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 4,
+          "message_count": 446,
+          "question_count": 58,
+          "question_with_resolved_reply_count": 9,
+          "repetitive_content_rate": 0.013452914798,
+          "reply_resolution_rate": 0.8125,
+          "resolved_reply_count": 78,
+          "resolved_reply_share": 0.174887892377,
+          "top_broader_pseudonymous_identity_concentration": 0.127802690583,
+          "top_high_confidence_identity_concentration": 0.127802690583,
+          "unresolved_reply_count": 18
+        },
+        "trigger_facts": [
+          {
+            "actual": 78,
+            "metric": "resolved_reply_count",
+            "operator": ">= nonempty p90",
+            "threshold": 9.0
+          },
+          {
+            "actual": 0.174887892377,
+            "metric": "resolved_reply_share",
+            "operator": ">= nonempty median",
+            "threshold": 0.0625
+          }
+        ],
+        "window_end": "2024-09-22T06:00:00+08:00",
+        "window_start": "2024-09-22T05:00:00+08:00"
+      },
+      {
+        "challenge_category": "question_support_heavy",
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.410569105691,
+          "exact_duplicate_rate": 0.117886178862,
+          "filler_rate": 0.130081300813,
+          "high_confidence_identity_count": 41,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 4,
+          "message_count": 246,
+          "question_count": 58,
+          "question_with_resolved_reply_count": 12,
+          "repetitive_content_rate": 0.032520325203,
+          "reply_resolution_rate": 0.611111111111,
+          "resolved_reply_count": 33,
+          "resolved_reply_share": 0.134146341463,
+          "top_broader_pseudonymous_identity_concentration": 0.085365853659,
+          "top_high_confidence_identity_concentration": 0.085365853659,
+          "unresolved_reply_count": 21
+        },
+        "trigger_facts": [
+          {
+            "actual": 58,
+            "metric": "question_count",
+            "operator": ">= nonempty p90",
+            "threshold": 12.0
+          },
+          {
+            "actual": 33,
+            "metric": "resolved_reply_count",
+            "operator": "> 0",
+            "threshold": 0
+          },
+          {
+            "actual": 12,
+            "metric": "question_with_resolved_reply_count",
+            "operator": "observed",
+            "threshold": null
+          }
+        ],
+        "window_end": "2024-08-28T20:00:00+08:00",
+        "window_start": "2024-08-28T19:00:00+08:00"
+      },
+      {
+        "challenge_category": "long_conversation_chain",
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.36974789916,
+          "exact_duplicate_rate": 0.067226890756,
+          "filler_rate": 0.109243697479,
+          "high_confidence_identity_count": 7,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 18,
+          "message_count": 119,
+          "question_count": 13,
+          "question_with_resolved_reply_count": 10,
+          "repetitive_content_rate": 0.067226890756,
+          "reply_resolution_rate": 0.842105263158,
+          "resolved_reply_count": 64,
+          "resolved_reply_share": 0.53781512605,
+          "top_broader_pseudonymous_identity_concentration": 0.470588235294,
+          "top_high_confidence_identity_concentration": 0.470588235294,
+          "unresolved_reply_count": 12
+        },
+        "trigger_facts": [
+          {
+            "actual": 18,
+            "metric": "max_reply_chain_depth_edges",
+            "operator": ">= depth threshold",
+            "threshold": 3
+          }
+        ],
+        "window_end": "2024-06-08T22:00:00+08:00",
+        "window_start": "2024-06-08T21:00:00+08:00"
+      },
+      {
+        "challenge_category": "broad_participation",
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.453164556962,
+          "exact_duplicate_rate": 0.106329113924,
+          "filler_rate": 0.19746835443,
+          "high_confidence_identity_count": 74,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 2,
+          "message_count": 395,
+          "question_count": 41,
+          "question_with_resolved_reply_count": 5,
+          "repetitive_content_rate": 0.025316455696,
+          "reply_resolution_rate": 0.552631578947,
+          "resolved_reply_count": 21,
+          "resolved_reply_share": 0.053164556962,
+          "top_broader_pseudonymous_identity_concentration": 0.13417721519,
+          "top_high_confidence_identity_concentration": 0.13417721519,
+          "unresolved_reply_count": 17
+        },
+        "trigger_facts": [
+          {
+            "actual": 74,
+            "metric": "high_confidence_identity_count",
+            "operator": ">= nonempty p90",
+            "threshold": 16.0
+          },
+          {
+            "actual": 1.0,
+            "metric": "identity_high_message_coverage",
+            "operator": ">= nonempty median",
+            "threshold": 1.0
+          },
+          {
+            "actual": 0.13417721519,
+            "metric": "top_high_confidence_identity_concentration",
+            "operator": "<= nonempty median",
+            "threshold": 0.4375
+          }
+        ],
+        "window_end": "2024-08-26T21:00:00+08:00",
+        "window_start": "2024-08-26T20:00:00+08:00"
+      },
+      {
+        "challenge_category": "reply_heavy",
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.179347826087,
+          "exact_duplicate_rate": 0.103260869565,
+          "filler_rate": 0.141304347826,
+          "high_confidence_identity_count": 22,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 6,
+          "message_count": 184,
+          "question_count": 26,
+          "question_with_resolved_reply_count": 15,
+          "repetitive_content_rate": 0.038043478261,
+          "reply_resolution_rate": 0.691489361702,
+          "resolved_reply_count": 65,
+          "resolved_reply_share": 0.353260869565,
+          "top_broader_pseudonymous_identity_concentration": 0.195652173913,
+          "top_high_confidence_identity_concentration": 0.195652173913,
+          "unresolved_reply_count": 29
+        },
+        "trigger_facts": [
+          {
+            "actual": 65,
+            "metric": "resolved_reply_count",
+            "operator": ">= nonempty p90",
+            "threshold": 9.0
+          },
+          {
+            "actual": 0.353260869565,
+            "metric": "resolved_reply_share",
+            "operator": ">= nonempty median",
+            "threshold": 0.0625
+          }
+        ],
+        "window_end": "2024-06-16T23:00:00+08:00",
+        "window_start": "2024-06-16T22:00:00+08:00"
+      },
+      {
+        "challenge_category": "long_conversation_chain",
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.37037037037,
+          "exact_duplicate_rate": 0.214814814815,
+          "filler_rate": 0.118518518519,
+          "high_confidence_identity_count": 16,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 17,
+          "message_count": 135,
+          "question_count": 13,
+          "question_with_resolved_reply_count": 0,
+          "repetitive_content_rate": 0.162962962963,
+          "reply_resolution_rate": 0.657142857143,
+          "resolved_reply_count": 23,
+          "resolved_reply_share": 0.17037037037,
+          "top_broader_pseudonymous_identity_concentration": 0.2,
+          "top_high_confidence_identity_concentration": 0.2,
+          "unresolved_reply_count": 12
+        },
+        "trigger_facts": [
+          {
+            "actual": 17,
+            "metric": "max_reply_chain_depth_edges",
+            "operator": ">= depth threshold",
+            "threshold": 3
+          }
+        ],
+        "window_end": "2024-06-24T16:00:00+08:00",
+        "window_start": "2024-06-24T15:00:00+08:00"
+      },
+      {
+        "challenge_category": "broad_participation",
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.456953642384,
+          "exact_duplicate_rate": 0.109271523179,
+          "filler_rate": 0.165562913907,
+          "high_confidence_identity_count": 51,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 1,
+          "message_count": 302,
+          "question_count": 33,
+          "question_with_resolved_reply_count": 2,
+          "repetitive_content_rate": 0.03642384106,
+          "reply_resolution_rate": 0.464285714286,
+          "resolved_reply_count": 13,
+          "resolved_reply_share": 0.043046357616,
+          "top_broader_pseudonymous_identity_concentration": 0.12582781457,
+          "top_high_confidence_identity_concentration": 0.12582781457,
+          "unresolved_reply_count": 15
+        },
+        "trigger_facts": [
+          {
+            "actual": 51,
+            "metric": "high_confidence_identity_count",
+            "operator": ">= nonempty p90",
+            "threshold": 16.0
+          },
+          {
+            "actual": 1.0,
+            "metric": "identity_high_message_coverage",
+            "operator": ">= nonempty median",
+            "threshold": 1.0
+          },
+          {
+            "actual": 0.12582781457,
+            "metric": "top_high_confidence_identity_concentration",
+            "operator": "<= nonempty median",
+            "threshold": 0.4375
+          }
+        ],
+        "window_end": "2024-08-26T20:00:00+08:00",
+        "window_start": "2024-08-26T19:00:00+08:00"
+      },
+      {
+        "challenge_category": "question_support_heavy",
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.555555555556,
+          "exact_duplicate_rate": 0.135265700483,
+          "filler_rate": 0.157004830918,
+          "high_confidence_identity_count": 46,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 3,
+          "message_count": 414,
+          "question_count": 44,
+          "question_with_resolved_reply_count": 9,
+          "repetitive_content_rate": 0.041062801932,
+          "reply_resolution_rate": 0.454545454545,
+          "resolved_reply_count": 45,
+          "resolved_reply_share": 0.108695652174,
+          "top_broader_pseudonymous_identity_concentration": 0.159420289855,
+          "top_high_confidence_identity_concentration": 0.159420289855,
+          "unresolved_reply_count": 54
+        },
+        "trigger_facts": [
+          {
+            "actual": 44,
+            "metric": "question_count",
+            "operator": ">= nonempty p90",
+            "threshold": 12.0
+          },
+          {
+            "actual": 45,
+            "metric": "resolved_reply_count",
+            "operator": "> 0",
+            "threshold": 0
+          },
+          {
+            "actual": 9,
+            "metric": "question_with_resolved_reply_count",
+            "operator": "observed",
+            "threshold": null
+          }
+        ],
+        "window_end": "2024-09-17T22:00:00+08:00",
+        "window_start": "2024-09-17T21:00:00+08:00"
+      }
+    ],
+    "hero_event_candidates": [
+      {
+        "metrics": {
+          "high_confidence_identity_count": 74,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 5,
+          "message_count": 766,
+          "question_count": 97,
+          "repetitive_content_rate": 0.073107049608,
+          "resolved_reply_count": 167,
+          "unresolved_reply_count": 62
+        },
+        "official_blog_event": {
+          "category": "Campaigns",
+          "publication_date": "2024-06-11",
+          "temporal_correlation_only": true,
+          "title": "Blum Quests Launch Campaign: $10,000 USDT GIVEAWAY!"
+        },
+        "selection_tier": "official_blog_aligned_structural_candidate",
+        "structural_evidence": [
+          {
+            "actual": 167,
+            "metric": "daily_resolved_reply_count",
+            "operator": ">= nonempty daily p90",
+            "threshold": 144.0
+          },
+          {
+            "actual": true,
+            "metric": "blog_date_alignment_candidate",
+            "operator": "is true",
+            "threshold": true
+          }
+        ],
+        "window_end": "2024-06-12T00:00:00+08:00",
+        "window_start": "2024-06-11T00:00:00+08:00"
+      },
+      {
+        "metrics": {
+          "high_confidence_identity_count": 78,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 4,
+          "message_count": 446,
+          "question_count": 76,
+          "repetitive_content_rate": 0.035874439462,
+          "resolved_reply_count": 25,
+          "unresolved_reply_count": 28
+        },
+        "official_blog_event": {
+          "category": "Company News",
+          "publication_date": "2024-07-05",
+          "temporal_correlation_only": true,
+          "title": "Pokras Lampas Hacked Blum? The Real Story!"
+        },
+        "selection_tier": "official_blog_aligned_structural_candidate",
+        "structural_evidence": [
+          {
+            "actual": true,
+            "metric": "contains_ranked_hourly_candidate",
+            "operator": "is true",
+            "threshold": true
+          },
+          {
+            "actual": true,
+            "metric": "blog_date_alignment_candidate",
+            "operator": "is true",
+            "threshold": true
+          }
+        ],
+        "window_end": "2024-07-06T00:00:00+08:00",
+        "window_start": "2024-07-05T00:00:00+08:00"
+      },
+      {
+        "metrics": {
+          "high_confidence_identity_count": 192,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 6,
+          "message_count": 2052,
+          "question_count": 338,
+          "repetitive_content_rate": 0.030214424951,
+          "resolved_reply_count": 264,
+          "unresolved_reply_count": 249
+        },
+        "official_blog_event": null,
+        "selection_tier": "structural_candidate_without_blog_alignment",
+        "structural_evidence": [
+          {
+            "actual": 2052,
+            "metric": "daily_message_count",
+            "operator": ">= nonempty daily p90",
+            "threshold": 1193.0
+          },
+          {
+            "actual": 264,
+            "metric": "daily_resolved_reply_count",
+            "operator": ">= nonempty daily p90",
+            "threshold": 144.0
+          },
+          {
+            "actual": 192,
+            "metric": "daily_high_confidence_identity_count",
+            "operator": ">= nonempty daily p90",
+            "threshold": 146.0
+          },
+          {
+            "actual": true,
+            "metric": "contains_ranked_hourly_candidate",
+            "operator": "is true",
+            "threshold": true
+          }
+        ],
+        "window_end": "2024-08-29T00:00:00+08:00",
+        "window_start": "2024-08-28T00:00:00+08:00"
+      },
+      {
+        "metrics": {
+          "high_confidence_identity_count": 82,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 18,
+          "message_count": 1114,
+          "question_count": 113,
+          "repetitive_content_rate": 0.070017953321,
+          "resolved_reply_count": 263,
+          "unresolved_reply_count": 110
+        },
+        "official_blog_event": null,
+        "selection_tier": "structural_candidate_without_blog_alignment",
+        "structural_evidence": [
+          {
+            "actual": 263,
+            "metric": "daily_resolved_reply_count",
+            "operator": ">= nonempty daily p90",
+            "threshold": 144.0
+          },
+          {
+            "actual": true,
+            "metric": "contains_ranked_hourly_candidate",
+            "operator": "is true",
+            "threshold": true
+          }
+        ],
+        "window_end": "2024-06-09T00:00:00+08:00",
+        "window_start": "2024-06-08T00:00:00+08:00"
+      }
+    ],
+    "high_activity_validation": [
+      {
+        "activity_surge_ratio": 194.0,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.829896907216,
+          "exact_duplicate_rate": 0.067010309278,
+          "filler_rate": 0.067010309278,
+          "high_confidence_identity_count": 11,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 4,
+          "message_count": 194,
+          "question_count": 20,
+          "question_with_resolved_reply_count": 6,
+          "repetitive_content_rate": 0.020618556701,
+          "reply_resolution_rate": 0.829268292683,
+          "resolved_reply_count": 34,
+          "resolved_reply_share": 0.175257731959,
+          "top_broader_pseudonymous_identity_concentration": 0.381443298969,
+          "top_high_confidence_identity_concentration": 0.381443298969,
+          "unresolved_reply_count": 7
+        },
+        "preceding_baseline_median_message_count": 1.0,
+        "trigger_facts": [
+          {
+            "actual": 194,
+            "metric": "message_count",
+            "operator": ">= nonempty p90",
+            "threshold": 81.0
+          },
+          {
+            "actual": 194.0,
+            "metric": "message_count / preceding_baseline_median",
+            "operator": ">= 2.0 or baseline is zero",
+            "threshold": 2.0
+          },
+          {
+            "actual": 24,
+            "metric": "preceding_baseline_window_count",
+            "operator": "= requested lookback unless series start",
+            "threshold": 24
+          }
+        ],
+        "window_end": "2024-08-05T13:00:00+08:00",
+        "window_start": "2024-08-05T12:00:00+08:00"
+      },
+      {
+        "activity_surge_ratio": 141.0,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.652482269504,
+          "exact_duplicate_rate": 0.13475177305,
+          "filler_rate": 0.113475177305,
+          "high_confidence_identity_count": 16,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 4,
+          "message_count": 141,
+          "question_count": 14,
+          "question_with_resolved_reply_count": 5,
+          "repetitive_content_rate": 0.078014184397,
+          "reply_resolution_rate": 0.615384615385,
+          "resolved_reply_count": 24,
+          "resolved_reply_share": 0.170212765957,
+          "top_broader_pseudonymous_identity_concentration": 0.482269503546,
+          "top_high_confidence_identity_concentration": 0.482269503546,
+          "unresolved_reply_count": 15
+        },
+        "preceding_baseline_median_message_count": 1.0,
+        "trigger_facts": [
+          {
+            "actual": 141,
+            "metric": "message_count",
+            "operator": ">= nonempty p90",
+            "threshold": 81.0
+          },
+          {
+            "actual": 141.0,
+            "metric": "message_count / preceding_baseline_median",
+            "operator": ">= 2.0 or baseline is zero",
+            "threshold": 2.0
+          },
+          {
+            "actual": 24,
+            "metric": "preceding_baseline_window_count",
+            "operator": "= requested lookback unless series start",
+            "threshold": 24
+          }
+        ],
+        "window_end": "2024-06-29T23:00:00+08:00",
+        "window_start": "2024-06-29T22:00:00+08:00"
+      },
+      {
+        "activity_surge_ratio": 115.0,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.84347826087,
+          "exact_duplicate_rate": 0.052173913043,
+          "filler_rate": 0.060869565217,
+          "high_confidence_identity_count": 7,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 2,
+          "message_count": 115,
+          "question_count": 7,
+          "question_with_resolved_reply_count": 0,
+          "repetitive_content_rate": 0.017391304348,
+          "reply_resolution_rate": 0.285714285714,
+          "resolved_reply_count": 6,
+          "resolved_reply_share": 0.052173913043,
+          "top_broader_pseudonymous_identity_concentration": 0.652173913043,
+          "top_high_confidence_identity_concentration": 0.652173913043,
+          "unresolved_reply_count": 15
+        },
+        "preceding_baseline_median_message_count": 1.0,
+        "trigger_facts": [
+          {
+            "actual": 115,
+            "metric": "message_count",
+            "operator": ">= nonempty p90",
+            "threshold": 81.0
+          },
+          {
+            "actual": 115.0,
+            "metric": "message_count / preceding_baseline_median",
+            "operator": ">= 2.0 or baseline is zero",
+            "threshold": 2.0
+          },
+          {
+            "actual": 24,
+            "metric": "preceding_baseline_window_count",
+            "operator": "= requested lookback unless series start",
+            "threshold": 24
+          }
+        ],
+        "window_end": "2024-08-05T14:00:00+08:00",
+        "window_start": "2024-08-05T13:00:00+08:00"
+      },
+      {
+        "activity_surge_ratio": 85.0,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.388235294118,
+          "exact_duplicate_rate": 0.011764705882,
+          "filler_rate": 0.117647058824,
+          "high_confidence_identity_count": 6,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 4,
+          "message_count": 85,
+          "question_count": 6,
+          "question_with_resolved_reply_count": 3,
+          "repetitive_content_rate": 0.011764705882,
+          "reply_resolution_rate": 0.894736842105,
+          "resolved_reply_count": 17,
+          "resolved_reply_share": 0.2,
+          "top_broader_pseudonymous_identity_concentration": 0.376470588235,
+          "top_high_confidence_identity_concentration": 0.376470588235,
+          "unresolved_reply_count": 2
+        },
+        "preceding_baseline_median_message_count": 1.0,
+        "trigger_facts": [
+          {
+            "actual": 85,
+            "metric": "message_count",
+            "operator": ">= nonempty p90",
+            "threshold": 81.0
+          },
+          {
+            "actual": 85.0,
+            "metric": "message_count / preceding_baseline_median",
+            "operator": ">= 2.0 or baseline is zero",
+            "threshold": 2.0
+          },
+          {
+            "actual": 24,
+            "metric": "preceding_baseline_window_count",
+            "operator": "= requested lookback unless series start",
+            "threshold": 24
+          }
+        ],
+        "window_end": "2024-05-19T17:00:00+08:00",
+        "window_start": "2024-05-19T16:00:00+08:00"
+      },
+      {
+        "activity_surge_ratio": 69.5,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.73381294964,
+          "exact_duplicate_rate": 0.057553956835,
+          "filler_rate": 0.079136690647,
+          "high_confidence_identity_count": 8,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 2,
+          "message_count": 139,
+          "question_count": 14,
+          "question_with_resolved_reply_count": 0,
+          "repetitive_content_rate": 0.021582733813,
+          "reply_resolution_rate": 0.321428571429,
+          "resolved_reply_count": 9,
+          "resolved_reply_share": 0.064748201439,
+          "top_broader_pseudonymous_identity_concentration": 0.568345323741,
+          "top_high_confidence_identity_concentration": 0.568345323741,
+          "unresolved_reply_count": 19
+        },
+        "preceding_baseline_median_message_count": 2.0,
+        "trigger_facts": [
+          {
+            "actual": 139,
+            "metric": "message_count",
+            "operator": ">= nonempty p90",
+            "threshold": 81.0
+          },
+          {
+            "actual": 69.5,
+            "metric": "message_count / preceding_baseline_median",
+            "operator": ">= 2.0 or baseline is zero",
+            "threshold": 2.0
+          },
+          {
+            "actual": 24,
+            "metric": "preceding_baseline_window_count",
+            "operator": "= requested lookback unless series start",
+            "threshold": 24
+          }
+        ],
+        "window_end": "2024-08-04T18:00:00+08:00",
+        "window_start": "2024-08-04T17:00:00+08:00"
+      },
+      {
+        "activity_surge_ratio": 42.857142857143,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.7,
+          "exact_duplicate_rate": 0.08,
+          "filler_rate": 0.12,
+          "high_confidence_identity_count": 8,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 1,
+          "message_count": 150,
+          "question_count": 14,
+          "question_with_resolved_reply_count": 1,
+          "repetitive_content_rate": 0.046666666667,
+          "reply_resolution_rate": 0.12,
+          "resolved_reply_count": 3,
+          "resolved_reply_share": 0.02,
+          "top_broader_pseudonymous_identity_concentration": 0.466666666667,
+          "top_high_confidence_identity_concentration": 0.466666666667,
+          "unresolved_reply_count": 22
+        },
+        "preceding_baseline_median_message_count": 3.5,
+        "trigger_facts": [
+          {
+            "actual": 150,
+            "metric": "message_count",
+            "operator": ">= nonempty p90",
+            "threshold": 81.0
+          },
+          {
+            "actual": 42.857142857143,
+            "metric": "message_count / preceding_baseline_median",
+            "operator": ">= 2.0 or baseline is zero",
+            "threshold": 2.0
+          },
+          {
+            "actual": 24,
+            "metric": "preceding_baseline_window_count",
+            "operator": "= requested lookback unless series start",
+            "threshold": 24
+          }
+        ],
+        "window_end": "2024-07-09T20:00:00+08:00",
+        "window_start": "2024-07-09T19:00:00+08:00"
+      },
+      {
+        "activity_surge_ratio": 41.333333333333,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.75,
+          "exact_duplicate_rate": 0.040322580645,
+          "filler_rate": 0.052419354839,
+          "high_confidence_identity_count": 13,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 2,
+          "message_count": 248,
+          "question_count": 19,
+          "question_with_resolved_reply_count": 4,
+          "repetitive_content_rate": 0.024193548387,
+          "reply_resolution_rate": 0.605263157895,
+          "resolved_reply_count": 23,
+          "resolved_reply_share": 0.092741935484,
+          "top_broader_pseudonymous_identity_concentration": 0.302419354839,
+          "top_high_confidence_identity_concentration": 0.302419354839,
+          "unresolved_reply_count": 15
+        },
+        "preceding_baseline_median_message_count": 6.0,
+        "trigger_facts": [
+          {
+            "actual": 248,
+            "metric": "message_count",
+            "operator": ">= nonempty p90",
+            "threshold": 81.0
+          },
+          {
+            "actual": 41.333333333333,
+            "metric": "message_count / preceding_baseline_median",
+            "operator": ">= 2.0 or baseline is zero",
+            "threshold": 2.0
+          },
+          {
+            "actual": 24,
+            "metric": "preceding_baseline_window_count",
+            "operator": "= requested lookback unless series start",
+            "threshold": 24
+          }
+        ],
+        "window_end": "2024-07-08T12:00:00+08:00",
+        "window_start": "2024-07-08T11:00:00+08:00"
+      },
+      {
+        "activity_surge_ratio": 41.0,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.776422764228,
+          "exact_duplicate_rate": 0.126016260163,
+          "filler_rate": 0.174796747967,
+          "high_confidence_identity_count": 16,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 1,
+          "message_count": 246,
+          "question_count": 18,
+          "question_with_resolved_reply_count": 1,
+          "repetitive_content_rate": 0.040650406504,
+          "reply_resolution_rate": 0.533333333333,
+          "resolved_reply_count": 8,
+          "resolved_reply_share": 0.032520325203,
+          "top_broader_pseudonymous_identity_concentration": 0.414634146341,
+          "top_high_confidence_identity_concentration": 0.414634146341,
+          "unresolved_reply_count": 7
+        },
+        "preceding_baseline_median_message_count": 6.0,
+        "trigger_facts": [
+          {
+            "actual": 246,
+            "metric": "message_count",
+            "operator": ">= nonempty p90",
+            "threshold": 81.0
+          },
+          {
+            "actual": 41.0,
+            "metric": "message_count / preceding_baseline_median",
+            "operator": ">= 2.0 or baseline is zero",
+            "threshold": 2.0
+          },
+          {
+            "actual": 24,
+            "metric": "preceding_baseline_window_count",
+            "operator": "= requested lookback unless series start",
+            "threshold": 24
+          }
+        ],
+        "window_end": "2024-07-19T13:00:00+08:00",
+        "window_start": "2024-07-19T12:00:00+08:00"
+      }
+    ],
+    "natural_behavior_validation": [
+      {
+        "absolute_baseline_delta": 0.0,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.0,
+          "exact_duplicate_rate": 0.363636363636,
+          "filler_rate": 0.181818181818,
+          "high_confidence_identity_count": 7,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 2,
+          "message_count": 11,
+          "question_count": 0,
+          "question_with_resolved_reply_count": 0,
+          "repetitive_content_rate": 0.181818181818,
+          "reply_resolution_rate": 0.5,
+          "resolved_reply_count": 2,
+          "resolved_reply_share": 0.181818181818,
+          "top_broader_pseudonymous_identity_concentration": 0.181818181818,
+          "top_high_confidence_identity_concentration": 0.181818181818,
+          "unresolved_reply_count": 2
+        },
+        "preceding_baseline_median_message_count": 11.0,
+        "trigger_facts": [
+          {
+            "actual": 11,
+            "metric": "message_count",
+            "operator": "between nonempty p25 and p50",
+            "threshold": [
+              5.0,
+              15.0
+            ]
+          },
+          {
+            "actual": 0.0,
+            "metric": "absolute delta from preceding baseline median",
+            "operator": "<= stability limit",
+            "threshold": 5.5
+          }
+        ],
+        "window_end": "2024-08-16T23:00:00+08:00",
+        "window_start": "2024-08-16T22:00:00+08:00"
+      },
+      {
+        "absolute_baseline_delta": 0.0,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.0,
+          "exact_duplicate_rate": 0.25,
+          "filler_rate": 0.0,
+          "high_confidence_identity_count": 5,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 1,
+          "message_count": 8,
+          "question_count": 1,
+          "question_with_resolved_reply_count": 0,
+          "repetitive_content_rate": 0.125,
+          "reply_resolution_rate": 0.5,
+          "resolved_reply_count": 1,
+          "resolved_reply_share": 0.125,
+          "top_broader_pseudonymous_identity_concentration": 0.5,
+          "top_high_confidence_identity_concentration": 0.5,
+          "unresolved_reply_count": 1
+        },
+        "preceding_baseline_median_message_count": 8.0,
+        "trigger_facts": [
+          {
+            "actual": 8,
+            "metric": "message_count",
+            "operator": "between nonempty p25 and p50",
+            "threshold": [
+              5.0,
+              15.0
+            ]
+          },
+          {
+            "actual": 0.0,
+            "metric": "absolute delta from preceding baseline median",
+            "operator": "<= stability limit",
+            "threshold": 4.0
+          }
+        ],
+        "window_end": "2024-06-20T21:00:00+08:00",
+        "window_start": "2024-06-20T20:00:00+08:00"
+      },
+      {
+        "absolute_baseline_delta": 0.0,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.0,
+          "exact_duplicate_rate": 0.0,
+          "filler_rate": 0.2,
+          "high_confidence_identity_count": 4,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 0,
+          "message_count": 5,
+          "question_count": 0,
+          "question_with_resolved_reply_count": 0,
+          "repetitive_content_rate": 0.0,
+          "reply_resolution_rate": 0.0,
+          "resolved_reply_count": 0,
+          "resolved_reply_share": 0.0,
+          "top_broader_pseudonymous_identity_concentration": 0.4,
+          "top_high_confidence_identity_concentration": 0.4,
+          "unresolved_reply_count": 0
+        },
+        "preceding_baseline_median_message_count": 5.0,
+        "trigger_facts": [
+          {
+            "actual": 5,
+            "metric": "message_count",
+            "operator": "between nonempty p25 and p50",
+            "threshold": [
+              5.0,
+              15.0
+            ]
+          },
+          {
+            "actual": 0.0,
+            "metric": "absolute delta from preceding baseline median",
+            "operator": "<= stability limit",
+            "threshold": 2.5
+          }
+        ],
+        "window_end": "2024-05-31T00:00:00+08:00",
+        "window_start": "2024-05-30T23:00:00+08:00"
+      },
+      {
+        "absolute_baseline_delta": 0.0,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.428571428571,
+          "exact_duplicate_rate": 0.142857142857,
+          "filler_rate": 0.0,
+          "high_confidence_identity_count": 4,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 2,
+          "message_count": 7,
+          "question_count": 3,
+          "question_with_resolved_reply_count": 0,
+          "repetitive_content_rate": 0.142857142857,
+          "reply_resolution_rate": 0.666666666667,
+          "resolved_reply_count": 2,
+          "resolved_reply_share": 0.285714285714,
+          "top_broader_pseudonymous_identity_concentration": 0.428571428571,
+          "top_high_confidence_identity_concentration": 0.428571428571,
+          "unresolved_reply_count": 1
+        },
+        "preceding_baseline_median_message_count": 7.0,
+        "trigger_facts": [
+          {
+            "actual": 7,
+            "metric": "message_count",
+            "operator": "between nonempty p25 and p50",
+            "threshold": [
+              5.0,
+              15.0
+            ]
+          },
+          {
+            "actual": 0.0,
+            "metric": "absolute delta from preceding baseline median",
+            "operator": "<= stability limit",
+            "threshold": 3.5
+          }
+        ],
+        "window_end": "2024-07-08T16:00:00+08:00",
+        "window_start": "2024-07-08T15:00:00+08:00"
+      },
+      {
+        "absolute_baseline_delta": 0.0,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.0,
+          "exact_duplicate_rate": 0.2,
+          "filler_rate": 0.0,
+          "high_confidence_identity_count": 4,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 1,
+          "message_count": 5,
+          "question_count": 1,
+          "question_with_resolved_reply_count": 0,
+          "repetitive_content_rate": 0.0,
+          "reply_resolution_rate": 1.0,
+          "resolved_reply_count": 1,
+          "resolved_reply_share": 0.2,
+          "top_broader_pseudonymous_identity_concentration": 0.4,
+          "top_high_confidence_identity_concentration": 0.4,
+          "unresolved_reply_count": 0
+        },
+        "preceding_baseline_median_message_count": 5.0,
+        "trigger_facts": [
+          {
+            "actual": 5,
+            "metric": "message_count",
+            "operator": "between nonempty p25 and p50",
+            "threshold": [
+              5.0,
+              15.0
+            ]
+          },
+          {
+            "actual": 0.0,
+            "metric": "absolute delta from preceding baseline median",
+            "operator": "<= stability limit",
+            "threshold": 2.5
+          }
+        ],
+        "window_end": "2024-07-21T13:00:00+08:00",
+        "window_start": "2024-07-21T12:00:00+08:00"
+      },
+      {
+        "absolute_baseline_delta": 0.0,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.0,
+          "exact_duplicate_rate": 0.2,
+          "filler_rate": 0.0,
+          "high_confidence_identity_count": 3,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 0,
+          "message_count": 5,
+          "question_count": 2,
+          "question_with_resolved_reply_count": 0,
+          "repetitive_content_rate": 0.2,
+          "reply_resolution_rate": 0.0,
+          "resolved_reply_count": 0,
+          "resolved_reply_share": 0.0,
+          "top_broader_pseudonymous_identity_concentration": 0.6,
+          "top_high_confidence_identity_concentration": 0.6,
+          "unresolved_reply_count": 0
+        },
+        "preceding_baseline_median_message_count": 5.0,
+        "trigger_facts": [
+          {
+            "actual": 5,
+            "metric": "message_count",
+            "operator": "between nonempty p25 and p50",
+            "threshold": [
+              5.0,
+              15.0
+            ]
+          },
+          {
+            "actual": 0.0,
+            "metric": "absolute delta from preceding baseline median",
+            "operator": "<= stability limit",
+            "threshold": 2.5
+          }
+        ],
+        "window_end": "2024-06-26T17:00:00+08:00",
+        "window_start": "2024-06-26T16:00:00+08:00"
+      },
+      {
+        "absolute_baseline_delta": 0.0,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.0,
+          "exact_duplicate_rate": 0.0,
+          "filler_rate": 0.166666666667,
+          "high_confidence_identity_count": 3,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 0,
+          "message_count": 6,
+          "question_count": 1,
+          "question_with_resolved_reply_count": 0,
+          "repetitive_content_rate": 0.0,
+          "reply_resolution_rate": 0.0,
+          "resolved_reply_count": 0,
+          "resolved_reply_share": 0.0,
+          "top_broader_pseudonymous_identity_concentration": 0.333333333333,
+          "top_high_confidence_identity_concentration": 0.333333333333,
+          "unresolved_reply_count": 1
+        },
+        "preceding_baseline_median_message_count": 6.0,
+        "trigger_facts": [
+          {
+            "actual": 6,
+            "metric": "message_count",
+            "operator": "between nonempty p25 and p50",
+            "threshold": [
+              5.0,
+              15.0
+            ]
+          },
+          {
+            "actual": 0.0,
+            "metric": "absolute delta from preceding baseline median",
+            "operator": "<= stability limit",
+            "threshold": 3.0
+          }
+        ],
+        "window_end": "2024-08-20T10:00:00+08:00",
+        "window_start": "2024-08-20T09:00:00+08:00"
+      },
+      {
+        "absolute_baseline_delta": 0.5,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.272727272727,
+          "exact_duplicate_rate": 0.272727272727,
+          "filler_rate": 0.181818181818,
+          "high_confidence_identity_count": 7,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 2,
+          "message_count": 11,
+          "question_count": 0,
+          "question_with_resolved_reply_count": 0,
+          "repetitive_content_rate": 0.090909090909,
+          "reply_resolution_rate": 0.75,
+          "resolved_reply_count": 3,
+          "resolved_reply_share": 0.272727272727,
+          "top_broader_pseudonymous_identity_concentration": 0.272727272727,
+          "top_high_confidence_identity_concentration": 0.272727272727,
+          "unresolved_reply_count": 1
+        },
+        "preceding_baseline_median_message_count": 10.5,
+        "trigger_facts": [
+          {
+            "actual": 11,
+            "metric": "message_count",
+            "operator": "between nonempty p25 and p50",
+            "threshold": [
+              5.0,
+              15.0
+            ]
+          },
+          {
+            "actual": 0.5,
+            "metric": "absolute delta from preceding baseline median",
+            "operator": "<= stability limit",
+            "threshold": 5.25
+          }
+        ],
+        "window_end": "2024-09-05T22:00:00+08:00",
+        "window_start": "2024-09-05T21:00:00+08:00"
+      }
+    ],
+    "selection_contract": {
+      "challenge": "round-robin reply, question/reply, long-chain, and broad-participation ranks; require >=50% high-confidence identity message coverage and resolved replies >= max(5, hourly p75=4.0)",
+      "hero": "daily window requires >=50% high-confidence identity message coverage and at least two explicit structural triggers; Blog-aligned candidate tier sorts first, then resolved replies, high-confidence identity breadth, and message count lexicographically",
+      "natural": "quiet-baseline rank first, then non-extreme p25-p75 hourly windows; require >=50% high-confidence identity coverage and exclude extreme hygiene/concentration ratios; temporal spread caps two selections per month before fallback",
+      "no_composite_score": true
+    }
+  },
+  "blum-es": {
+    "challenge_reply_validation": [
+      {
+        "challenge_category": "reply_heavy",
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.340740740741,
+          "exact_duplicate_rate": 0.103703703704,
+          "filler_rate": 0.051851851852,
+          "high_confidence_identity_count": 36,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 14,
+          "message_count": 270,
+          "question_count": 42,
+          "question_with_resolved_reply_count": 26,
+          "repetitive_content_rate": 0.018518518519,
+          "reply_resolution_rate": 0.819587628866,
+          "resolved_reply_count": 159,
+          "resolved_reply_share": 0.588888888889,
+          "top_broader_pseudonymous_identity_concentration": 0.162962962963,
+          "top_high_confidence_identity_concentration": 0.162962962963,
+          "unresolved_reply_count": 35
+        },
+        "trigger_facts": [
+          {
+            "actual": 159,
+            "metric": "resolved_reply_count",
+            "operator": ">= nonempty p90",
+            "threshold": 26.0
+          },
+          {
+            "actual": 0.588888888889,
+            "metric": "resolved_reply_share",
+            "operator": ">= nonempty median",
+            "threshold": 0.333333333333
+          }
+        ],
+        "window_end": "2024-08-26T00:00:00+08:00",
+        "window_start": "2024-08-25T23:00:00+08:00"
+      },
+      {
+        "challenge_category": "question_support_heavy",
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.244318181818,
+          "exact_duplicate_rate": 0.051136363636,
+          "filler_rate": 0.051136363636,
+          "high_confidence_identity_count": 35,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 4,
+          "message_count": 176,
+          "question_count": 51,
+          "question_with_resolved_reply_count": 14,
+          "repetitive_content_rate": 0.005681818182,
+          "reply_resolution_rate": 0.732394366197,
+          "resolved_reply_count": 52,
+          "resolved_reply_share": 0.295454545455,
+          "top_broader_pseudonymous_identity_concentration": 0.215909090909,
+          "top_high_confidence_identity_concentration": 0.215909090909,
+          "unresolved_reply_count": 19
+        },
+        "trigger_facts": [
+          {
+            "actual": 51,
+            "metric": "question_count",
+            "operator": ">= nonempty p90",
+            "threshold": 11.0
+          },
+          {
+            "actual": 52,
+            "metric": "resolved_reply_count",
+            "operator": "> 0",
+            "threshold": 0
+          },
+          {
+            "actual": 14,
+            "metric": "question_with_resolved_reply_count",
+            "operator": "observed",
+            "threshold": null
+          }
+        ],
+        "window_end": "2024-08-15T03:00:00+08:00",
+        "window_start": "2024-08-15T02:00:00+08:00"
+      },
+      {
+        "challenge_category": "long_conversation_chain",
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.10101010101,
+          "exact_duplicate_rate": 0.040404040404,
+          "filler_rate": 0.030303030303,
+          "high_confidence_identity_count": 25,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 21,
+          "message_count": 99,
+          "question_count": 13,
+          "question_with_resolved_reply_count": 9,
+          "repetitive_content_rate": 0.010101010101,
+          "reply_resolution_rate": 1.0,
+          "resolved_reply_count": 64,
+          "resolved_reply_share": 0.646464646465,
+          "top_broader_pseudonymous_identity_concentration": 0.171717171717,
+          "top_high_confidence_identity_concentration": 0.171717171717,
+          "unresolved_reply_count": 0
+        },
+        "trigger_facts": [
+          {
+            "actual": 21,
+            "metric": "max_reply_chain_depth_edges",
+            "operator": ">= depth threshold",
+            "threshold": 6
+          }
+        ],
+        "window_end": "2024-09-15T01:00:00+08:00",
+        "window_start": "2024-09-15T00:00:00+08:00"
+      },
+      {
+        "challenge_category": "broad_participation",
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.148305084746,
+          "exact_duplicate_rate": 0.084745762712,
+          "filler_rate": 0.097457627119,
+          "high_confidence_identity_count": 74,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 6,
+          "message_count": 236,
+          "question_count": 40,
+          "question_with_resolved_reply_count": 20,
+          "repetitive_content_rate": 0.03813559322,
+          "reply_resolution_rate": 0.880434782609,
+          "resolved_reply_count": 81,
+          "resolved_reply_share": 0.343220338983,
+          "top_broader_pseudonymous_identity_concentration": 0.097457627119,
+          "top_high_confidence_identity_concentration": 0.097457627119,
+          "unresolved_reply_count": 11
+        },
+        "trigger_facts": [
+          {
+            "actual": 74,
+            "metric": "high_confidence_identity_count",
+            "operator": ">= nonempty p90",
+            "threshold": 20.0
+          },
+          {
+            "actual": 1.0,
+            "metric": "identity_high_message_coverage",
+            "operator": ">= nonempty median",
+            "threshold": 1.0
+          },
+          {
+            "actual": 0.097457627119,
+            "metric": "top_high_confidence_identity_concentration",
+            "operator": "<= nonempty median",
+            "threshold": 0.294117647059
+          }
+        ],
+        "window_end": "2024-06-07T07:00:00+08:00",
+        "window_start": "2024-06-07T06:00:00+08:00"
+      },
+      {
+        "challenge_category": "reply_heavy",
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.327868852459,
+          "exact_duplicate_rate": 0.068852459016,
+          "filler_rate": 0.045901639344,
+          "high_confidence_identity_count": 41,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 14,
+          "message_count": 305,
+          "question_count": 35,
+          "question_with_resolved_reply_count": 23,
+          "repetitive_content_rate": 0.016393442623,
+          "reply_resolution_rate": 0.757142857143,
+          "resolved_reply_count": 159,
+          "resolved_reply_share": 0.52131147541,
+          "top_broader_pseudonymous_identity_concentration": 0.15737704918,
+          "top_high_confidence_identity_concentration": 0.15737704918,
+          "unresolved_reply_count": 51
+        },
+        "trigger_facts": [
+          {
+            "actual": 159,
+            "metric": "resolved_reply_count",
+            "operator": ">= nonempty p90",
+            "threshold": 26.0
+          },
+          {
+            "actual": 0.52131147541,
+            "metric": "resolved_reply_share",
+            "operator": ">= nonempty median",
+            "threshold": 0.333333333333
+          }
+        ],
+        "window_end": "2024-08-25T07:00:00+08:00",
+        "window_start": "2024-08-25T06:00:00+08:00"
+      },
+      {
+        "challenge_category": "long_conversation_chain",
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.086956521739,
+          "exact_duplicate_rate": 0.0,
+          "filler_rate": 0.0,
+          "high_confidence_identity_count": 17,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 20,
+          "message_count": 46,
+          "question_count": 9,
+          "question_with_resolved_reply_count": 4,
+          "repetitive_content_rate": 0.0,
+          "reply_resolution_rate": 0.870967741935,
+          "resolved_reply_count": 27,
+          "resolved_reply_share": 0.586956521739,
+          "top_broader_pseudonymous_identity_concentration": 0.152173913043,
+          "top_high_confidence_identity_concentration": 0.152173913043,
+          "unresolved_reply_count": 4
+        },
+        "trigger_facts": [
+          {
+            "actual": 20,
+            "metric": "max_reply_chain_depth_edges",
+            "operator": ">= depth threshold",
+            "threshold": 6
+          }
+        ],
+        "window_end": "2024-09-15T02:00:00+08:00",
+        "window_start": "2024-09-15T01:00:00+08:00"
+      },
+      {
+        "challenge_category": "long_conversation_chain",
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.514285714286,
+          "exact_duplicate_rate": 0.09387755102,
+          "filler_rate": 0.05306122449,
+          "high_confidence_identity_count": 28,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 18,
+          "message_count": 245,
+          "question_count": 45,
+          "question_with_resolved_reply_count": 17,
+          "repetitive_content_rate": 0.016326530612,
+          "reply_resolution_rate": 0.858108108108,
+          "resolved_reply_count": 127,
+          "resolved_reply_share": 0.518367346939,
+          "top_broader_pseudonymous_identity_concentration": 0.420408163265,
+          "top_high_confidence_identity_concentration": 0.420408163265,
+          "unresolved_reply_count": 21
+        },
+        "trigger_facts": [
+          {
+            "actual": 18,
+            "metric": "max_reply_chain_depth_edges",
+            "operator": ">= depth threshold",
+            "threshold": 6
+          }
+        ],
+        "window_end": "2024-09-04T11:00:00+08:00",
+        "window_start": "2024-09-04T10:00:00+08:00"
+      },
+      {
+        "challenge_category": "long_conversation_chain",
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.0,
+          "exact_duplicate_rate": 0.016260162602,
+          "filler_rate": 0.024390243902,
+          "high_confidence_identity_count": 23,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 16,
+          "message_count": 123,
+          "question_count": 21,
+          "question_with_resolved_reply_count": 13,
+          "repetitive_content_rate": 0.008130081301,
+          "reply_resolution_rate": 1.0,
+          "resolved_reply_count": 52,
+          "resolved_reply_share": 0.422764227642,
+          "top_broader_pseudonymous_identity_concentration": 0.211382113821,
+          "top_high_confidence_identity_concentration": 0.211382113821,
+          "unresolved_reply_count": 0
+        },
+        "trigger_facts": [
+          {
+            "actual": 16,
+            "metric": "max_reply_chain_depth_edges",
+            "operator": ">= depth threshold",
+            "threshold": 6
+          }
+        ],
+        "window_end": "2024-06-07T10:00:00+08:00",
+        "window_start": "2024-06-07T09:00:00+08:00"
+      }
+    ],
+    "hero_event_candidates": [
+      {
+        "metrics": {
+          "high_confidence_identity_count": 253,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 11,
+          "message_count": 2204,
+          "question_count": 349,
+          "repetitive_content_rate": 0.01724137931,
+          "resolved_reply_count": 1053,
+          "unresolved_reply_count": 178
+        },
+        "official_blog_event": null,
+        "selection_tier": "structural_candidate_without_blog_alignment",
+        "structural_evidence": [
+          {
+            "actual": 2204,
+            "metric": "daily_message_count",
+            "operator": ">= nonempty daily p90",
+            "threshold": 794.0
+          },
+          {
+            "actual": 1053,
+            "metric": "daily_resolved_reply_count",
+            "operator": ">= nonempty daily p90",
+            "threshold": 304.0
+          },
+          {
+            "actual": 253,
+            "metric": "daily_high_confidence_identity_count",
+            "operator": ">= nonempty daily p90",
+            "threshold": 144.0
+          },
+          {
+            "actual": true,
+            "metric": "contains_ranked_hourly_candidate",
+            "operator": "is true",
+            "threshold": true
+          }
+        ],
+        "window_end": "2024-08-27T00:00:00+08:00",
+        "window_start": "2024-08-26T00:00:00+08:00"
+      },
+      {
+        "metrics": {
+          "high_confidence_identity_count": 200,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 17,
+          "message_count": 1863,
+          "question_count": 256,
+          "repetitive_content_rate": 0.01986044015,
+          "resolved_reply_count": 833,
+          "unresolved_reply_count": 221
+        },
+        "official_blog_event": null,
+        "selection_tier": "structural_candidate_without_blog_alignment",
+        "structural_evidence": [
+          {
+            "actual": 1863,
+            "metric": "daily_message_count",
+            "operator": ">= nonempty daily p90",
+            "threshold": 794.0
+          },
+          {
+            "actual": 833,
+            "metric": "daily_resolved_reply_count",
+            "operator": ">= nonempty daily p90",
+            "threshold": 304.0
+          },
+          {
+            "actual": 200,
+            "metric": "daily_high_confidence_identity_count",
+            "operator": ">= nonempty daily p90",
+            "threshold": 144.0
+          },
+          {
+            "actual": true,
+            "metric": "contains_ranked_hourly_candidate",
+            "operator": "is true",
+            "threshold": true
+          }
+        ],
+        "window_end": "2024-08-26T00:00:00+08:00",
+        "window_start": "2024-08-25T00:00:00+08:00"
+      },
+      {
+        "metrics": {
+          "high_confidence_identity_count": 206,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 16,
+          "message_count": 771,
+          "question_count": 129,
+          "repetitive_content_rate": 0.018158236057,
+          "resolved_reply_count": 247,
+          "unresolved_reply_count": 26
+        },
+        "official_blog_event": null,
+        "selection_tier": "structural_candidate_without_blog_alignment",
+        "structural_evidence": [
+          {
+            "actual": 206,
+            "metric": "daily_high_confidence_identity_count",
+            "operator": ">= nonempty daily p90",
+            "threshold": 144.0
+          },
+          {
+            "actual": true,
+            "metric": "contains_ranked_hourly_candidate",
+            "operator": "is true",
+            "threshold": true
+          }
+        ],
+        "window_end": "2024-06-08T00:00:00+08:00",
+        "window_start": "2024-06-07T00:00:00+08:00"
+      }
+    ],
+    "high_activity_validation": [
+      {
+        "activity_surge_ratio": null,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.148305084746,
+          "exact_duplicate_rate": 0.084745762712,
+          "filler_rate": 0.097457627119,
+          "high_confidence_identity_count": 74,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 6,
+          "message_count": 236,
+          "question_count": 40,
+          "question_with_resolved_reply_count": 20,
+          "repetitive_content_rate": 0.03813559322,
+          "reply_resolution_rate": 0.880434782609,
+          "resolved_reply_count": 81,
+          "resolved_reply_share": 0.343220338983,
+          "top_broader_pseudonymous_identity_concentration": 0.097457627119,
+          "top_high_confidence_identity_concentration": 0.097457627119,
+          "unresolved_reply_count": 11
+        },
+        "preceding_baseline_median_message_count": 0.0,
+        "trigger_facts": [
+          {
+            "actual": 236,
+            "metric": "message_count",
+            "operator": ">= nonempty p90",
+            "threshold": 62.0
+          },
+          {
+            "actual": null,
+            "metric": "message_count / preceding_baseline_median",
+            "operator": ">= 2.0 or baseline is zero",
+            "threshold": 2.0
+          },
+          {
+            "actual": 24,
+            "metric": "preceding_baseline_window_count",
+            "operator": "= requested lookback unless series start",
+            "threshold": 24
+          }
+        ],
+        "window_end": "2024-06-07T07:00:00+08:00",
+        "window_start": "2024-06-07T06:00:00+08:00"
+      },
+      {
+        "activity_surge_ratio": null,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.280952380952,
+          "exact_duplicate_rate": 0.057142857143,
+          "filler_rate": 0.019047619048,
+          "high_confidence_identity_count": 32,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 9,
+          "message_count": 210,
+          "question_count": 29,
+          "question_with_resolved_reply_count": 12,
+          "repetitive_content_rate": 0.014285714286,
+          "reply_resolution_rate": 0.782608695652,
+          "resolved_reply_count": 90,
+          "resolved_reply_share": 0.428571428571,
+          "top_broader_pseudonymous_identity_concentration": 0.128571428571,
+          "top_high_confidence_identity_concentration": 0.128571428571,
+          "unresolved_reply_count": 25
+        },
+        "preceding_baseline_median_message_count": 0.0,
+        "trigger_facts": [
+          {
+            "actual": 210,
+            "metric": "message_count",
+            "operator": ">= nonempty p90",
+            "threshold": 62.0
+          },
+          {
+            "actual": null,
+            "metric": "message_count / preceding_baseline_median",
+            "operator": ">= 2.0 or baseline is zero",
+            "threshold": 2.0
+          },
+          {
+            "actual": 24,
+            "metric": "preceding_baseline_window_count",
+            "operator": "= requested lookback unless series start",
+            "threshold": 24
+          }
+        ],
+        "window_end": "2024-08-21T09:00:00+08:00",
+        "window_start": "2024-08-21T08:00:00+08:00"
+      },
+      {
+        "activity_surge_ratio": null,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.451327433628,
+          "exact_duplicate_rate": 0.106194690265,
+          "filler_rate": 0.115044247788,
+          "high_confidence_identity_count": 27,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 2,
+          "message_count": 113,
+          "question_count": 20,
+          "question_with_resolved_reply_count": 8,
+          "repetitive_content_rate": 0.017699115044,
+          "reply_resolution_rate": 0.918918918919,
+          "resolved_reply_count": 34,
+          "resolved_reply_share": 0.300884955752,
+          "top_broader_pseudonymous_identity_concentration": 0.159292035398,
+          "top_high_confidence_identity_concentration": 0.159292035398,
+          "unresolved_reply_count": 3
+        },
+        "preceding_baseline_median_message_count": 0.0,
+        "trigger_facts": [
+          {
+            "actual": 113,
+            "metric": "message_count",
+            "operator": ">= nonempty p90",
+            "threshold": 62.0
+          },
+          {
+            "actual": null,
+            "metric": "message_count / preceding_baseline_median",
+            "operator": ">= 2.0 or baseline is zero",
+            "threshold": 2.0
+          },
+          {
+            "actual": 24,
+            "metric": "preceding_baseline_window_count",
+            "operator": "= requested lookback unless series start",
+            "threshold": 24
+          }
+        ],
+        "window_end": "2024-08-21T12:00:00+08:00",
+        "window_start": "2024-08-21T11:00:00+08:00"
+      },
+      {
+        "activity_surge_ratio": null,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.256880733945,
+          "exact_duplicate_rate": 0.100917431193,
+          "filler_rate": 0.073394495413,
+          "high_confidence_identity_count": 24,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 5,
+          "message_count": 109,
+          "question_count": 14,
+          "question_with_resolved_reply_count": 8,
+          "repetitive_content_rate": 0.073394495413,
+          "reply_resolution_rate": 0.910714285714,
+          "resolved_reply_count": 51,
+          "resolved_reply_share": 0.467889908257,
+          "top_broader_pseudonymous_identity_concentration": 0.229357798165,
+          "top_high_confidence_identity_concentration": 0.229357798165,
+          "unresolved_reply_count": 5
+        },
+        "preceding_baseline_median_message_count": 0.0,
+        "trigger_facts": [
+          {
+            "actual": 109,
+            "metric": "message_count",
+            "operator": ">= nonempty p90",
+            "threshold": 62.0
+          },
+          {
+            "actual": null,
+            "metric": "message_count / preceding_baseline_median",
+            "operator": ">= 2.0 or baseline is zero",
+            "threshold": 2.0
+          },
+          {
+            "actual": 24,
+            "metric": "preceding_baseline_window_count",
+            "operator": "= requested lookback unless series start",
+            "threshold": 24
+          }
+        ],
+        "window_end": "2024-08-21T11:00:00+08:00",
+        "window_start": "2024-08-21T10:00:00+08:00"
+      },
+      {
+        "activity_surge_ratio": null,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.0,
+          "exact_duplicate_rate": 0.056179775281,
+          "filler_rate": 0.056179775281,
+          "high_confidence_identity_count": 11,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 10,
+          "message_count": 89,
+          "question_count": 20,
+          "question_with_resolved_reply_count": 15,
+          "repetitive_content_rate": 0.022471910112,
+          "reply_resolution_rate": 0.944444444444,
+          "resolved_reply_count": 51,
+          "resolved_reply_share": 0.573033707865,
+          "top_broader_pseudonymous_identity_concentration": 0.269662921348,
+          "top_high_confidence_identity_concentration": 0.269662921348,
+          "unresolved_reply_count": 3
+        },
+        "preceding_baseline_median_message_count": 0.0,
+        "trigger_facts": [
+          {
+            "actual": 89,
+            "metric": "message_count",
+            "operator": ">= nonempty p90",
+            "threshold": 62.0
+          },
+          {
+            "actual": null,
+            "metric": "message_count / preceding_baseline_median",
+            "operator": ">= 2.0 or baseline is zero",
+            "threshold": 2.0
+          },
+          {
+            "actual": 24,
+            "metric": "preceding_baseline_window_count",
+            "operator": "= requested lookback unless series start",
+            "threshold": 24
+          }
+        ],
+        "window_end": "2024-07-14T05:00:00+08:00",
+        "window_start": "2024-07-14T04:00:00+08:00"
+      },
+      {
+        "activity_surge_ratio": null,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.0,
+          "exact_duplicate_rate": 0.126582278481,
+          "filler_rate": 0.088607594937,
+          "high_confidence_identity_count": 36,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 3,
+          "message_count": 79,
+          "question_count": 18,
+          "question_with_resolved_reply_count": 11,
+          "repetitive_content_rate": 0.012658227848,
+          "reply_resolution_rate": 0.958333333333,
+          "resolved_reply_count": 23,
+          "resolved_reply_share": 0.291139240506,
+          "top_broader_pseudonymous_identity_concentration": 0.101265822785,
+          "top_high_confidence_identity_concentration": 0.101265822785,
+          "unresolved_reply_count": 1
+        },
+        "preceding_baseline_median_message_count": 0.0,
+        "trigger_facts": [
+          {
+            "actual": 79,
+            "metric": "message_count",
+            "operator": ">= nonempty p90",
+            "threshold": 62.0
+          },
+          {
+            "actual": null,
+            "metric": "message_count / preceding_baseline_median",
+            "operator": ">= 2.0 or baseline is zero",
+            "threshold": 2.0
+          },
+          {
+            "actual": 24,
+            "metric": "preceding_baseline_window_count",
+            "operator": "= requested lookback unless series start",
+            "threshold": 24
+          }
+        ],
+        "window_end": "2024-06-07T08:00:00+08:00",
+        "window_start": "2024-06-07T07:00:00+08:00"
+      },
+      {
+        "activity_surge_ratio": null,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.319444444444,
+          "exact_duplicate_rate": 0.166666666667,
+          "filler_rate": 0.055555555556,
+          "high_confidence_identity_count": 17,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 12,
+          "message_count": 72,
+          "question_count": 11,
+          "question_with_resolved_reply_count": 8,
+          "repetitive_content_rate": 0.055555555556,
+          "reply_resolution_rate": 1.0,
+          "resolved_reply_count": 40,
+          "resolved_reply_share": 0.555555555556,
+          "top_broader_pseudonymous_identity_concentration": 0.277777777778,
+          "top_high_confidence_identity_concentration": 0.277777777778,
+          "unresolved_reply_count": 0
+        },
+        "preceding_baseline_median_message_count": 0.0,
+        "trigger_facts": [
+          {
+            "actual": 72,
+            "metric": "message_count",
+            "operator": ">= nonempty p90",
+            "threshold": 62.0
+          },
+          {
+            "actual": null,
+            "metric": "message_count / preceding_baseline_median",
+            "operator": ">= 2.0 or baseline is zero",
+            "threshold": 2.0
+          },
+          {
+            "actual": 24,
+            "metric": "preceding_baseline_window_count",
+            "operator": "= requested lookback unless series start",
+            "threshold": 24
+          }
+        ],
+        "window_end": "2024-09-11T00:00:00+08:00",
+        "window_start": "2024-09-10T23:00:00+08:00"
+      },
+      {
+        "activity_surge_ratio": 312.0,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.128205128205,
+          "exact_duplicate_rate": 0.044871794872,
+          "filler_rate": 0.038461538462,
+          "high_confidence_identity_count": 28,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 9,
+          "message_count": 156,
+          "question_count": 22,
+          "question_with_resolved_reply_count": 8,
+          "repetitive_content_rate": 0.0,
+          "reply_resolution_rate": 0.730769230769,
+          "resolved_reply_count": 57,
+          "resolved_reply_share": 0.365384615385,
+          "top_broader_pseudonymous_identity_concentration": 0.153846153846,
+          "top_high_confidence_identity_concentration": 0.153846153846,
+          "unresolved_reply_count": 21
+        },
+        "preceding_baseline_median_message_count": 0.5,
+        "trigger_facts": [
+          {
+            "actual": 156,
+            "metric": "message_count",
+            "operator": ">= nonempty p90",
+            "threshold": 62.0
+          },
+          {
+            "actual": 312.0,
+            "metric": "message_count / preceding_baseline_median",
+            "operator": ">= 2.0 or baseline is zero",
+            "threshold": 2.0
+          },
+          {
+            "actual": 24,
+            "metric": "preceding_baseline_window_count",
+            "operator": "= requested lookback unless series start",
+            "threshold": 24
+          }
+        ],
+        "window_end": "2024-09-17T05:00:00+08:00",
+        "window_start": "2024-09-17T04:00:00+08:00"
+      }
+    ],
+    "natural_behavior_validation": [
+      {
+        "absolute_baseline_delta": 0.0,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.0,
+          "exact_duplicate_rate": 0.3,
+          "filler_rate": 0.3,
+          "high_confidence_identity_count": 6,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 1,
+          "message_count": 10,
+          "question_count": 0,
+          "question_with_resolved_reply_count": 0,
+          "repetitive_content_rate": 0.0,
+          "reply_resolution_rate": 0.4,
+          "resolved_reply_count": 2,
+          "resolved_reply_share": 0.2,
+          "top_broader_pseudonymous_identity_concentration": 0.3,
+          "top_high_confidence_identity_concentration": 0.3,
+          "unresolved_reply_count": 3
+        },
+        "preceding_baseline_median_message_count": 10.0,
+        "trigger_facts": [
+          {
+            "actual": 10,
+            "metric": "message_count",
+            "operator": "between nonempty p25 and p50",
+            "threshold": [
+              3.0,
+              10.0
+            ]
+          },
+          {
+            "actual": 0.0,
+            "metric": "absolute delta from preceding baseline median",
+            "operator": "<= stability limit",
+            "threshold": 5.0
+          }
+        ],
+        "window_end": "2024-08-16T12:00:00+08:00",
+        "window_start": "2024-08-16T11:00:00+08:00"
+      },
+      {
+        "absolute_baseline_delta": 0.0,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.0,
+          "exact_duplicate_rate": 0.0,
+          "filler_rate": 0.0,
+          "high_confidence_identity_count": 5,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 4,
+          "message_count": 5,
+          "question_count": 0,
+          "question_with_resolved_reply_count": 0,
+          "repetitive_content_rate": 0.0,
+          "reply_resolution_rate": 1.0,
+          "resolved_reply_count": 2,
+          "resolved_reply_share": 0.4,
+          "top_broader_pseudonymous_identity_concentration": 0.2,
+          "top_high_confidence_identity_concentration": 0.2,
+          "unresolved_reply_count": 0
+        },
+        "preceding_baseline_median_message_count": 5.0,
+        "trigger_facts": [
+          {
+            "actual": 5,
+            "metric": "message_count",
+            "operator": "between nonempty p25 and p50",
+            "threshold": [
+              3.0,
+              10.0
+            ]
+          },
+          {
+            "actual": 0.0,
+            "metric": "absolute delta from preceding baseline median",
+            "operator": "<= stability limit",
+            "threshold": 2.5
+          }
+        ],
+        "window_end": "2024-06-12T10:00:00+08:00",
+        "window_start": "2024-06-12T09:00:00+08:00"
+      },
+      {
+        "absolute_baseline_delta": 0.0,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.0,
+          "exact_duplicate_rate": 0.0,
+          "filler_rate": 0.0,
+          "high_confidence_identity_count": 5,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 1,
+          "message_count": 6,
+          "question_count": 3,
+          "question_with_resolved_reply_count": 1,
+          "repetitive_content_rate": 0.0,
+          "reply_resolution_rate": 1.0,
+          "resolved_reply_count": 2,
+          "resolved_reply_share": 0.333333333333,
+          "top_broader_pseudonymous_identity_concentration": 0.333333333333,
+          "top_high_confidence_identity_concentration": 0.333333333333,
+          "unresolved_reply_count": 0
+        },
+        "preceding_baseline_median_message_count": 6.0,
+        "trigger_facts": [
+          {
+            "actual": 6,
+            "metric": "message_count",
+            "operator": "between nonempty p25 and p50",
+            "threshold": [
+              3.0,
+              10.0
+            ]
+          },
+          {
+            "actual": 0.0,
+            "metric": "absolute delta from preceding baseline median",
+            "operator": "<= stability limit",
+            "threshold": 3.0
+          }
+        ],
+        "window_end": "2024-06-17T10:00:00+08:00",
+        "window_start": "2024-06-17T09:00:00+08:00"
+      },
+      {
+        "absolute_baseline_delta": 0.0,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.0,
+          "exact_duplicate_rate": 0.4,
+          "filler_rate": 0.0,
+          "high_confidence_identity_count": 5,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 1,
+          "message_count": 5,
+          "question_count": 1,
+          "question_with_resolved_reply_count": 1,
+          "repetitive_content_rate": 0.2,
+          "reply_resolution_rate": 1.0,
+          "resolved_reply_count": 1,
+          "resolved_reply_share": 0.2,
+          "top_broader_pseudonymous_identity_concentration": 0.2,
+          "top_high_confidence_identity_concentration": 0.2,
+          "unresolved_reply_count": 0
+        },
+        "preceding_baseline_median_message_count": 5.0,
+        "trigger_facts": [
+          {
+            "actual": 5,
+            "metric": "message_count",
+            "operator": "between nonempty p25 and p50",
+            "threshold": [
+              3.0,
+              10.0
+            ]
+          },
+          {
+            "actual": 0.0,
+            "metric": "absolute delta from preceding baseline median",
+            "operator": "<= stability limit",
+            "threshold": 2.5
+          }
+        ],
+        "window_end": "2024-07-06T12:00:00+08:00",
+        "window_start": "2024-07-06T11:00:00+08:00"
+      },
+      {
+        "absolute_baseline_delta": 0.0,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.0,
+          "exact_duplicate_rate": 0.333333333333,
+          "filler_rate": 0.0,
+          "high_confidence_identity_count": 4,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 3,
+          "message_count": 6,
+          "question_count": 2,
+          "question_with_resolved_reply_count": 0,
+          "repetitive_content_rate": 0.166666666667,
+          "reply_resolution_rate": 1.0,
+          "resolved_reply_count": 3,
+          "resolved_reply_share": 0.5,
+          "top_broader_pseudonymous_identity_concentration": 0.333333333333,
+          "top_high_confidence_identity_concentration": 0.333333333333,
+          "unresolved_reply_count": 0
+        },
+        "preceding_baseline_median_message_count": 6.0,
+        "trigger_facts": [
+          {
+            "actual": 6,
+            "metric": "message_count",
+            "operator": "between nonempty p25 and p50",
+            "threshold": [
+              3.0,
+              10.0
+            ]
+          },
+          {
+            "actual": 0.0,
+            "metric": "absolute delta from preceding baseline median",
+            "operator": "<= stability limit",
+            "threshold": 3.0
+          }
+        ],
+        "window_end": "2024-09-22T12:00:00+08:00",
+        "window_start": "2024-09-22T11:00:00+08:00"
+      },
+      {
+        "absolute_baseline_delta": 0.5,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.0,
+          "exact_duplicate_rate": 0.1,
+          "filler_rate": 0.1,
+          "high_confidence_identity_count": 6,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 1,
+          "message_count": 10,
+          "question_count": 5,
+          "question_with_resolved_reply_count": 2,
+          "repetitive_content_rate": 0.0,
+          "reply_resolution_rate": 1.0,
+          "resolved_reply_count": 2,
+          "resolved_reply_share": 0.2,
+          "top_broader_pseudonymous_identity_concentration": 0.3,
+          "top_high_confidence_identity_concentration": 0.3,
+          "unresolved_reply_count": 0
+        },
+        "preceding_baseline_median_message_count": 9.5,
+        "trigger_facts": [
+          {
+            "actual": 10,
+            "metric": "message_count",
+            "operator": "between nonempty p25 and p50",
+            "threshold": [
+              3.0,
+              10.0
+            ]
+          },
+          {
+            "actual": 0.5,
+            "metric": "absolute delta from preceding baseline median",
+            "operator": "<= stability limit",
+            "threshold": 4.75
+          }
+        ],
+        "window_end": "2024-09-07T09:00:00+08:00",
+        "window_start": "2024-09-07T08:00:00+08:00"
+      },
+      {
+        "absolute_baseline_delta": 0.5,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.0,
+          "exact_duplicate_rate": 0.0,
+          "filler_rate": 0.0,
+          "high_confidence_identity_count": 5,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 2,
+          "message_count": 5,
+          "question_count": 1,
+          "question_with_resolved_reply_count": 0,
+          "repetitive_content_rate": 0.0,
+          "reply_resolution_rate": 0.666666666667,
+          "resolved_reply_count": 2,
+          "resolved_reply_share": 0.4,
+          "top_broader_pseudonymous_identity_concentration": 0.2,
+          "top_high_confidence_identity_concentration": 0.2,
+          "unresolved_reply_count": 1
+        },
+        "preceding_baseline_median_message_count": 4.5,
+        "trigger_facts": [
+          {
+            "actual": 5,
+            "metric": "message_count",
+            "operator": "between nonempty p25 and p50",
+            "threshold": [
+              3.0,
+              10.0
+            ]
+          },
+          {
+            "actual": 0.5,
+            "metric": "absolute delta from preceding baseline median",
+            "operator": "<= stability limit",
+            "threshold": 2.25
+          }
+        ],
+        "window_end": "2024-07-06T11:00:00+08:00",
+        "window_start": "2024-07-06T10:00:00+08:00"
+      },
+      {
+        "absolute_baseline_delta": 0.5,
+        "grain_minutes": 60,
+        "metrics": {
+          "burst_message_rate": 0.571428571429,
+          "exact_duplicate_rate": 0.142857142857,
+          "filler_rate": 0.142857142857,
+          "high_confidence_identity_count": 4,
+          "identity_high_message_coverage": 1.0,
+          "max_reply_chain_depth_edges": 1,
+          "message_count": 7,
+          "question_count": 2,
+          "question_with_resolved_reply_count": 0,
+          "repetitive_content_rate": 0.0,
+          "reply_resolution_rate": 1.0,
+          "resolved_reply_count": 2,
+          "resolved_reply_share": 0.285714285714,
+          "top_broader_pseudonymous_identity_concentration": 0.571428571429,
+          "top_high_confidence_identity_concentration": 0.571428571429,
+          "unresolved_reply_count": 0
+        },
+        "preceding_baseline_median_message_count": 6.5,
+        "trigger_facts": [
+          {
+            "actual": 7,
+            "metric": "message_count",
+            "operator": "between nonempty p25 and p50",
+            "threshold": [
+              3.0,
+              10.0
+            ]
+          },
+          {
+            "actual": 0.5,
+            "metric": "absolute delta from preceding baseline median",
+            "operator": "<= stability limit",
+            "threshold": 3.25
+          }
+        ],
+        "window_end": "2024-08-19T05:00:00+08:00",
+        "window_start": "2024-08-19T04:00:00+08:00"
+      }
+    ],
+    "selection_contract": {
+      "challenge": "round-robin reply, question/reply, long-chain, and broad-participation ranks; require >=50% high-confidence identity message coverage and resolved replies >= max(5, hourly p75=10.0)",
+      "hero": "daily window requires >=50% high-confidence identity message coverage and at least two explicit structural triggers; Blog-aligned candidate tier sorts first, then resolved replies, high-confidence identity breadth, and message count lexicographically",
+      "natural": "quiet-baseline rank first, then non-extreme p25-p75 hourly windows; require >=50% high-confidence identity coverage and exclude extreme hygiene/concentration ratios; temporal spread caps two selections per month before fallback",
+      "no_composite_score": true
+    }
+  }
+}
