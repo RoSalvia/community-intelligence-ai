@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://community-intelligence.local/schemas/blum-telegram-announcement-pack-v1.schema.json",
+  "title": "Blum Official Telegram Announcement Pack v1 Aggregate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "generated_at",
+    "identity",
+    "stable_source_slice",
+    "corpus",
+    "time_contract",
+    "private_artifacts"
+  ],
+  "properties": {
+    "version": {"const": "blum-official-telegram-knowledge-v1"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "channel_name",
+        "channel_id",
+        "channel_type",
+        "canonical_username",
+        "authority",
+        "evidence"
+      ],
+      "properties": {
+        "channel_name": {"const": "Blum: All Crypto – One App"},
+        "channel_id": {"const": 10629372799},
+        "channel_type": {"const": "public_channel"},
+        "canonical_username": {"const": "blumcrypto"},
+        "authority": {"const": "official"},
+        "evidence": {
+          "type": "array",
+          "minItems": 2,
+          "items": {"type": "string", "format": "uri"}
+        }
+      }
+    },
+    "stable_source_slice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "extraction_method_version",
+        "source_byte_range",
+        "source_byte_range_sha256",
+        "checks",
+        "stable",
+        "observed_source_growth",
+        "snapshot_sha256"
+      ],
+      "properties": {
+        "extraction_method_version": {"const": "telegram-live-json-channel-slice-v1.0.0"},
+        "source_byte_range": {
+          "type": "array",
+          "prefixItems": [{"type": "integer"}, {"type": "integer"}],
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "source_byte_range_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "checks": {"type": "integer", "minimum": 3},
+        "stable": {"const": true},
+        "observed_source_growth": {"const": true},
+        "observed_source_sizes": {
+          "type": "array",
+          "minItems": 3,
+          "items": {"type": "integer", "minimum": 1}
+        },
+        "snapshot_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "corpus": {
+      "type": "object",
+      "required": [
+        "ordinary_message_count",
+        "knowledge_message_count",
+        "textless_ordinary_message_count",
+        "service_event_count",
+        "precise_timestamp_coverage",
+        "language_counts",
+        "hash_ledger_entries",
+        "hash_ledger_sha256"
+      ]
+    },
+    "time_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "published_at_basis",
+        "temporal_precision",
+        "effective_from_default",
+        "announcement_time_promoted_to_effective_count"
+      ],
+      "properties": {
+        "published_at_basis": {"const": "telegram_date_unixtime"},
+        "temporal_precision": {"const": "second"},
+        "effective_from_default": {"type": "null"},
+        "announcement_time_promoted_to_effective_count": {"const": 0}
+      }
+    },
+    "private_artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tracked_full_text_count", "git_ignored", "normalized_jsonl_sha256"],
+      "properties": {
+        "tracked_full_text_count": {"const": 0},
+        "git_ignored": {"const": true},
+        "normalized_jsonl_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    }
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "version": "blum-official-knowledge-timeline-v1",
+  "window": {
+    "start": "2024-03-01",
+    "end": "2024-09-30",
+    "blog_source_count": 13,
+    "telegram_source_count": 291,
+    "combined_source_count": 304
+  },
+  "hero_events": [
+    {
+      "event": "Crypto with Blum product positioning",
+      "blog": {"published_on": "2024-03-29", "url": "https://blum.io/post/crypto-with-blum-why-its-a-gen-z-and-millennial-must"},
+      "telegram": {"message_id": 75, "published_at": "2024-04-20T10:47:43Z", "url": "https://t.me/blumcrypto/75"},
+      "ordering": "blog_day_precedes_telegram"
+    },
+    {
+      "event": "Blum app overview",
+      "blog": {"published_on": "2024-04-09", "url": "https://blum.io/post/blum-your-go-to-crypto-app"},
+      "telegram": {"message_id": 29, "published_at": "2024-03-18T15:28:25Z", "url": "https://t.me/blumcrypto/29"},
+      "ordering": "telegram_precedes_blog_day"
+    },
+    {
+      "event": "Telegram Mini App launch",
+      "blog": {"published_on": "2024-04-19", "url": "https://blum.io/post/blums-telegram-mini-app-is-out"},
+      "telegram": {"message_id": 68, "published_at": "2024-04-19T10:26:00Z", "url": "https://t.me/blumcrypto/68"},
+      "ordering": "same_day_blog_time_unknown"
+    },
+    {
+      "event": "Blum ecosystem FAQ",
+      "blog": {"published_on": "2024-04-26", "url": "https://blum.io/post/blums-faq"},
+      "telegram": {"message_id": 170, "published_at": "2024-06-06T21:55:19Z", "url": "https://t.me/blumcrypto/170"},
+      "ordering": "blog_day_precedes_telegram"
+    },
+    {
+      "event": "Developer recruitment",
+      "blog": {"published_on": "2024-05-01", "url": "https://blum.io/post/blum-is-on-the-hunt-for-a-developers"},
+      "telegram": {"message_id": 101, "published_at": "2024-05-01T12:29:34Z", "url": "https://t.me/blumcrypto/101"},
+      "ordering": "same_day_blog_time_unknown"
+    },
+    {
+      "event": "2024 roadmap",
+      "blog": {"published_on": "2024-05-03", "url": "https://blum.io/post/blums-exciting-roadmap-whats-coming-up"},
+      "telegram": {"message_id": 104, "published_at": "2024-05-03T14:53:20Z", "url": "https://t.me/blumcrypto/104"},
+      "ordering": "same_day_blog_time_unknown"
+    },
+    {
+      "event": "Drop Game launch",
+      "blog": {"published_on": "2024-05-18", "url": "https://blum.io/post/new-on-blum-drop-game"},
+      "telegram": {"message_id": 138, "published_at": "2024-05-20T13:15:24Z", "url": "https://t.me/blumcrypto/138"},
+      "ordering": "blog_day_precedes_telegram"
+    },
+    {
+      "event": "Quests launch campaign",
+      "blog": {"published_on": "2024-06-11", "url": "https://blum.io/post/blum-quests-launch-campaign"},
+      "telegram": {"message_id": 185, "published_at": "2024-06-11T17:38:26Z", "url": "https://t.me/blumcrypto/185"},
+      "ordering": "same_day_blog_time_unknown"
+    },
+    {
+      "event": "Pokras Lampas campaign",
+      "blog": {"published_on": "2024-07-05", "url": "https://blum.io/post/pokras-lampas-hacked-blum-the-real-story"},
+      "telegram": {"message_id": 223, "published_at": "2024-07-05T13:57:24Z", "url": "https://t.me/blumcrypto/223"},
+      "ordering": "same_day_blog_time_unknown"
+    },
+    {
+      "event": "Tribes launch",
+      "blog": {"published_on": "2024-07-22", "url": "https://blum.io/post/meet-tribes-level-up-your-engagement-and-rewards-on-blum"},
+      "telegram": {"message_id": 257, "published_at": "2024-07-22T10:27:50Z", "url": "https://t.me/blumcrypto/257"},
+      "ordering": "same_day_blog_time_unknown"
+    }
+  ],
+  "telegram_only_timeline_markers": [
+    {"event": "Blum Points farming prelaunch", "message_id": 41, "published_at": "2024-03-26T15:49:18Z", "url": "https://t.me/blumcrypto/41"},
+    {"event": "Drop Game ticket-expiry change announced without explicit effective instant", "message_id": 211, "published_at": "2024-06-28T11:26:17Z", "url": "https://t.me/blumcrypto/211"},
+    {"event": "Roadmap update", "message_id": 249, "published_at": "2024-07-16T17:18:00Z", "url": "https://t.me/blumcrypto/249"},
+    {"event": "Frens o Mania campaign start", "message_id": 258, "published_at": "2024-07-23T10:18:33Z", "url": "https://t.me/blumcrypto/258"},
+    {"event": "40 million user milestone", "message_id": 277, "published_at": "2024-08-06T16:24:21Z", "url": "https://t.me/blumcrypto/277"},
+    {"event": "50 million user milestone", "message_id": 339, "published_at": "2024-08-30T17:52:07Z", "url": "https://t.me/blumcrypto/339"}
+  ],
+  "assessment": {
+    "hero_event_cross_source_coverage": "10/10",
+    "material_cross_source_contradiction_count": 0,
+    "causal_claims_made": 0,
+    "season_1_in_window": false,
+    "season_1_note": "No explicit Season 1 reference in the March-September window; the first explicit channel reference is retrospective on message 553 at 2024-12-23T20:16:04Z."
+  }
+}

@@ -1,164 +1,180 @@
-# Blum Official Blog Historical Knowledge Acquisition — Review Gate
+# Blum Temporal Precision + Official Telegram Knowledge — Review Gate
 
-状态：**HISTORICAL BLOG ACQUISITION COMPLETE / FROZEN M2 IMPORT BLOCKED**
+状态：**LOCAL IMPLEMENTATION COMPLETE / REVIEW GATE**
 
-Pack：`blum-historical-blog-pack-v1`
+Branch：`blum-knowledge-acquisition`
+起始 checkpoint：`9335b3f29eba271653e65ea54e6ef910f35c5d9f`
 
-基线：`3858dbf4236a8b148997dede40b609f057d3b23e`
+## 决策结论
 
-## 决策摘要
+77 篇官方 Blog 与 1091 条 text-bearing 官方 Telegram announcement 已诚实进入同一个私有
+Blum Knowledge Base，共 1168 个独立 source、8216 个 Frozen M2 chunks，导入 blocker 为 0。
+Blog 保持 day precision，Telegram 保持 second precision；没有制造 midnight，也没有把
+announcement timestamp 默认当作生效时间。
 
-当前官方 Blog catalog 共 77 篇：3 篇 current-live，74 篇由当前官方 catalog 直接链接到
-Wayback。10 篇 CN Chat 时间窗口内的 controlled set 全部通过，随后 74 篇 archive raw
-snapshot 全部获取并解析成功。normalized content 未发现 Wayback toolbar/chrome 污染，
-provenance chain 74/74 完整。
+本轮未修改 Frozen M2 的 chunking、hybrid retrieval、reranker、authority ranking、answer
+policy 或模型参数。全量回归结果为 `418 passed, 7 skipped`。
 
-这使 Blum Historical Blog corpus 从 3 篇增加到 77 篇 catalog sources，但尚不能进入 Frozen
-M2：77 篇均只有 date-only publication metadata，且没有 confirmed `effective_from`。本轮没有
-伪造时间、修改 M2 contract 或运行 RAG smoke。
+## 1. Temporal precision contract
 
-## 1–4. Catalog 与 2024 范围
+数据库 schema 升级为 v3，revision 同时支持：
+
+- `published_on: date | null`
+- `published_at: datetime | null`
+- `temporal_precision: day | second`
+- `effective_from: datetime | null`
+- `effective_until: datetime | null`
+
+约束为：day source 必须有 `published_on` 且不得有 `published_at`；second source 必须有
+`published_at`。v1/v2 既有 precise-datetime revision 在迁移时解释为 second precision，旧数据与
+API 行为保持兼容。
+
+`as_of_time` 对 day source 按 query date 过滤；精确查询与 Blog publication 落在同一天时，citation
+与 answer trace 返回 `same_day_publication_time_unknown`。Telegram 则按真实 UTC timestamp 做
+精确过滤。
+
+## 2. Blog midnight fabrication
+
+完全避免。77/77 Blog 均为：
+
+`published_on=<official catalog date>, published_at=null, temporal_precision=day`
+
+导入审计 `midnight_fabrication_count=0`。Wayback snapshot time 仅保留为 archive capture metadata，
+没有被提升为 publication time；acquisition observed time 也没有被当作 validity time。
+
+## 3. Blog import
 
 | 指标 | 结果 |
 |---|---:|
-| official Blog catalog articles | 77 |
+| official Blog catalog | 77 |
 | current-live | 3 |
 | official-index-linked archive | 74 |
-| publication date coverage | 77/77 |
-| 2024 articles | 18 |
-| 与 CN Chat `2024-03-19..2024-08-18` 重叠 | 10 |
+| imported | 77 |
+| blocked | 0 |
+| day precision | 77 |
 
-Catalog raw hash：`380d82dd137b17c5527a76115dbff61d31249900280c1c082667ca9e08928892`。
-publication date 均来自当前官方 Blog card，保持 date-only。
+每篇保留 original Blum URL、title、full normalized body、language、publication date、archive 与
+acquisition metadata、provenance chain、raw/content hash。正文与完整 inventory 仅在 ignored
+private storage。没有独立 validity 证据的 77 篇均显式记录 `validity=not-provided`，而不是
+`human-confirmed`。
 
-## 5–8. Controlled 与批量 acquisition
+## 4–5. Official Telegram announcement corpus
 
-Controlled set 选择时间窗口内实际存在的 10 篇，覆盖 Trends、Company News、New Features、
-Campaigns。结果为 `10/10 passed`，连续重跑时 catalog hash、最终 snapshot URL、raw hash 与
-content hash 均为 `10/10 stable`。
+频道 `Blum: All Crypto – One App` 的 export identity 为 public channel ID `10629372799`；Blum
+官方页面对 `@blumcrypto` 的链接与公开 channel metadata 构成一手身份链，因此记录为
+`authority=official`、`source_type=telegram_announcement`、`source_channel=telegram`。
 
-Wayback 标准 replay 会动态注入 toolbar 元数据，导致 raw hash 变化。最终 acquisition 保留
-catalog 原始 Read Article URL，同时使用同一 snapshot 的公开 `id_` raw-capture 表示保存原始
-响应。该表示不含 toolbar，controlled 重跑 raw hash 稳定。
-
-批量结果：
+在 live export 继续增长的同时，对目标完整 object 做了三次检查：source size 从 86,960,846
+增长至 86,989,032 bytes，但 byte range `[49052210, 52060211]` 与 range hash 连续稳定。随后才
+发布 immutable private snapshot；live `result.json` 未修改、移动或截断。
 
 | 指标 | 结果 |
 |---|---:|
-| selected archive targets | 74 |
-| successfully acquired | 74 |
-| final failed snapshots | 0 |
-| parser failures | 0 |
-| provenance incomplete | 0 |
-| chrome contamination | 0 |
-| content-hash duplicates | 0 |
-| raw-hash duplicates | 0 |
-| normalized content length | 822–45,064 chars |
+| ordinary messages | 1178 |
+| text-bearing Knowledge messages | 1091 |
+| textless ordinary excluded | 87 |
+| service events excluded | 48 |
+| ordinary precise timestamps | 1178/1178 (100%) |
+| imported Telegram sources | 1091 |
+| language | en 1082 / und 9 |
 
-中间重跑曾有 1 次 `ReadTimeout`；最终 runner 使用受节流约束的单次瞬时重试后，该目标正常
-获取。没有将超时误判为页面缺失，也没有无限重试。
+每条 text-bearing ordinary message 是一个独立 source，正文完整进入 private RAG；保留
+message ID、entities、links、forward metadata、reactions、language、canonical message URL 与
+hash。export 没有提供可保留的 media path/reference，因此本 snapshot 的 media-reference count
+为 0；未做 OCR/ASR。1091 条来源的 validity provenance 同样是 `not-provided`。
 
-## 9. Provenance chain
+## 6. 2024-03～09 official Knowledge coverage
 
-74/74 source 都保留：
+| source type | count |
+|---|---:|
+| Official Blog | 13 |
+| Official Telegram Announcement | 291 |
+| combined independent sources/messages | 304 |
 
-`current official Blog article card`
-→ `catalog Read Article URL`
-→ `official-index-linked Wayback raw capture`
-→ `original blum.io/post/<slug>`
+月度 Telegram 分布：Mar 23、Apr 42、May 46、Jun 45、Jul 44、Aug 49、Sep 42。
 
-acquisition/manifest 使用：
+## 7. Hero events cross-source coverage
 
-- `content_origin = historical_archive_snapshot`
-- `official_identity_basis = current_official_blog_index_link`
-- `source_type = official_blog`
-- `source_channel = website`
+已有 10 个 Blog Hero events 全部找到独立 Telegram evidence：Crypto with Blum、app overview、
+Mini App、FAQ、developer recruitment、Roadmap、Drop Game、Quests、Pokras Lampas、Tribes，结果
+为 `10/10`。
 
-普通自行搜索得到、但当前 catalog 没有链接关系的 archive 导入数为 0。
+其中 Mini App、developer recruitment、Roadmap、Quests、Pokras、Tribes 是同日双来源。Blog
+没有日内时刻，因此只报告 same-day ambiguity，不用 Telegram timestamp 回填 Blog。未发现这
+10 组证据存在 material cross-source contradiction，也没有做社区行为因果推断。
 
-## 10. 时间字段
+`Season 1` 在 2024-03～09 window 内没有明确官方引用；频道首次明确出现是 message 553，时间
+为 `2024-12-23T20:16:04Z`，且属于回顾性表述，因此不把它硬塞入目标 window。
 
-三个时间层完全分离：
+## 8. Telegram-only important events
 
-- `official_catalog_publication_date`：当前官方 catalog 显示的 date-only 日期；
-- `archive_snapshot_at`：最终 Wayback capture URL 中的精确 UTC 时间；
-- `acquisition_observed_at`：本轮获取时间。
+发现 Blog timeline 未覆盖或粒度不足的重要 marker，包括：
 
-`snapshot_at` 被用作 `published_at` 的数量为 0；`observed_at` 被用作 `effective_from` 的数量
-为 0。74 个实际 capture 分布于 2025-11-15 至 2026-06-06，不能据此声称网页正文从 2024
-发布后从未更新。
+- Blum Points farming prelaunch（message 41）；
+- Drop Game ticket-expiry change announcement（message 211）；
+- Roadmap update（message 249）；
+- Frens o Mania campaign（message 258）；
+- 40M 与 50M user milestones（messages 277、339）。
 
-## 11. Blum CN 2024 Knowledge Coverage
+这些 marker 只作为官方时间证据。正文没有给出无歧义 effective instant 的条目保持
+`effective_from/effective_until=null`；没有将 announcement time 当作生效时间。
 
-CN Chat 时间窗口内有 10 个官方 catalog 日期与事件：
+## 9. Blum RAG smoke
 
-| 日期 | 事件 |
+完整 private import：1168/1168 sources、8216 chunks、0 blocked。按“小型 smoke、不调参”的范围，
+另用 2 篇 Blog + 2 条 Telegram announcement 建立 controlled hybrid index，验证：
+
+- 每个 query 同时使用 `fts5_bm25` 与 `multilingual_embedding`；
+- Tribes Telegram message 257 在 `2024-07-22T10:27:50Z` 之前被排除，之后可召回；
+- 同日 Blog 可作为 day-level candidate，但 citation/trace 明示日内时间未知；
+- Mini App 与 Tribes query 均能同时召回 Blog 和 Telegram 两种独立 source；
+- 所有 smoke citation 均可回到真实 source/revision/chunk；
+- 两种来源没有 cross-source dedup，也没有融合为虚构 document；
+- 未调 chunk size、embedding model、weights、TopK、reranker 或 authority weights。
+
+在 target event publication 前，现有 broad retrieval 仍可能返回其他较早、词面相关的官方
+source；answer model 未配置时会保持 `insufficient_evidence`。这不是 temporal leakage，但可作为
+未来 relevance evaluation backlog，本轮不据此改 Frozen M2。
+
+## 10. Frozen M2 regression
+
+| check | result |
 |---|---|
-| 2024-03-29 | Crypto with Blum / 产品定位 |
-| 2024-04-09 | Blum app、愿景与核心功能介绍 |
-| 2024-04-19 | Telegram Mini App 上线与 Blum Points |
-| 2024-04-26 | Blum ecosystem FAQ |
-| 2024-05-01 | Developer recruitment / 团队扩张 |
-| 2024-05-03 | 2024 Roadmap、Tribes、Memepad 等规划 |
-| 2024-05-18 | Drop Game 上线 |
-| 2024-06-11 | Quests 上线与 $10,000 USDT campaign |
-| 2024-07-05 | Pokras Lampas 活动与 Quest rules |
-| 2024-07-22 | Tribes 社区功能与奖励机制 |
+| focused temporal/Telegram/API/migration tests | 46 passed |
+| full suite | 418 passed, 7 skipped |
+| Ruff | passed |
+| Telegram aggregate schema | passed |
 
-评估：**事件与主题覆盖显著改善，但仍不足以做严格、完整的 2024 `as_of_time` 裁决。**
-原因包括：窗口内只有 10 个离散 publication dates；缺少 Help 历史版本和官方 Telegram
-announcement；archive capture 来自 2025–2026；页面没有 revision/updated/effective validity
-证据。
+冻结版本仍为：
 
-## 12. Help Center
+- chunker `structure-v1`
+- retrieval `sqlite-fts5-rrf-structure-v2`
+- ranking `authority-validity-rrf-v4`
+- conflict policy `majority-one-slot-v1`
+- answer policy `material-facts-evidence-v2`
+- multilingual policy `multilingual-listwise-v1`
 
-维持：`unavailable / site-side access failure`。
+## 11. Remaining blockers and limits
 
-- 候选：72；获取：0。
-- 已观测 Cloudflare Error 1000：`DNS points to prohibited IP`。
-- 暂停重试，不绕过 Cloudflare，不使用搜索摘要正文，不把 0 acquired 解释为 0 knowledge。
+本轮 Blog + Telegram Knowledge import 与 temporal compatibility 没有真实 blocker，可以进入人工
+review，但不代表整个 Blum Knowledge coverage 已完整：
 
-## 13–14. Frozen M2 compatibility
+- Help Center 仍为 `unavailable / site-side access failure`，候选 72、获取 0，观测到 Cloudflare
+  Error 1000；未绕过、未用 search snippets，且它不阻塞本轮 Blog + Telegram。
+- 本轮没有为任何 Telegram message 建立可审计的独立 effective instant；有效期字段均保持
+  null。后续若做人工规则/campaign validity review，可只对有明确正文证据的 message 补充，
+  不能从 publication timestamp 推断。
+- 按产品要求只做 controlled hybrid smoke；完整 1168-source private corpus 已导入并分块，但未
+  额外生成 production-scale semantic cache。这不是功能 blocker，也没有借 smoke 做参数优化。
 
-| corpus | sources | honest import | metadata blocked |
-|---|---:|---:|---:|
-| official-index-linked historical Blog | 74 | 0 | 74 |
-| current-live Blog | 3 | 0 | 3 |
-| combined | 77 | 0 | 77 |
+## Artifacts and privacy boundary
 
-每篇均存在两个独立 blocker：
+- Telegram aggregate：`telegram-announcement-aggregate.json`
+- Telegram schema：`docs/schemas/blum-telegram-announcement-pack-v1.schema.json`
+- Timeline：`official-knowledge-timeline-2024-03-09.json`
+- Smoke：`temporal-telegram-smoke.json`
+- Full normalized Blog/Telegram corpus、raw snapshot、hash ledger、DB 与 detailed smoke results：
+  ignored `data/private/blum-knowledge-pack-v1-2026-09-11/`
 
-1. official publication metadata 只有 date，而 Frozen M2 要求 precise datetime；
-2. 没有 confirmed `effective_from` / validity provenance。
-
-本轮没有进入可运行的 Frozen M2 corpus，因此没有发现或评估 genuine retrieval/answering
-issue。当前问题仍属于 metadata contract compatibility，而不是已证实的 retrieval defect。
-
-## Language、category 与解析异常
-
-正文语言审计后为 `en=74`。原始 HTML 为 `en=66, ru=8`；8 篇 `html lang=ru` 页面正文实际为
-英文，已保留 declared language 并记录 `language_mismatch=true`，实际 language 使用确定性的
-script audit 标记为 `en`。
-
-Category：Campaigns 19、Company News 22、Education 12、New Features 12、Product 5、
-Partnerships 2、Trends 1、unknown 1。unknown 是 catalog 自身 category 为空的
-“Blum Trading Bot - Terms of Use”，没有按标题猜分类。
-
-## 15. 下一阶段建议
-
-建议下一步进入独立的 `Blum Official Telegram Announcement Acquisition`，但本轮只提交实施
-方案，不执行。其价值是为 2024-03～08 提供精确 message timestamp、连续事件时间线以及
-Blog 未覆盖的公告/规则变更证据。EN/CN/ES official channel 必须先验证官方身份，并继续与
-Community Chat 严格分离。
-
-## Artifacts 与边界
-
-- Aggregate manifest：`historical-blog-aggregate.json`
-- Schema：`docs/schemas/blum-historical-blog-pack-v1.schema.json`
-- Telegram Phase 2 plan：
-  `docs/superpowers/plans/2026-09-11-blum-official-telegram-announcement-acquisition.md`
-- Full catalog inventory、raw snapshots、normalized full text：ignored local
-  `data/private/blum-knowledge-pack-v1-2026-09-11/historical-blog/`
-
-Git 不含 Blum 正文、raw Wayback HTML、full catalog inventory、cache 或 validation DB。本 Track
-不 merge、不 push，不修改 Frozen M2、M3 或 M4，完成后停在 review gate。
+Git 中不含 raw Telegram export、full snapshot、公告正文、media、raw sender/user identifiers、
+secret 或 private DB。本 Track 停在 review gate；不 merge main，不 push，不启动 M3/M4。

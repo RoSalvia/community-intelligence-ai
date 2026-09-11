@@ -1,0 +1,68 @@
+{
+  "version": "blum-official-telegram-knowledge-v1",
+  "generated_at": "2026-09-11T11:01:50+00:00",
+  "identity": {
+    "channel_name": "Blum: All Crypto – One App",
+    "channel_id": 10629372799,
+    "channel_type": "public_channel",
+    "canonical_username": "blumcrypto",
+    "authority": "official",
+    "evidence": [
+      "https://blum.io/post/official-blum-links",
+      "https://t.me/blumcrypto"
+    ]
+  },
+  "stable_source_slice": {
+    "extraction_method_version": "telegram-live-json-channel-slice-v1.0.0",
+    "source_byte_range": [49052210, 52060211],
+    "source_byte_range_sha256": "92819093a86c6ad0b95c71a78e6195b53333d740db3062e5e200a7c80bc16e43",
+    "checks": 3,
+    "stable": true,
+    "observed_source_growth": true,
+    "observed_source_sizes": [86960846, 86973642, 86989032],
+    "snapshot_sha256": "8711b0bd0ad5e12cc5fba7ef607136149cc5e098617c707c333325ca4c638d2a"
+  },
+  "corpus": {
+    "source_message_id_minimum": 3,
+    "source_message_id_maximum": 1350,
+    "ordinary_message_count": 1178,
+    "knowledge_message_count": 1091,
+    "textless_ordinary_message_count": 87,
+    "service_event_count": 48,
+    "precise_timestamp_count": 1178,
+    "precise_timestamp_coverage": 1.0,
+    "first_ordinary_timestamp": "2024-02-19T23:40:24Z",
+    "last_ordinary_timestamp": "2026-09-10T05:57:33Z",
+    "language_counts": {"en": 1082, "und": 9},
+    "link_message_count": 677,
+    "link_count": 2678,
+    "media_reference_message_count": 0,
+    "forwarded_message_count": 67,
+    "reaction_message_count": 1091,
+    "duplicate_normalized_content_hash_groups": 3,
+    "duplicate_raw_hash_groups": 0,
+    "hash_ledger_entries": 1091,
+    "hash_ledger_sha256": "307cc56e3188d843049b31c16046b6d572b402784f6a1317fdbf2c0244b8c780",
+    "window_2024_03_through_09_count": 291,
+    "window_month_counts": {
+      "2024-03": 23,
+      "2024-04": 42,
+      "2024-05": 46,
+      "2024-06": 45,
+      "2024-07": 44,
+      "2024-08": 49,
+      "2024-09": 42
+    }
+  },
+  "time_contract": {
+    "published_at_basis": "telegram_date_unixtime",
+    "temporal_precision": "second",
+    "effective_from_default": null,
+    "announcement_time_promoted_to_effective_count": 0
+  },
+  "private_artifacts": {
+    "tracked_full_text_count": 0,
+    "git_ignored": true,
+    "normalized_jsonl_sha256": "ff280b02646804957bc91b1880987f590db443557f9b62950e45ebaa4eb07b26"
+  }
+}

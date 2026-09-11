@@ -258,7 +258,7 @@ def test_archive_language_audit_keeps_declared_language_mismatch() -> None:
     assert source.language_mismatch is True
 
 
-def test_historical_archive_compatibility_probe_reports_all_time_blockers() -> None:
+def test_historical_archive_compatibility_probe_accepts_honest_day_precision() -> None:
     card = blum.BlogCatalogCard(
         catalog_url="https://blum.io/blog",
         article_title="Historical Article",
@@ -296,12 +296,9 @@ def test_historical_archive_compatibility_probe_reports_all_time_blockers() -> N
     report = blum.assess_historical_frozen_m2_compatibility([source])
 
     assert report["source_count"] == 1
-    assert report["honestly_importable_count"] == 0
-    assert report["metadata_blocked_count"] == 1
-    assert report["blocker_counts"] == {
-        "date_only_publication_vs_precise_datetime": 1,
-        "missing_confirmed_effective_from": 1,
-    }
+    assert report["honestly_importable_count"] == 1
+    assert report["metadata_blocked_count"] == 0
+    assert report["blocker_counts"] == {}
 
 
 def test_controlled_set_is_limited_to_cn_chat_overlap() -> None:
@@ -393,6 +390,13 @@ def test_historical_blog_runner_writes_private_artifacts_and_gate(tmp_path: Path
         next((tmp_path / "historical-blog" / "normalized").glob("*.json")).read_text()
     )
     assert "Telegram mini app" in normalized["content"]
+    loaded = blum.load_private_historical_sources(tmp_path / "historical-blog", phase="controlled")
+    adapted = blum.historical_blog_source_input(loaded[0])
+    assert adapted.published_on.isoformat() == "2024-04-19"
+    assert adapted.published_at is None
+    assert adapted.temporal_precision == "day"
+    assert adapted.effective_from is None
+    assert adapted.semantic_tags["archive_snapshot_time_role"] == "capture-only-not-publication"
 
 
 def test_sitemap_parser_handles_urlset_and_index_without_guessing_types() -> None:
@@ -664,7 +668,7 @@ def test_manifest_separates_help_hint_coverage_from_fetch_success() -> None:
     assert manifest["summary"]["help_official_url_unavailable_count"] == 1
 
 
-def test_frozen_m2_adapter_refuses_date_only_or_missing_validity() -> None:
+def test_precision_aware_m2_adapter_accepts_date_only_without_effective_time() -> None:
     page = AcquiredPage(
         requested_url="https://blum.io/post/a",
         final_url="https://blum.io/post/a",
@@ -686,8 +690,15 @@ def test_frozen_m2_adapter_refuses_date_only_or_missing_validity() -> None:
         source_channel="website",
     )
 
-    with pytest.raises(ValueError, match="precise source-provided published_at"):
-        importable_source_input(source)
+    adapted = importable_source_input(source)
+
+    assert adapted.source_type == "official_blog"
+    assert adapted.published_on.isoformat() == "2025-07-28"
+    assert adapted.published_at is None
+    assert adapted.temporal_precision == "day"
+    assert adapted.effective_from is None
+    assert adapted.source_timezone == "date-only"
+    assert adapted.metadata_provenance["validity"] == "not-provided"
 
 
 def test_frozen_m2_adapter_accepts_precise_source_time_without_changing_baseline(
@@ -732,7 +743,7 @@ def test_frozen_m2_adapter_accepts_precise_source_time_without_changing_baseline
 
     assert adapted.published_at == datetime(2025, 7, 28, 12, 30, tzinfo=UTC)
     assert adapted.effective_from == adapted.published_at
-    assert adapted.source_type == "product_docs"
+    assert adapted.source_type == "official_blog"
 
     result = import_sources_into_frozen_m2(
         [source],

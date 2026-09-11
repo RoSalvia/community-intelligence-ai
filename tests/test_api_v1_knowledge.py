@@ -100,6 +100,44 @@ def test_knowledge_api_adds_manual_and_file_sources_then_opens_citation(tmp_path
     assert review.status_code == 200
 
 
+def test_knowledge_api_accepts_date_only_publication_without_effective_time(
+    tmp_path: Path,
+) -> None:
+    client = TestClient(create_app(data_root=tmp_path / "app-data"))
+    workspace_id = client.post("/api/v1/workspaces", json={"project_name": "Blum"}).json()[
+        "workspace_id"
+    ]
+    payload = valid_metadata("# Tribes\n\nBlum introduced Tribes for community collaboration.")
+    payload.update(
+        {
+            "title": "Blum Tribes",
+            "source_type": "official_blog",
+            "source_channel": "website",
+            "canonical_url": "https://blum.io/post/tribes",
+            "published_on": "2024-07-22",
+            "published_at": None,
+            "temporal_precision": "day",
+            "effective_from": None,
+            "metadata_provenance": {
+                "source_type": "human-confirmed",
+                "authority_level": "human-confirmed",
+                "official_status": "human-confirmed",
+                "published_on": "source-provided",
+                "validity": "human-confirmed",
+            },
+        }
+    )
+
+    created = client.post(
+        f"/api/v1/workspaces/{workspace_id}/knowledge-sources/manual", json=payload
+    )
+
+    assert created.status_code == 201, created.text
+    assert created.json()["published_on"] == "2024-07-22"
+    assert created.json()["published_at"] is None
+    assert created.json()["temporal_precision"] == "day"
+
+
 def test_knowledge_file_api_rejects_scanned_pdf_and_unknown_format(tmp_path: Path) -> None:
     client = TestClient(create_app(data_root=tmp_path / "app-data"))
     workspace_id = client.post("/api/v1/workspaces", json={"project_name": "Web3"}).json()[

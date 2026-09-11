@@ -22,7 +22,7 @@ from sqlalchemy import (
     text,
 )
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 metadata = MetaData()
 
 schema_migrations = Table(
@@ -188,9 +188,11 @@ knowledge_revisions = Table(
     Column("content_hash", String, nullable=False),
     Column("artifact_path", Text, nullable=False),
     Column("status", String, nullable=False),
-    Column("published_at", String, nullable=False),
+    Column("published_on", String),
+    Column("published_at", String),
+    Column("temporal_precision", String, nullable=False),
     Column("updated_at", String),
-    Column("effective_from", String, nullable=False),
+    Column("effective_from", String),
     Column("effective_until", String),
     Column("ingested_at", String, nullable=False),
     Column("observed_at", String, nullable=False),
@@ -267,6 +269,11 @@ class Database:
 
     def migrate(self, *, applied_at: str) -> None:
         metadata.create_all(self.engine)
+        with self.engine.connect() as connection:
+            current = connection.scalar(select(schema_migrations.c.version).limit(1))
+        if current in {1, 2}:
+            self._migrate_temporal_precision_from_v2(applied_at=applied_at)
+            current = SCHEMA_VERSION
         with self.engine.begin() as connection:
             connection.execute(
                 text(
@@ -289,17 +296,9 @@ class Database:
                     """
                 )
             )
-            current = connection.scalar(select(schema_migrations.c.version).limit(1))
             if current is None:
                 connection.execute(
                     insert(schema_migrations).values(
-                        version=SCHEMA_VERSION,
-                        applied_at=applied_at,
-                    )
-                )
-            elif current == 1:
-                connection.execute(
-                    schema_migrations.update().values(
                         version=SCHEMA_VERSION,
                         applied_at=applied_at,
                     )
@@ -308,3 +307,89 @@ class Database:
                 raise RuntimeError(
                     f"database schema {current} is incompatible with {SCHEMA_VERSION}"
                 )
+
+    def _migrate_temporal_precision_from_v2(self, *, applied_at: str) -> None:
+        """Rebuild the revision table so date-only publication and null validity stay honest."""
+
+        raw_connection = self.engine.raw_connection()
+        cursor = raw_connection.cursor()
+        try:
+            cursor.execute("PRAGMA foreign_keys=OFF")
+            cursor.execute("BEGIN IMMEDIATE")
+            cursor.execute(
+                """
+                CREATE TABLE knowledge_revisions_v3 (
+                    revision_id VARCHAR NOT NULL PRIMARY KEY,
+                    source_id VARCHAR NOT NULL REFERENCES knowledge_sources (source_id),
+                    version INTEGER NOT NULL,
+                    content_hash VARCHAR NOT NULL,
+                    artifact_path TEXT NOT NULL,
+                    status VARCHAR NOT NULL,
+                    published_on VARCHAR,
+                    published_at VARCHAR,
+                    temporal_precision VARCHAR NOT NULL,
+                    updated_at VARCHAR,
+                    effective_from VARCHAR,
+                    effective_until VARCHAR,
+                    ingested_at VARCHAR NOT NULL,
+                    observed_at VARCHAR NOT NULL,
+                    superseded_at VARCHAR,
+                    source_timezone VARCHAR NOT NULL,
+                    revision_metadata_provenance_json TEXT NOT NULL,
+                    revision_semantic_tags_json TEXT NOT NULL DEFAULT '{}',
+                    supersedes_source_id VARCHAR,
+                    supersedes_revision_id VARCHAR,
+                    superseded_by_source_id VARCHAR,
+                    superseded_by_revision_id VARCHAR,
+                    parser_version VARCHAR NOT NULL,
+                    chunk_strategy VARCHAR NOT NULL,
+                    chunk_strategy_version VARCHAR NOT NULL,
+                    embedding_model VARCHAR,
+                    embedding_revision VARCHAR,
+                    index_version VARCHAR NOT NULL,
+                    parse_status VARCHAR NOT NULL,
+                    index_status VARCHAR NOT NULL,
+                    error TEXT,
+                    CONSTRAINT uq_knowledge_source_version UNIQUE (source_id, version),
+                    CONSTRAINT uq_knowledge_source_content UNIQUE (source_id, content_hash)
+                )
+                """
+            )
+            cursor.execute(
+                """
+                INSERT INTO knowledge_revisions_v3 (
+                    revision_id, source_id, version, content_hash, artifact_path, status,
+                    published_on, published_at, temporal_precision, updated_at,
+                    effective_from, effective_until, ingested_at, observed_at, superseded_at,
+                    source_timezone, revision_metadata_provenance_json,
+                    revision_semantic_tags_json, supersedes_source_id, supersedes_revision_id,
+                    superseded_by_source_id, superseded_by_revision_id, parser_version,
+                    chunk_strategy, chunk_strategy_version, embedding_model, embedding_revision,
+                    index_version, parse_status, index_status, error
+                )
+                SELECT
+                    revision_id, source_id, version, content_hash, artifact_path, status,
+                    NULL, published_at, 'second', updated_at,
+                    effective_from, effective_until, ingested_at, observed_at, superseded_at,
+                    source_timezone, revision_metadata_provenance_json,
+                    revision_semantic_tags_json, supersedes_source_id, supersedes_revision_id,
+                    superseded_by_source_id, superseded_by_revision_id, parser_version,
+                    chunk_strategy, chunk_strategy_version, embedding_model, embedding_revision,
+                    index_version, parse_status, index_status, error
+                FROM knowledge_revisions
+                """
+            )
+            cursor.execute("DROP TABLE knowledge_revisions")
+            cursor.execute("ALTER TABLE knowledge_revisions_v3 RENAME TO knowledge_revisions")
+            cursor.execute(
+                "UPDATE schema_migrations SET version=?, applied_at=?",
+                (SCHEMA_VERSION, applied_at),
+            )
+            raw_connection.commit()
+        except BaseException:
+            raw_connection.rollback()
+            raise
+        finally:
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
+            raw_connection.close()

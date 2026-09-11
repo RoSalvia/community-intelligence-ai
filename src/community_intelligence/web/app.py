@@ -7,7 +7,7 @@ import os
 import re
 import tempfile
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -75,9 +75,11 @@ class KnowledgeSourceRequest(ApiRequest):
     source_type: str
     source_channel: str
     content: str
-    published_at: datetime
-    effective_from: datetime
-    source_timezone: str
+    published_at: datetime | None = None
+    effective_from: datetime | None = None
+    source_timezone: str = "UTC"
+    published_on: date | None = None
+    temporal_precision: Literal["day", "second"] | None = None
     canonical_url: str | None = None
     platform: str | None = None
     platform_content_id: str | None = None

@@ -1,6 +1,10 @@
 # Blum Official Telegram Announcement Acquisition — Phase 2 Plan
 
-状态：**PLAN ONLY / NOT STARTED**
+状态：**SUPERSEDED AND EXECUTED IN APPROVED SINGLE-CHANNEL SCOPE**
+
+本计划原先要求新的执行批准。该批准已由后续
+`2026-09-11-blum-temporal-telegram-knowledge.md` 明确给出；本轮仅执行已确认完整且有一手身份链的
+`Blum: All Crypto – One App`，没有扩展到 CN/ES announcement discovery。
 
 ## Goal
 

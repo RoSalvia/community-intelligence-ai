@@ -11,7 +11,7 @@ import uuid
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -51,6 +51,7 @@ SOURCE_TYPES = {
     "campaign_rules",
     "community_rules",
     "manual_official_note",
+    "telegram_announcement",
 }
 SOURCE_CHANNELS = {
     "docs",
@@ -61,6 +62,7 @@ SOURCE_CHANNELS = {
     "github",
     "governance",
     "manual",
+    "telegram",
 }
 SOURCE_STATUSES = {"current", "superseded", "expired", "historical", "draft", "unknown"}
 PROVENANCE_VALUES = {
@@ -68,14 +70,15 @@ PROVENANCE_VALUES = {
     "human-confirmed",
     "system-derived",
     "ai-inferred",
+    "not-provided",
 }
 CRITICAL_METADATA = {
     "source_type",
     "authority_level",
     "official_status",
-    "published_at",
     "validity",
 }
+TEMPORAL_PRECISIONS = {"day", "second"}
 PARSER_VERSION = "plain-text-and-pdf-v1"
 CHUNK_STRATEGY = "structure-aware"
 CHUNK_STRATEGY_VERSION = "structure-v1"
@@ -176,9 +179,11 @@ class SourceInput:
     source_type: str
     source_channel: str
     content: str | bytes
-    published_at: datetime
-    effective_from: datetime
-    source_timezone: str
+    published_at: datetime | None = None
+    effective_from: datetime | None = None
+    source_timezone: str = "UTC"
+    published_on: date | None = None
+    temporal_precision: str | None = None
     canonical_url: str | None = None
     platform: str | None = None
     platform_content_id: str | None = None
@@ -250,11 +255,24 @@ class KnowledgeService:
             source.superseded_at,
         ):
             _iso(value)
-        if source.effective_until and source.effective_until <= source.effective_from:
+        precision = self._publication_precision(source)
+        if precision == "day":
+            if source.published_on is None:
+                raise ValueError("day precision requires published_on")
+            if source.published_at is not None:
+                raise ValueError("day precision must not include published_at")
+        elif source.published_at is None:
+            raise ValueError("second precision requires published_at")
+        if source.effective_from and source.effective_until and (
+            source.effective_until <= source.effective_from
+        ):
             raise ValueError("effective_until must be after effective_from")
         missing = CRITICAL_METADATA - source.metadata_provenance.keys()
         if missing:
             raise ValueError(f"metadata provenance missing: {', '.join(sorted(missing))}")
+        publication_key = "published_on" if precision == "day" else "published_at"
+        if publication_key not in source.metadata_provenance:
+            raise ValueError(f"metadata provenance missing: {publication_key}")
         if any(value not in PROVENANCE_VALUES for value in source.metadata_provenance.values()):
             raise ValueError("unsupported metadata provenance")
         protected = {
@@ -262,10 +280,20 @@ class KnowledgeService:
             "official_status",
             "validity",
             "published_at",
+            "published_on",
             "source_type",
         }
         if any(source.metadata_provenance.get(key) == "ai-inferred" for key in protected):
             raise ValueError("AI-inferred critical metadata requires human confirmation")
+
+    @staticmethod
+    def _publication_precision(source: SourceInput) -> str:
+        precision = source.temporal_precision
+        if precision is None:
+            precision = "second" if source.published_at is not None else "day"
+        if precision not in TEMPORAL_PRECISIONS:
+            raise ValueError("unsupported temporal_precision")
+        return precision
 
     def add_source(self, workspace_id: str, source: SourceInput) -> dict[str, Any]:
         self._validate(source)
@@ -381,7 +409,9 @@ class KnowledgeService:
             "content_hash": content_hash,
             "artifact_path": str(artifact_path),
             "status": source.status,
+            "published_on": source.published_on.isoformat() if source.published_on else None,
             "published_at": _iso(source.published_at),
+            "temporal_precision": self._publication_precision(source),
             "updated_at": _iso(source.updated_at),
             "effective_from": _iso(source.effective_from),
             "effective_until": _iso(source.effective_until),
@@ -782,6 +812,12 @@ class KnowledgeService:
 
         for item in candidates:
             item["temporal_state"] = self._temporal_state(item, when)
+            item["temporal_ambiguity"] = (
+                "same_day_publication_time_unknown"
+                if item["temporal_precision"] == "day"
+                and item["published_on"] == when.date().isoformat()
+                else None
+            )
             if (
                 current_fact_time
                 and item["temporal_state"] == "active"
@@ -903,6 +939,14 @@ class KnowledgeService:
                 else [
                     "Multilingual embedding is not configured; lexical retrieval remains available."
                 ]
+            )
+            + (
+                [
+                    "At least one cited source has day precision; its publication time within "
+                    "that calendar day is unknown."
+                ]
+                if any(item["temporal_ambiguity"] for item in selected)
+                else []
             ),
         }
 
@@ -1068,8 +1112,15 @@ class KnowledgeService:
         start = _dt(item["effective_from"])
         end = _dt(item["effective_until"])
         published = _dt(item["published_at"])
+        published_on = (
+            date.fromisoformat(item["published_on"]) if item.get("published_on") else None
+        )
         superseded = _dt(item["superseded_at"])
-        if (start and when < start) or (published and when < published):
+        if (
+            (start and when < start)
+            or (published and when < published)
+            or (published_on and when.date() < published_on)
+        ):
             return "future"
         if (end and when >= end) or (superseded and when >= superseded):
             return "inactive"
@@ -1131,7 +1182,10 @@ class KnowledgeService:
             "canonical_url": item["canonical_url"],
             "section": item["section"],
             "page": item["page"],
+            "published_on": item["published_on"],
             "published_at": item["published_at"],
+            "temporal_precision": item["temporal_precision"],
+            "temporal_ambiguity": item["temporal_ambiguity"],
             "effective_from": item["effective_from"],
             "effective_until": item["effective_until"],
             "superseded_at": item["superseded_at"],

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from community_intelligence.application.data_foundation import (
     DataFoundationService,
 )
-from community_intelligence.infrastructure.database import analysis_runs, messages
+from community_intelligence.infrastructure.database import Database, analysis_runs, messages
 
 NOW = datetime(2026, 9, 10, 8, 0, tzinfo=UTC)
 
@@ -93,6 +94,60 @@ def test_workspace_communities_and_batch_import_are_persistent_and_idempotent(
     assert renamed["project_name"] == "Wallet Ops"
     assert renamed["settings_version"] == 2
 
+
+def test_schema_v2_migrates_precise_publication_to_explicit_second_precision(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "schema-v2.sqlite3"
+    connection = sqlite3.connect(path)
+    connection.executescript(
+        """
+        CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at VARCHAR NOT NULL);
+        INSERT INTO schema_migrations VALUES (2, '2026-09-10T00:00:00Z');
+        CREATE TABLE knowledge_revisions (
+            revision_id VARCHAR PRIMARY KEY, source_id VARCHAR NOT NULL, version INTEGER NOT NULL,
+            content_hash VARCHAR NOT NULL, artifact_path TEXT NOT NULL, status VARCHAR NOT NULL,
+            published_at VARCHAR NOT NULL, updated_at VARCHAR, effective_from VARCHAR NOT NULL,
+            effective_until VARCHAR, ingested_at VARCHAR NOT NULL, observed_at VARCHAR NOT NULL,
+            superseded_at VARCHAR, source_timezone VARCHAR NOT NULL,
+            revision_metadata_provenance_json TEXT NOT NULL,
+            revision_semantic_tags_json TEXT NOT NULL DEFAULT '{}', supersedes_source_id VARCHAR,
+            supersedes_revision_id VARCHAR, superseded_by_source_id VARCHAR,
+            superseded_by_revision_id VARCHAR, parser_version VARCHAR NOT NULL,
+            chunk_strategy VARCHAR NOT NULL, chunk_strategy_version VARCHAR NOT NULL,
+            embedding_model VARCHAR, embedding_revision VARCHAR, index_version VARCHAR NOT NULL,
+            parse_status VARCHAR NOT NULL, index_status VARCHAR NOT NULL, error TEXT,
+            UNIQUE (source_id, version), UNIQUE (source_id, content_hash)
+        );
+        INSERT INTO knowledge_revisions VALUES (
+            'kr_old', 'ks_old', 1, 'hash', '/private/source.txt', 'current',
+            '2026-01-01T09:00:00Z', NULL, '2026-01-01T09:00:00Z', NULL,
+            '2026-09-10T00:00:00Z', '2026-09-10T00:00:00Z', NULL, 'UTC', '{}', '{}',
+            NULL, NULL, NULL, NULL, 'parser-v1', 'structure-aware', 'structure-v1',
+            NULL, NULL, 'sqlite-fts5-rrf-structure-v2', 'succeeded', 'succeeded', NULL
+        );
+        """
+    )
+    connection.close()
+
+    database = Database(path)
+    database.migrate(applied_at="2026-09-11T00:00:00Z")
+
+    with sqlite3.connect(path) as migrated:
+        columns = {
+            row[1]: {"not_null": bool(row[3])}
+            for row in migrated.execute("PRAGMA table_info(knowledge_revisions)")
+        }
+        row = migrated.execute(
+            "SELECT published_on, published_at, temporal_precision, effective_from "
+            "FROM knowledge_revisions WHERE revision_id='kr_old'"
+        ).fetchone()
+        version = migrated.execute("SELECT version FROM schema_migrations").fetchone()[0]
+
+    assert version == 3
+    assert columns["published_at"]["not_null"] is False
+    assert columns["effective_from"]["not_null"] is False
+    assert row == (None, "2026-01-01T09:00:00Z", "second", "2026-01-01T09:00:00Z")
 
 def test_imported_source_messages_are_immutable(
     service: DataFoundationService,

@@ -1,0 +1,60 @@
+{
+  "version": "blum-temporal-telegram-smoke-v1",
+  "full_private_import": {
+    "input_count": 1168,
+    "imported_count": 1168,
+    "blocked_count": 0,
+    "blog_source_count": 77,
+    "telegram_source_count": 1091,
+    "chunk_count": 8216,
+    "precision_counts": {"day": 77, "second": 1091},
+    "midnight_fabrication_count": 0
+  },
+  "controlled_hybrid_smoke": {
+    "source_count": 4,
+    "blog_source_count": 2,
+    "telegram_source_count": 2,
+    "model_id": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+    "retrieval_methods": ["fts5_bm25", "multilingual_embedding"],
+    "weights_or_thresholds_tuned": false,
+    "all_citations_openable": true,
+    "cases": [
+      {
+        "id": "tribes_before_publication_day",
+        "as_of_time": "2024-07-21T23:59:00Z",
+        "target_blog_recalled": false,
+        "target_telegram_recalled": false
+      },
+      {
+        "id": "tribes_same_day_before_exact_telegram",
+        "as_of_time": "2024-07-22T09:00:00Z",
+        "target_blog_recalled": true,
+        "blog_same_day_ambiguity_exposed": true,
+        "target_telegram_recalled": false
+      },
+      {
+        "id": "tribes_after_exact_telegram",
+        "as_of_time": "2024-07-22T11:00:00Z",
+        "target_blog_recalled": true,
+        "target_telegram_recalled": true,
+        "telegram_published_at": "2024-07-22T10:27:50Z"
+      },
+      {
+        "id": "mini_app_after_exact_telegram",
+        "as_of_time": "2024-04-19T12:00:00Z",
+        "target_blog_recalled": true,
+        "target_telegram_recalled": true,
+        "blog_same_day_ambiguity_exposed": true,
+        "telegram_published_at": "2024-04-19T10:26:00Z"
+      }
+    ]
+  },
+  "frozen_components": {
+    "chunker_version": "structure-v1",
+    "retrieval_version": "sqlite-fts5-rrf-structure-v2",
+    "ranking_version": "authority-validity-rrf-v4",
+    "conflict_policy_version": "majority-one-slot-v1",
+    "answer_policy_version": "material-facts-evidence-v2",
+    "multilingual_policy_version": "multilingual-listwise-v1"
+  }
+}

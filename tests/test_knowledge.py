@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import numpy as np
@@ -128,6 +128,104 @@ def test_as_of_time_returns_historical_then_current_and_outdated_only(
     assert present["answer_status"] == "insufficient_evidence"
     assert present["citations"][0]["source_id"] == current["source_id"]
     assert before_any["answer_status"] == "no_authoritative_source"
+
+
+def test_precision_aware_publication_accepts_day_or_second_without_effective_time(
+    knowledge: tuple[KnowledgeService, str],
+) -> None:
+    service, workspace_id = knowledge
+    blog = service.add_source(
+        workspace_id,
+        source(
+            title="Blum Tribes",
+            source_type="official_blog",
+            source_channel="website",
+            content="# Blum Tribes\n\nBlum introduced Tribes for community collaboration.",
+            canonical_url="https://blum.io/post/tribes",
+            published_on=date(2024, 7, 22),
+            published_at=None,
+            temporal_precision="day",
+            effective_from=None,
+            metadata_provenance={
+                "source_type": "human-confirmed",
+                "authority_level": "human-confirmed",
+                "official_status": "human-confirmed",
+                "published_on": "source-provided",
+                "validity": "not-provided",
+            },
+        ),
+    )
+    telegram = service.add_source(
+        workspace_id,
+        source(
+            title="Blum Official Telegram · 101",
+            source_type="telegram_announcement",
+            source_channel="telegram",
+            content="Blum announced Tribes at an exact Telegram timestamp.",
+            canonical_url="https://t.me/blumcrypto/101",
+            platform="telegram",
+            platform_content_id="101",
+            published_at=datetime(2024, 7, 22, 13, 15, tzinfo=UTC),
+            published_on=None,
+            temporal_precision="second",
+            effective_from=None,
+        ),
+    )
+
+    before_day = service.query(
+        workspace_id,
+        "Blum Tribes community collaboration",
+        as_of_time=datetime(2024, 7, 21, 23, 59, tzinfo=UTC),
+    )
+    same_day = service.query(
+        workspace_id,
+        "Blum Tribes community collaboration",
+        as_of_time=datetime(2024, 7, 22, 9, tzinfo=UTC),
+    )
+    before_telegram = service.query(
+        workspace_id,
+        "exact Telegram timestamp",
+        as_of_time=datetime(2024, 7, 22, 13, 14, 59, tzinfo=UTC),
+    )
+    after_telegram = service.query(
+        workspace_id,
+        "exact Telegram timestamp",
+        as_of_time=datetime(2024, 7, 22, 13, 15, tzinfo=UTC),
+    )
+
+    assert before_day["answer_status"] == "no_authoritative_source"
+    blog_citation = same_day["citations"][0]
+    assert blog_citation["source_id"] == blog["source_id"]
+    assert blog_citation["published_on"] == "2024-07-22"
+    assert blog_citation["published_at"] is None
+    assert blog_citation["temporal_precision"] == "day"
+    assert blog_citation["temporal_ambiguity"] == "same_day_publication_time_unknown"
+    assert service.get_source(blog["source_id"])["metadata_provenance"]["validity"] == (
+        "not-provided"
+    )
+    assert any("day precision" in item for item in same_day["limitations"])
+    assert before_telegram["answer_status"] == "no_authoritative_source"
+    telegram_citation = after_telegram["citations"][0]
+    assert telegram_citation["source_id"] == telegram["source_id"]
+    assert telegram_citation["published_at"] == "2024-07-22T13:15:00Z"
+    assert telegram_citation["temporal_precision"] == "second"
+    assert telegram_citation["temporal_ambiguity"] is None
+
+
+def test_day_precision_rejects_a_synthetic_midnight_datetime(
+    knowledge: tuple[KnowledgeService, str],
+) -> None:
+    service, workspace_id = knowledge
+
+    with pytest.raises(ValueError, match="day precision must not include published_at"):
+        service.add_source(
+            workspace_id,
+            source(
+                published_on=date(2024, 7, 22),
+                published_at=datetime(2024, 7, 22, tzinfo=UTC),
+                temporal_precision="day",
+            ),
+        )
 
 
 def test_conflict_insufficient_and_no_source_are_distinct(

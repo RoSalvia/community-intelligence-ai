@@ -12,7 +12,7 @@ import unicodedata
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
@@ -756,9 +756,6 @@ def assess_historical_frozen_m2_compatibility(
         blockers: list[str] = []
         if source.validation_status != "passed":
             blockers.append("acquisition_or_parser_validation_failed")
-        if source.publication_date_precision != "datetime":
-            blockers.append("date_only_publication_vs_precise_datetime")
-        blockers.append("missing_confirmed_effective_from")
         blocker_counts.update(blockers)
         rows.append(
             {
@@ -1109,29 +1106,29 @@ def build_manifest(
 
 
 def importable_source_input(source: NormalizedSource) -> SourceInput:
-    if source.published_precision != "datetime" or not source.published_at:
-        raise ValueError("Frozen M2 requires a precise source-provided published_at")
-    if source.effective_precision != "datetime" or not source.effective_from:
-        raise ValueError("Frozen M2 requires a precise source-provided effective_from")
-    if source.metadata_provenance.get("validity") not in {
-        "source-provided",
-        "human-confirmed",
-    }:
-        raise ValueError("Frozen M2 requires confirmed effective validity provenance")
-
     def parse(value: str) -> datetime:
         result = datetime.fromisoformat(value.replace("Z", "+00:00"))
         if result.tzinfo is None or result.utcoffset() is None:
-            raise ValueError("Frozen M2 timestamps must be offset-aware")
+            raise ValueError("knowledge timestamps must be offset-aware")
         return result
 
-    published = parse(source.published_at)
-    effective = parse(source.effective_from)
+    if not source.published_at or source.published_precision not in {"date", "datetime"}:
+        raise ValueError("Blum Blog requires a source-provided publication date or timestamp")
+    published_on = (
+        date.fromisoformat(source.published_at) if source.published_precision == "date" else None
+    )
+    published = parse(source.published_at) if source.published_precision == "datetime" else None
+    effective = (
+        parse(source.effective_from)
+        if source.effective_precision == "datetime" and source.effective_from
+        else None
+    )
     updated = parse(source.updated_at) if source.updated_precision == "datetime" else None
     observed = parse(source.observed_at)
+    publication_key = "published_on" if published_on else "published_at"
     return SourceInput(
         title=source.title,
-        source_type=source.source_type,
+        source_type="official_blog",
         source_channel=source.source_channel,
         content=source.content,
         canonical_url=source.canonical_url,
@@ -1141,22 +1138,89 @@ def importable_source_input(source: NormalizedSource) -> SourceInput:
         authority_level="official",
         official_status=source.official_status,
         verification_method="human-confirmed official Blum origin",
+        published_on=published_on,
         published_at=published,
+        temporal_precision="day" if published_on else "second",
         updated_at=updated,
         effective_from=effective,
         observed_at=observed,
-        source_timezone="UTC"
-        if published.utcoffset().total_seconds() == 0
-        else str(published.tzinfo),
-        status="unknown",
+        source_timezone=(
+            "date-only"
+            if published_on
+            else "UTC"
+            if published and published.utcoffset().total_seconds() == 0
+            else str(published.tzinfo)
+        ),
+        status="current",
         metadata_provenance={
             "source_type": source.metadata_provenance["source_type"],
             "authority_level": source.metadata_provenance["authority_level"],
             "official_status": source.metadata_provenance["official_status"],
-            "published_at": source.metadata_provenance["published_at"],
-            "validity": source.metadata_provenance["validity"],
+            publication_key: source.metadata_provenance["published_at"],
+            "validity": (
+                source.metadata_provenance.get("validity", "not-provided")
+                if effective
+                else "not-provided"
+            ),
         },
-        semantic_tags={},
+        semantic_tags={
+            "artifact_id": source.artifact_id,
+            "original_blum_url": source.canonical_url,
+            "acquisition_observed_at": source.observed_at,
+            "raw_snapshot_hash": source.raw_hash,
+            "normalized_content_hash": source.content_hash,
+            "publication_precision_basis": source.published_precision,
+        },
+    )
+
+
+def historical_blog_source_input(source: HistoricalBlogSource) -> SourceInput:
+    """Adapt a validated official-index-linked archive without inventing source time."""
+
+    if source.validation_status != "passed":
+        raise ValueError("historical Blog source did not pass acquisition validation")
+    if source.publication_date_precision != "date":
+        raise ValueError("historical Blog source requires a source-provided publication date")
+    observed = datetime.fromisoformat(source.acquisition_observed_at.replace("Z", "+00:00"))
+    return SourceInput(
+        title=source.official_catalog_title,
+        source_type="official_blog",
+        source_channel="website",
+        content=source.content,
+        canonical_url=source.original_canonical_url,
+        language=source.language,
+        project_scope="blum",
+        authority_level="official",
+        official_status="verified_official",
+        verification_method="current official Blog index links exact archive snapshot",
+        published_on=date.fromisoformat(source.official_catalog_publication_date),
+        published_at=None,
+        temporal_precision="day",
+        effective_from=None,
+        observed_at=observed,
+        source_timezone="date-only",
+        status="current",
+        metadata_provenance={
+            "source_type": "human-confirmed",
+            "authority_level": "human-confirmed",
+            "official_status": "human-confirmed",
+            "published_on": "source-provided",
+            "validity": "not-provided",
+        },
+        semantic_tags={
+            "artifact_id": source.artifact_id,
+            "original_blum_url": source.original_canonical_url,
+            "archive_snapshot_url": source.archive_snapshot_url,
+            "archive_snapshot_at": source.archive_snapshot_at or "",
+            "archive_snapshot_time_role": "capture-only-not-publication",
+            "official_catalog_url": source.official_catalog_url,
+            "official_catalog_category": source.official_catalog_category,
+            "official_catalog_observed_at": source.official_catalog_link_observed_at,
+            "acquisition_observed_at": source.acquisition_observed_at,
+            "raw_snapshot_hash": source.raw_snapshot_hash,
+            "normalized_content_hash": source.content_hash,
+            "provenance_chain": json.dumps(source.provenance_relationship, sort_keys=True),
+        },
     )
 
 
@@ -1394,6 +1458,36 @@ def _write_historical_source(
     normalized_path.parent.mkdir(parents=True, exist_ok=True)
     raw_path.write_bytes(page.body)
     normalized_path.write_text(source.model_dump_json(indent=2), encoding="utf-8")
+
+
+def load_private_historical_sources(
+    root: str | Path, *, phase: str = "all"
+) -> list[HistoricalBlogSource]:
+    """Load a private historical pack while rechecking its normalized and raw hashes."""
+
+    private_root = Path(root).expanduser().resolve()
+    manifest = json.loads(
+        (private_root / f"manifest-{phase}.json").read_text(encoding="utf-8")
+    )
+    sources: list[HistoricalBlogSource] = []
+    for record in manifest.get("sources", []):
+        artifact_id = record["artifact_id"]
+        normalized_path = private_root / "normalized" / f"{artifact_id}.json"
+        raw_path = private_root / "raw" / f"{artifact_id}.html"
+        source = HistoricalBlogSource.model_validate_json(
+            normalized_path.read_text(encoding="utf-8")
+        )
+        if source.artifact_id != artifact_id:
+            raise ValueError(f"artifact id mismatch: {artifact_id}")
+        if hashlib.sha256(source.content.encode()).hexdigest() != source.content_hash:
+            raise ValueError(f"normalized content hash mismatch: {artifact_id}")
+        if hashlib.sha256(raw_path.read_bytes()).hexdigest() != source.raw_snapshot_hash:
+            raise ValueError(f"raw snapshot hash mismatch: {artifact_id}")
+        manifest_hash = record.get("content_hash")
+        if manifest_hash != source.content_hash:
+            raise ValueError(f"manifest content hash mismatch: {artifact_id}")
+        sources.append(source)
+    return sources
 
 
 def _historical_summary(
